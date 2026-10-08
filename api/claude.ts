@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { decide, getAdmin, loadProfile, reserveArticle } from './_billing';
 
 /**
  * Server-side proxy to the Claude API. The browser never sees ANTHROPIC_API_KEY.
@@ -10,6 +11,7 @@ import Anthropic from '@anthropic-ai/sdk';
  *   messages   [{ role: 'user' | 'assistant', content: string | blocks[] }]
  *   maxTokens  optional, capped at MAX_TOKENS_CAP
  *   webSearch  optional, enables Claude's web search tool
+ *   kind       'article' marks a new-article generation: it uses 1 credit (paid) or 1 of the free trial articles
  *   schema     optional JSON schema; response is then guaranteed to match it
  *              (ignored when webSearch is on - citations can't be combined with it)
  */
@@ -85,6 +87,20 @@ export async function POST(request: Request): Promise<Response> {
   if (!validMessages(body.messages)) return json(400, { error: 'Invalid messages.' });
   if (body.system !== undefined && typeof body.system !== 'string') return json(400, { error: 'Invalid system prompt.' });
 
+  // --- plan / credit enforcement ---
+  const db = getAdmin();
+  if (!db) return json(500, { error: 'Billing is not configured on the server (SUPABASE_SERVICE_ROLE_KEY).' });
+  const heavy = body.tier === 'smart' || body.webSearch === true;
+  let refund: (() => Promise<void>) | null = null;
+  if (body.kind === 'article') {
+    const reservation = await reserveArticle(db, userId);
+    if (!reservation.ok) return json(402, { error: reservation.message });
+    refund = reservation.refund ?? null;
+  } else {
+    const decision = decide(await loadProfile(db, userId), heavy);
+    if (!decision.ok) return json(402, { error: decision.message });
+  }
+
   const maxTokens = Math.min(Math.max(Number(body.maxTokens) || 8000, 256), MAX_TOKENS_CAP);
   const webSearch = body.webSearch === true;
   const useSchema = !!body.schema && typeof body.schema === 'object' && !webSearch;
@@ -117,8 +133,8 @@ export async function POST(request: Request): Promise<Response> {
       messages.push({ role: 'assistant', content: final.content });
     }
 
-    if (!final) return json(502, { error: 'No response from model.' });
-    if (final.stop_reason === 'refusal') return json(422, { error: 'The model declined this request.' });
+    if (!final) { await refund?.(); return json(502, { error: 'No response from model.' }); }
+    if (final.stop_reason === 'refusal') { await refund?.(); return json(422, { error: 'The model declined this request.' }); }
 
     // Keep only text produced after the last tool step, so any "let me search..."
     // narration doesn't end up in front of the JSON/article payload.
@@ -131,6 +147,7 @@ export async function POST(request: Request): Promise<Response> {
     console.log(JSON.stringify({ user: userId, model: tier.model, in: inputTokens, out: outputTokens, stop: final.stop_reason }));
     return json(200, { text, stopReason: final.stop_reason, usage: { inputTokens, outputTokens } });
   } catch (err) {
+    await refund?.();
     if (err instanceof Anthropic.RateLimitError) return json(429, { error: 'The AI service is busy. Please retry shortly.' });
     if (err instanceof Anthropic.APIError) {
       console.error('Anthropic API error', err.status, err.message);

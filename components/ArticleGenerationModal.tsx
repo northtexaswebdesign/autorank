@@ -121,7 +121,7 @@ export const ArticleGenerationModal: React.FC<{
       await updateScheduledPost(localPost.id, updates);
     } catch (e) {
       console.error("Failed to generate article text:", e);
-      alert(`Failed to generate article. Please try again.`);
+      alert((e as any)?.message || `Failed to generate article. Please try again.`);
     } finally {
       setIsGeneratingText(false);
     }

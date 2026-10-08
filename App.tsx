@@ -223,6 +223,10 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
                     images: (dbMerged as any).images || (existing as any)?.images || null,
                 };
                 setScheduledPosts(p => p.map(post => post.id === id ? merged : post));
+                if (articleContent !== undefined || article_content !== undefined) {
+                    // the server may have used a credit / trial article; refresh the counters
+                    supabase.from('profiles').select('*').eq('id', user.id).single().then(({ data: pd }) => { if (pd) setProfile(snakeToCamel<UserProfile>(pd)); });
+                }
                 if (editingPostId === id) {
                     setEditingPost(merged);
                     sessionCache.set(`post-${id}`, merged);
@@ -379,7 +383,11 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
         cachePlanData: async (data) => {
             if (selectedBusiness) await contextValue.updateBusiness({ ...selectedBusiness, planData: data });
         },
-        isLocked: false, isTrialExpired: false, isSubscriptionExpired: false,
+        isLocked: userProfile?.planStatus === 'expired' ||
+            (userProfile?.planStatus === 'trial' && (userProfile.trialArticlesCreated ?? 0) >= 3) ||
+            (userProfile?.planStatus === 'paid' && (userProfile.creditsRemaining ?? 0) <= 0),
+        isTrialExpired: userProfile?.planStatus === 'trial' && (userProfile.trialArticlesCreated ?? 0) >= 3,
+        isSubscriptionExpired: userProfile?.planStatus === 'expired',
         cmsIntegration,
         activityLogs
     };

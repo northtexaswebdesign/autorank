@@ -286,6 +286,7 @@ export const generateFullArticle = async (
 
     const responseText = await callClaude({
         tier: 'smart',
+        kind: 'article',
         webSearch: true,
         maxTokens: 16000,
         system: "You are an expert SEO content writer specialized in GEO (Generative Engine Optimization). Write in-depth, helpful content.",

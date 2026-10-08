@@ -373,7 +373,7 @@ export const KeywordPlannerTab: React.FC<KeywordPlannerTabProps> = ({ setActiveT
             await generateAndStoreKeywords(selectedLanguage);
         } catch (error) {
             console.error(error);
-            alert("Failed to generate keywords. Please try again.");
+            alert((error as any)?.message || "Failed to generate keywords. Please try again.");
         }
         setIsGeneratingKeywords(false);
     };

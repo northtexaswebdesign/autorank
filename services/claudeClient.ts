@@ -8,6 +8,8 @@ export interface ClaudeRequest {
     messages: { role: 'user' | 'assistant'; content: any }[];
     maxTokens?: number;
     webSearch?: boolean;
+    /** 'article' = a new article; uses one credit / free trial article */
+    kind?: 'article';
     schema?: Record<string, unknown>;
 }
 

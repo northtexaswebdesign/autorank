@@ -244,7 +244,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
             setGenerationProgress({ value: 100, text: 'Generation successful!' });
         } catch (e) {
             console.error("Generation process failed:", e);
-            alert("Failed to generate article. Please try again.");
+            alert((e as any)?.message || "Failed to generate article. Please try again.");
             await handleUpdatePost({ status: 'scheduled' });
         } finally {
             setIsGeneratingText(false);

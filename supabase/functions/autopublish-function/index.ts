@@ -3,6 +3,7 @@
 //
 // Required secrets:  ANTHROPIC_API_KEY, CRON_SECRET
 // Deploy with verify_jwt = false and call it with header:  x-cron-secret: <CRON_SECRET>
+// Optional JSON body {"business_id": "...", "post_id": "..."} runs just that business/post (manual testing).
 //
 // Images: Claude cannot generate images, so articles are text-only here. Stock photo support
 // will be added alongside the web app.
@@ -163,6 +164,9 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
     }
 
+    let target: { business_id?: string; post_id?: string } = {};
+    try { target = (await req.json()) ?? {}; } catch { /* cron sends an empty body */ }
+
     const supabaseAdmin = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '');
     const log = async (business_id: string | null, status: 'success' | 'error', message: string) => {
         await supabaseAdmin.from('activity_logs').insert({ business_id, status, message, job_name: 'publish-articles' });
@@ -173,7 +177,8 @@ Deno.serve(async (req: Request) => {
         const utcNowISO = new Date().toISOString();
         let processed = 0;
 
-        const { data: businesses, error: bizError } = await supabaseAdmin.from('businesses').select('*').eq('auto_schedule', true);
+        const bizQuery = supabaseAdmin.from('businesses').select('*');
+        const { data: businesses, error: bizError } = await (target.business_id ? bizQuery.eq('id', target.business_id) : bizQuery.eq('auto_schedule', true));
         if (bizError) throw bizError;
 
         for (const businessRaw of businesses ?? []) {
@@ -187,8 +192,10 @@ Deno.serve(async (req: Request) => {
             }
             const profile = snakeToCamel<UserProfile>(profileResult.data);
 
-            const postsResult = await supabaseAdmin.from('posts').select('*')
+            let postsQuery = supabaseAdmin.from('posts').select('*')
                 .eq('business_id', business.id).in('status', ['scheduled', 'draft']).lte('publish_date', utcNowISO);
+            if (target.post_id) postsQuery = postsQuery.eq('id', target.post_id);
+            const postsResult = await postsQuery;
             if (postsResult.error) { await log(business.id, 'error', `Failed to fetch posts: ${postsResult.error.message}`); continue; }
             const postsRaw = postsResult.data || [];
             if (postsRaw.length === 0) continue;
