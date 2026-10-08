@@ -4,7 +4,7 @@ import { uploadImageFromBase64 } from '../utils/imageStorage.ts';
 import { callClaude, callStockPhoto } from './claudeClient.ts';
 
 // Articles get one stock photo (Pexels, resized under 200 KB on the server) as the featured/first image.
-const IMAGES_ENABLED = true;
+const IMAGES_ENABLED = false; // set to true once PEXELS_API_KEY is configured (Vercel + Supabase)
 
 /**
  * Senior Developer Fix: 
