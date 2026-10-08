@@ -40,6 +40,9 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ post }) => {
         });
     }
 
+    // Drop placeholders that have no image behind them (e.g. old posts whose image data was cleaned up)
+    content = content.replace(/<p>\s*\[IMAGE_\d+\]\s*<\/p>/g, '').replace(/\[IMAGE_\d+\]/g, '');
+
     return content;
   }, [rawHtml, post.images]);
 
