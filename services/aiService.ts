@@ -245,6 +245,19 @@ export const analyzeCompetitors = async (
     }
 };
 
+/**
+ * Source rules shared by new articles and rewrites. The model has a web search tool, so every outside claim
+ * must come from a page it actually found; links are copied from the search results, never guessed.
+ */
+const SOURCE_RULES = `CREDIBLE SOURCES (strict):
+    - Every statistic, number, study result, legal or regulatory claim, and "experts say" claim MUST be backed by a source you found with your search tool, linked inline as <a href="URL" target="_blank" rel="noopener">descriptive anchor text</a>. Use only URLs exactly as they appear in your search results. Never guess, shorten or reconstruct a URL.
+    - Name the source and year in the sentence, for example: According to the U.S. Bureau of Labor Statistics (2025), ...
+    - Prefer: government (.gov), universities (.edu), peer-reviewed research, official standards and industry bodies, major trade associations, and well-known publications or data providers (for example Google Search Central, Pew Research, Census Bureau, BLS, Nielsen Norman Group, Harvard Business Review).
+    - Avoid: competitors, content farms, anonymous blogs, press-release sites, forums and social posts.
+    - Use 4 to 8 different outside sources in total.
+    - If you cannot find a credible source for a claim, remove the claim or rewrite it as general guidance without numbers. Never invent statistics, quotes, studies, or URLs.
+    - After the FAQ section, add <h2>Sources</h2> followed by a <ul> listing each source you linked: publisher, title, year, with the link.`;
+
 export const generateFullArticle = async (
     keyword: string, 
     business: BusinessInfo, 
@@ -268,7 +281,7 @@ export const generateFullArticle = async (
     1. Add a well-formatted, clearly written summary at the very beginning of the article, optimized for generative AI engines to quickly extract the main points. Do NOT use the term "TL;DR" or "TL DR". Use a professional heading like "Executive Summary" or "Key Takeaways".
     2. Include a dedicated FAQ section at the end with conversational questions to capture natural language queries.
     3. The article MUST be between 1500 and 2000 words in length. This is a strict requirement for comprehensive coverage.
-    4. Back up claims with real data, statistics, and references to reputable sources. Use your search tool to find accurate, up-to-date data to include.
+    4. ${SOURCE_RULES}
     ${imageInstruction}
     6. INTERNAL LINKING: You MUST include 2-3 highly relevant internal links to existing pages on the business's website. Use your search tool to search the site (e.g., "site:${business.url} [related topic]") or reference their sitemap (${business.sitemapUrl ? business.sitemapUrl : 'if available'}) to find the exact URLs of relevant existing articles. Embed these links naturally within the HTML content using descriptive anchor text.
     
@@ -369,7 +382,7 @@ export const rewriteArticle = async (content: string, keyword: string, feedback:
         1. Ensure there is a well-formatted, clearly written summary at the very beginning of the article, optimized for generative AI engines to quickly extract the main points. Do NOT use the term "TL;DR" or "TL DR". Use a professional heading like "Executive Summary" or "Key Takeaways".
         2. Ensure there is a dedicated FAQ section at the end with conversational questions to capture natural language queries.
         3. The article MUST be between 1500 and 2000 words in length. This is a strict requirement for comprehensive coverage.
-        4. Back up claims with real data, statistics, and references to reputable sources. Use your search tool to find accurate, up-to-date data to include.
+        4. ${SOURCE_RULES}
         ${imageInstruction}
         6. INTERNAL LINKING: You MUST include 2-3 highly relevant internal links to existing pages on the business's website. Use your search tool to search the site (e.g., "site:${business.url} [related topic]") or reference their sitemap (${business.sitemapUrl ? business.sitemapUrl : 'if available'}) to find the exact URLs of relevant existing articles. Embed these links naturally within the HTML content using descriptive anchor text.
         

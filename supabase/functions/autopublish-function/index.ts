@@ -5,6 +5,7 @@
 // Deploy with verify_jwt = false and call it with header:  x-cron-secret: <CRON_SECRET>
 // Optional JSON body {"business_id": "...", "post_id": "..."} runs just that business/post (manual testing).
 //
+// Articles are written with web search so outside links point to real, credible sources; dead links are removed before publishing.
 // Images: each article gets a branded 1080x1080 cover from the web app's /api/cover (brand style saved on the
 // business, else read from its website, else a look chosen for the topic). Optional secret: APP_URL (defaults to
 // https://autorank-umber.vercel.app); the web app needs the same CRON_SECRET. If the cover fails, a Pexels stock
@@ -81,25 +82,62 @@ ${languageInstruction}
 **SEO & Linking Requirements:**
 - Integrate "${keyword}" 5-10 times naturally.
 - Embed exactly one internal link to: ${business.url}.
-- Include 2-3 external links to high-authority, non-competing websites.
+- CREDIBLE SOURCES (strict): every statistic, number, study result, legal or regulatory claim must be backed by a source you found with your search tool, linked inline as <a href=\"URL\" target=\"_blank\" rel=\"noopener\">descriptive anchor text</a>. Use only URLs exactly as they appear in your search results; never guess or reconstruct a URL. Name the source and year in the sentence. Prefer government (.gov), universities (.edu), peer-reviewed research, official standards and industry bodies, and well-known publications or data providers. Avoid competitors, content farms, anonymous blogs, forums and social posts. Use 4 to 8 different outside sources. If you cannot find a credible source for a claim, remove it or state it as general guidance without numbers. Never invent statistics, quotes, studies or URLs. After the last section add <h2>Sources</h2> and a <ul> listing each linked source (publisher, title, year).
 **Formatting and Style:**
 - Output clean HTML only (<h1>, <h2>, <h3>, <p>, <a>, <ul>, <li>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <strong>). No <html>, <head>, <body>, no markdown, no code fences, no images or image placeholders.
 - Do not invent an author name or byline. Short paragraphs, no fluff.
 **Business Integration:** Mention ${business.name} 2-3 times where it adds value. Informational tone.
 Output only the HTML of the article.`;
 
-    const stream = getClient().messages.stream({
-        model: MODEL_ARTICLE,
-        max_tokens: 12000,
-        messages: [{ role: 'user', content: prompt }],
-        output_config: { effort: 'medium' },
-    } as any);
-    const message = await stream.finalMessage();
+    // Web search lets the model find real sources; resume if the turn pauses mid-search.
+    const messages: any[] = [{ role: 'user', content: prompt }];
+    let message: Anthropic.Message | null = null;
+    for (let i = 0; i <= 4; i++) {
+        const stream = getClient().messages.stream({
+            model: MODEL_ARTICLE,
+            max_tokens: 12000,
+            messages,
+            output_config: { effort: 'medium' },
+            tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 5 }],
+        } as any);
+        message = await stream.finalMessage();
+        if (message.stop_reason !== 'pause_turn') break;
+        messages.push({ role: 'assistant', content: message.content });
+    }
+    if (!message) throw new Error('No response from model.');
     if (message.stop_reason === 'refusal') throw new Error('Article generation was declined by the model.');
 
-    let html = textOf(message).trim().replace(/^```(?:html)?\s*/i, '').replace(/\s*```$/, '').trim();
+    // keep only the text written after the last search step (drops "let me search..." narration)
+    let text = '';
+    for (const block of message.content as any[]) {
+        if (block.type === 'text') text += block.text;
+        else if (block.type !== 'thinking' && block.type !== 'redacted_thinking') text = '';
+    }
+    let html = text.trim().replace(/^```(?:html)?\s*/i, '').replace(/\s*```$/, '').trim();
     if (html.length < 200) throw new Error(`Article generation returned an empty or too-short response (stop_reason: ${message.stop_reason}).`);
-    return html;
+    return await dropDeadLinks(html, business.url);
+};
+
+// Removes outside links that no longer load (404/410 or unreachable) and keeps their text, so a published
+// article never points readers at a dead page. Sites that block bots (403/429/999) are left alone.
+const dropDeadLinks = async (html: string, ownUrl: string): Promise<string> => {
+    let ownHost = '';
+    try { ownHost = new URL(ownUrl.startsWith('http') ? ownUrl : `https://${ownUrl}`).hostname.replace(/^www\./, ''); } catch { /* no own host */ }
+    const urls = [...new Set([...html.matchAll(/<a\s[^>]*href=["'](https?:\/\/[^"']+)["']/gi)].map(m => m[1]))].slice(0, 20);
+    const dead = new Set<string>();
+    await Promise.all(urls.map(async (u) => {
+        try {
+            const host = new URL(u).hostname.replace(/^www\./, '');
+            if (!host.includes('.') || /^[\d.]+$/.test(host) || host === ownHost) return;
+            const res = await fetch(u, { redirect: 'follow', signal: AbortSignal.timeout(7000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AutorankLinkCheck/1.0)' } });
+            if (res.status === 404 || res.status === 410) dead.add(u);
+            await res.body?.cancel();
+        } catch (e: any) {
+            if (e?.name !== 'TimeoutError') dead.add(u); // DNS failure or refused; a slow site is kept
+        }
+    }));
+    if (!dead.size) return html;
+    return html.replace(/<a\s[^>]*href=["'](https?:\/\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (m, href, inner) => (dead.has(href) ? inner : m));
 };
 
 const analyzeArticleForGEO = async (articleContent: string, keyword: string) =>
