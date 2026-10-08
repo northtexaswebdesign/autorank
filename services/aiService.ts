@@ -1,10 +1,10 @@
 import { BusinessInfo, Keyword, ContentCluster, CompetitorAnalysis, CmsIntegration, ScheduledPost, PostImages, GeneratedImage, ContentBrief, KeywordOpportunity } from "../types.ts";
 import { uploadImageFromBase64 } from '../utils/imageStorage.ts';
 
-import { callClaude } from './claudeClient.ts';
+import { callClaude, callStockPhoto } from './claudeClient.ts';
 
-// Stock photos are not wired up yet; until they are, articles are generated text-only.
-const IMAGES_ENABLED = false;
+// Articles get one stock photo (Pexels, resized under 200 KB on the server) as the featured/first image.
+const IMAGES_ENABLED = true;
 
 /**
  * Senior Developer Fix: 
@@ -312,12 +312,18 @@ export const generateFullArticle = async (
 };
 
 export const generateArticleImages = async (
-    _keyword: string,
-    _business: BusinessInfo,
-    _onProgress?: (progress: { value: number; text: string }) => void
+    keyword: string,
+    business: BusinessInfo,
+    onProgress?: (progress: { value: number; text: string }) => void
 ): Promise<PostImages> => {
-    // Placeholder until stock photo support lands (Claude cannot generate images).
-    return {};
+    onProgress?.({ value: 10, text: "Finding a stock photo..." });
+    const photo = await callStockPhoto(keyword, business.name);
+
+    onProgress?.({ value: 50, text: "Uploading photo..." });
+    const url = await uploadImageFromBase64(photo.base64, 'stock');
+    if (!url) throw new Error('The photo could not be uploaded to storage. Please try again.');
+
+    return { featureImage: { url, prompt: photo.alt } };
 };
 
 export const analyzeArticleForGEO = async (content: string, keyword: string) => {
@@ -558,9 +564,10 @@ export const generateMetaData = async (content: string, keyword: string, busines
     }
 };
 
-export const generateSingleImage = async (_prompt: string, _aspectRatio: "1:1" | "16:9" = "1:1"): Promise<string> => {
-    // Claude does not generate images. Stock photo support is planned; see IMAGES_ENABLED.
-    throw new Error("AI image generation is not available. Upload an image instead.");
+/** Returns the base64 of a stock photo for the given topic (a different one each call). Used by the "regenerate image" button. */
+export const generateSingleImage = async (prompt: string, _aspectRatio: "1:1" | "16:9" = "1:1"): Promise<string> => {
+    const photo = await callStockPhoto(prompt, '', 1 + Math.floor(Math.random() * 20));
+    return photo.base64;
 };
 
 export const generateImageAltText = async (base64: string, keyword: string) => {

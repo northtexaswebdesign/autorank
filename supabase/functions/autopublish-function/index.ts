@@ -5,8 +5,8 @@
 // Deploy with verify_jwt = false and call it with header:  x-cron-secret: <CRON_SECRET>
 // Optional JSON body {"business_id": "...", "post_id": "..."} runs just that business/post (manual testing).
 //
-// Images: Claude cannot generate images, so articles are text-only here. Stock photo support
-// will be added alongside the web app.
+// Images: Claude cannot generate images, so each article gets one Pexels stock photo (resized to
+// under 200 KB). Optional secret: PEXELS_API_KEY (without it, posts publish without an image).
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Anthropic from 'npm:@anthropic-ai/sdk';
 
@@ -132,7 +132,67 @@ const safeParseJson = async (response: Response, label: string): Promise<any> =>
     catch { throw new Error(`${label} claimed JSON but failed to parse: "${rawText.slice(0, 300)}"`); }
 };
 
-const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost): Promise<string> => {
+// --- Stock photo (Pexels), always under 200 KB ---
+const PHOTO_MAX_BYTES = 200_000;
+const PHOTO_WIDTHS = [1200, 1000, 800, 640];
+
+const getStockPhoto = async (keyword: string, businessName: string): Promise<{ bytes: Uint8Array; alt: string } | null> => {
+    const pexelsKey = Deno.env.get('PEXELS_API_KEY');
+    if (!pexelsKey) return null;
+
+    const q = await askJson(MODEL_LIGHT,
+        `We need a stock photo for a blog article about "${keyword}" published by ${businessName}. Give: "query": a 2-4 word search query for a stock photo site that finds a realistic, relevant photo (concrete things you could photograph, no abstract words); "alt": SEO alt text under 125 characters describing a fitting photo.`,
+        { type: 'object', properties: { query: { type: 'string' }, alt: { type: 'string' } }, required: ['query', 'alt'], additionalProperties: false }, 300);
+
+    const search = async (term: string) => {
+        const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(term)}&orientation=landscape&size=large&per_page=15`, { headers: { Authorization: pexelsKey } });
+        if (!res.ok) throw new Error(`Pexels search failed (${res.status}).`);
+        const data = await res.json();
+        return (data.photos || []).filter((p: any) => p.width >= 1200 && typeof p.src?.original === 'string');
+    };
+    let photos = await search(q.query);
+    if (photos.length === 0) photos = await search(businessName || 'business office');
+    if (photos.length === 0) return null;
+
+    const original = new URL(photos[0].src.original);
+    if (original.hostname !== 'images.pexels.com') return null;
+    for (const w of PHOTO_WIDTHS) {
+        const res = await fetch(`${original.origin}${original.pathname}?auto=compress&cs=tinysrgb&w=${w}&h=${Math.round((w * 9) / 16)}&fit=crop`);
+        if (!res.ok) continue;
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        if (bytes.length <= PHOTO_MAX_BYTES) return { bytes, alt: q.alt };
+    }
+    return null;
+};
+
+// Use the photo the app already attached to the post (stored in Supabase storage), else pick a stock photo.
+const getPhotoForPost = async (post: ScheduledPost, businessName: string): Promise<{ bytes: Uint8Array; alt: string } | null> => {
+    const existing = (post as any).images?.featureImage;
+    if (existing?.url) {
+        const res = await fetch(existing.url);
+        if (res.ok) return { bytes: new Uint8Array(await res.arrayBuffer()), alt: existing.prompt || post.keyword };
+    }
+    return await getStockPhoto(post.keyword, businessName);
+};
+
+const uploadMedia = async (baseApiUrl: string, credentials: string, bytes: Uint8Array, filename: string, alt: string): Promise<{ id: number; url: string }> => {
+    const res = await fetch(`${baseApiUrl}/media`, {
+        method: 'POST',
+        headers: { Authorization: `Basic ${credentials}`, 'Content-Type': 'image/jpeg', 'Content-Disposition': `attachment; filename="${filename}"` },
+        body: bytes,
+    });
+    const data = await safeParseJson(res, 'WordPress Media API');
+    if (!res.ok) throw new Error(`WordPress Media API Error: ${data?.message || `HTTP ${res.status}`}`);
+    // set alt text / title (best effort)
+    await fetch(`${baseApiUrl}/media/${data.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Basic ${credentials}` },
+        body: JSON.stringify({ alt_text: alt, title: alt }),
+    }).catch(() => {});
+    return { id: data.id, url: data.source_url };
+};
+
+const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost, businessName: string): Promise<{ link: string; featureImage?: { url: string; prompt: string } }> => {
     if (!cms.url || !cms.username || !cms.applicationPassword) throw new Error('WordPress integration details are incomplete.');
     if (!post.articleContent) throw new Error('Article content is empty at the final stage before publishing.');
 
@@ -140,21 +200,42 @@ const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost): Pro
     const baseApiUrl = `${cms.url.replace(/\/$/, '')}/wp-json/wp/v2`;
     const slug = post.slug || post.keyword.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
+    // Photo step must never block publishing: on any failure the post goes out without an image.
+    let featuredMediaId: number | undefined;
+    let featureImage: { url: string; prompt: string } | undefined;
+    let content = post.articleContent;
+    try {
+        const photo = await getPhotoForPost(post, businessName);
+        if (photo) {
+            const media = await uploadMedia(baseApiUrl, credentials, photo.bytes, `${slug}-feature.jpg`, photo.alt);
+            featuredMediaId = media.id;
+            featureImage = { url: media.url, prompt: photo.alt };
+            const imgTag = `<p><img src="${media.url}" alt="${photo.alt.replace(/"/g, '&quot;')}" style="max-width:100%;height:auto;border-radius:8px" /></p>`;
+            if (/\[IMAGE_1\]/.test(content)) content = content.replace(/<p>\s*\[IMAGE_1\]\s*<\/p>|\[IMAGE_1\]/, imgTag);
+            else if (/<\/h1>/i.test(content)) content = content.replace(/<\/h1>/i, (m) => m + imgTag);
+            else content = imgTag + content;
+        }
+    } catch (photoError: any) {
+        console.error('Photo step failed, publishing without image:', photoError.message);
+    }
+    content = content.replace(/<p>\s*\[IMAGE_\d+\]\s*<\/p>/g, '').replace(/\[IMAGE_\d+\]/g, '');
+
     const response = await fetch(`${baseApiUrl}/posts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Basic ${credentials}` },
         body: JSON.stringify({
             title: post.metaTitle || post.keyword,
-            content: post.articleContent.replace(/<p>\[IMAGE_\d+\]<\/p>/g, ''),
+            content,
             status: 'publish',
             slug,
             excerpt: post.metaDescription || '',
+            ...(featuredMediaId ? { featured_media: featuredMediaId } : {}),
         }),
     });
     const data = await safeParseJson(response, 'WordPress Posts API');
     if (!response.ok) throw new Error(`WordPress API Error: ${data?.message || JSON.stringify(data)}`);
     if (!data.link) throw new Error('Post created, but no URL was returned.');
-    return data.link;
+    return { link: data.link, featureImage };
 };
 
 // --- Main ---
@@ -245,8 +326,8 @@ Deno.serve(async (req: Request) => {
                         post.articleContent = content;
                     }
 
-                    const publishedUrl = await publishToWordPress(cms, post);
-                    const { error: pubErr } = await supabaseAdmin.from('posts').update({ status: 'published', published_url: publishedUrl }).eq('id', post.id);
+                    const { link: publishedUrl, featureImage } = await publishToWordPress(cms, post, business.name);
+                    const { error: pubErr } = await supabaseAdmin.from('posts').update({ status: 'published', published_url: publishedUrl, ...(featureImage ? { images: { featureImage } } : {}) }).eq('id', post.id);
                     if (pubErr) throw new Error(`Failed to update post status after publishing: ${pubErr.message}`);
                     await log(business.id, 'success', `Successfully published article: "${post.keyword}"`);
 

@@ -12,6 +12,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
  *   maxTokens  optional, capped at MAX_TOKENS_CAP
  *   webSearch  optional, enables Claude's web search tool
  *   kind       'article' marks a new-article generation: it uses 1 credit (paid) or 1 of the free trial articles
+ *   action     'photo' returns a stock photo (JPEG under 200KB) instead of text; see handlePhoto
  *   schema     optional JSON schema; response is then guaranteed to match it
  *              (ignored when webSearch is on - citations can't be combined with it)
  */
@@ -152,6 +153,71 @@ const validMessages = (messages: unknown): messages is Anthropic.MessageParam[] 
   });
 };
 
+// ---------------- stock photos (Pexels) ----------------
+const PHOTO_MAX_BYTES = 200_000;
+const PHOTO_WIDTHS = [1200, 1000, 800, 640];
+
+const handlePhoto = async (body: any, userId: string, db: SupabaseClient): Promise<Response> => {
+  const pexelsKey = process.env.PEXELS_API_KEY;
+  if (!pexelsKey) return json(500, { error: 'PEXELS_API_KEY is not configured on the server.' });
+
+  const decision = decide(await loadProfile(db, userId), false);
+  if (!decision.ok) return json(402, { error: decision.message });
+
+  const topic = String(body.keyword || '').slice(0, 200).trim();
+  const businessName = String(body.businessName || '').slice(0, 100).trim();
+  if (!topic) return json(400, { error: 'keyword is required.' });
+  const variant = Math.abs(Number(body.variant) || 0);
+
+  try {
+    // 1. A short, visual search query + SEO alt text (cheap model)
+    const q = await new Anthropic().messages.create({
+      model: MODELS.fast.model,
+      max_tokens: 300,
+      messages: [{ role: 'user', content: `We need a stock photo for a blog article about "${topic}"${businessName ? ` published by ${businessName}` : ''}.
+Give: (1) "query": a 2-4 word search query for a stock photo site that finds a realistic, relevant photo (concrete things you could photograph, no abstract words); (2) "alt": SEO alt text under 125 characters describing a fitting photo for this article.` }],
+      output_config: {
+        effort: 'low',
+        format: { type: 'json_schema', schema: { type: 'object', properties: { query: { type: 'string' }, alt: { type: 'string' } }, required: ['query', 'alt'], additionalProperties: false } },
+      },
+    } as any);
+    const { query, alt } = JSON.parse(q.content.filter(b => b.type === 'text').map((b: any) => b.text).join(''));
+
+    // 2. Search Pexels (landscape, large); fall back to a generic query if nothing fits
+    const search = async (term: string) => {
+      const page = 1 + (variant % 3);
+      const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(term)}&orientation=landscape&size=large&per_page=15&page=${page}`, { headers: { Authorization: pexelsKey } });
+      if (!res.ok) throw new Error(`Pexels search failed (${res.status}).`);
+      const data = await res.json();
+      return (data.photos || []).filter((p: any) => p.width >= 1200 && typeof p.src?.original === 'string');
+    };
+    let photos = await search(query);
+    if (photos.length === 0) photos = await search(businessName || 'business office');
+    if (photos.length === 0) return json(404, { error: 'No suitable stock photo found.' });
+    const photo = photos[variant ? (variant * 7) % Math.min(photos.length, 8) : 0];
+
+    // 3. Download from Pexels' image CDN, stepping the width down until the file is under the size limit
+    const original = new URL(photo.src.original);
+    if (original.hostname !== 'images.pexels.com') return json(502, { error: 'Unexpected image host.' });
+    for (const w of PHOTO_WIDTHS) {
+      const h = Math.round((w * 9) / 16);
+      const res = await fetch(`${original.origin}${original.pathname}?auto=compress&cs=tinysrgb&w=${w}&h=${h}&fit=crop`);
+      if (!res.ok) continue;
+      const bytes = Buffer.from(await res.arrayBuffer());
+      if (bytes.length <= PHOTO_MAX_BYTES) {
+        return json(200, {
+          base64: bytes.toString('base64'), alt, width: w, height: h, bytes: bytes.length,
+          photographer: photo.photographer, photographerUrl: photo.photographer_url, pexelsUrl: photo.url,
+        });
+      }
+    }
+    return json(502, { error: 'Could not produce a photo under the size limit.' });
+  } catch (err: any) {
+    console.error('photo error', err?.message);
+    return json(502, { error: 'Could not fetch a stock photo.' });
+  }
+};
+
 export async function POST(request: Request): Promise<Response> {
   if (!process.env.ANTHROPIC_API_KEY) return json(500, { error: 'ANTHROPIC_API_KEY is not configured on the server.' });
 
@@ -164,6 +230,12 @@ export async function POST(request: Request): Promise<Response> {
 
   let body: any;
   try { body = JSON.parse(raw); } catch { return json(400, { error: 'Invalid JSON.' }); }
+
+  if (body.action === 'photo') {
+    const photoDb = getAdmin();
+    if (!photoDb) return json(500, { error: 'Billing is not configured on the server (SUPABASE_SERVICE_ROLE_KEY).' });
+    return handlePhoto(body, userId, photoDb);
+  }
 
   const tier = MODELS[body.tier];
   if (!tier) return json(400, { error: 'Unknown tier.' });
