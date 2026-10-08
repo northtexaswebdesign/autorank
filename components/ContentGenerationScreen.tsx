@@ -221,7 +221,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
             if (!selectedBusiness.skipImageGeneration) {
                 setGenerationProgress({ value: 70, text: 'Creating unique images...' });
                 try {
-                    images = await generateArticleImages(post.keyword, selectedBusiness);
+                    images = await generateArticleImages(post.keyword, selectedBusiness, undefined, fullArticleData.metaTitle);
                 } catch (e) { console.error("Image generation failed", e); }
             } else {
                 setGenerationProgress({ value: 85, text: 'Finalizing text content...' });
@@ -331,8 +331,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
         if (!post.keyword || !selectedBusiness) return;
         setIsGeneratingImages(true);
         try {
-            const featurePrompt = `High-quality cinematic feature image for article about "${post.keyword}" for ${selectedBusiness.name}. No text.`;
-            const base64 = await generateSingleImage(featurePrompt, '16:9');
+            const base64 = await generateSingleImage(post.metaTitle || post.keyword, post.keyword, selectedBusiness);
             const url = await uploadImageFromBase64(base64, 'manual');
             const updatedImages: PostImages = { ...post.images, featureImage: { url: url || undefined, base64: url ? undefined : base64, prompt: post.keyword } };
             await handleUpdatePost({ images: updatedImages });

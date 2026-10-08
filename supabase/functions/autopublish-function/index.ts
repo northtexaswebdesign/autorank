@@ -5,8 +5,10 @@
 // Deploy with verify_jwt = false and call it with header:  x-cron-secret: <CRON_SECRET>
 // Optional JSON body {"business_id": "...", "post_id": "..."} runs just that business/post (manual testing).
 //
-// Images: Claude cannot generate images, so each article gets one Pexels stock photo (resized to
-// under 200 KB). Optional secret: PEXELS_API_KEY (without it, posts publish without an image).
+// Images: each article gets a branded 1080x1080 cover from the web app's /api/cover (brand style saved on the
+// business, else read from its website, else a look chosen for the topic). Optional secret: APP_URL (defaults to
+// https://autorank-umber.vercel.app); the web app needs the same CRON_SECRET. If the cover fails, a Pexels stock
+// photo is used when PEXELS_API_KEY is set, otherwise the post publishes without an image.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Anthropic from 'npm:@anthropic-ai/sdk';
 
@@ -34,7 +36,7 @@ const processKeys = <T>(obj: any, fn: (s: string) => string): T => {
 const snakeToCamel = <T>(obj: any): T => processKeys<T>(obj, toCamel);
 const camelToSnake = <T>(obj: any): T => processKeys<T>(obj, toSnake);
 
-interface BusinessInfo { id: string; url: string; name: string; description: string; audience: string; language?: string; }
+interface BusinessInfo { id: string; url: string; name: string; description: string; audience: string; language?: string; brandStyle?: Record<string, unknown> | null; }
 interface ScheduledPost {
     id: string; businessId: string; keyword: string; publishDate: string; status: string; articleContent?: string;
     publishedUrl?: string; geoScore?: number; aiFeedback?: string[]; metaTitle?: string; metaDescription?: string; slug?: string;
@@ -165,14 +167,41 @@ const getStockPhoto = async (keyword: string, businessName: string): Promise<{ b
     return null;
 };
 
-// Use the photo the app already attached to the post (stored in Supabase storage), else pick a stock photo.
-const getPhotoForPost = async (post: ScheduledPost, businessName: string): Promise<{ bytes: Uint8Array; alt: string } | null> => {
+// Branded cover from the web app (same generator as the in-app button).
+const getCover = async (post: ScheduledPost, business: BusinessInfo): Promise<{ bytes: Uint8Array; alt: string } | null> => {
+    const secret = Deno.env.get('CRON_SECRET');
+    if (!secret) return null;
+    const appUrl = (Deno.env.get('APP_URL') || 'https://autorank-umber.vercel.app').replace(/\/$/, '');
+    const res = await fetch(`${appUrl}/api/cover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-cron-secret': secret },
+        body: JSON.stringify({
+            title: post.metaTitle || post.keyword, keyword: post.keyword, businessId: business.id, businessName: business.name,
+            businessUrl: business.url, description: business.description, brandStyle: business.brandStyle ?? undefined,
+        }),
+    });
+    if (!res.ok) throw new Error(`Cover request failed (${res.status}).`);
+    const data = await res.json();
+    const bin = atob(data.base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return { bytes, alt: data.alt || post.keyword };
+};
+
+// Use the image the app already attached to the post (stored in Supabase storage), else make a cover, else a stock photo.
+const getPhotoForPost = async (post: ScheduledPost, business: BusinessInfo): Promise<{ bytes: Uint8Array; alt: string } | null> => {
     const existing = (post as any).images?.featureImage;
     if (existing?.url) {
         const res = await fetch(existing.url);
         if (res.ok) return { bytes: new Uint8Array(await res.arrayBuffer()), alt: existing.prompt || post.keyword };
     }
-    return await getStockPhoto(post.keyword, businessName);
+    try {
+        const cover = await getCover(post, business);
+        if (cover) return cover;
+    } catch (e: any) {
+        console.error('Cover step failed, trying stock photo:', e.message);
+    }
+    return await getStockPhoto(post.keyword, business.name);
 };
 
 const uploadMedia = async (baseApiUrl: string, credentials: string, bytes: Uint8Array, filename: string, alt: string): Promise<{ id: number; url: string }> => {
@@ -192,7 +221,7 @@ const uploadMedia = async (baseApiUrl: string, credentials: string, bytes: Uint8
     return { id: data.id, url: data.source_url };
 };
 
-const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost, businessName: string): Promise<{ link: string; featureImage?: { url: string; prompt: string } }> => {
+const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost, business: BusinessInfo): Promise<{ link: string; featureImage?: { url: string; prompt: string } }> => {
     if (!cms.url || !cms.username || !cms.applicationPassword) throw new Error('WordPress integration details are incomplete.');
     if (!post.articleContent) throw new Error('Article content is empty at the final stage before publishing.');
 
@@ -205,7 +234,7 @@ const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost, busi
     let featureImage: { url: string; prompt: string } | undefined;
     let content = post.articleContent;
     try {
-        const photo = await getPhotoForPost(post, businessName);
+        const photo = await getPhotoForPost(post, business);
         if (photo) {
             const media = await uploadMedia(baseApiUrl, credentials, photo.bytes, `${slug}-feature.jpg`, photo.alt);
             featuredMediaId = media.id;
@@ -326,7 +355,7 @@ Deno.serve(async (req: Request) => {
                         post.articleContent = content;
                     }
 
-                    const { link: publishedUrl, featureImage } = await publishToWordPress(cms, post, business.name);
+                    const { link: publishedUrl, featureImage } = await publishToWordPress(cms, post, business);
                     const { error: pubErr } = await supabaseAdmin.from('posts').update({ status: 'published', published_url: publishedUrl, ...(featureImage ? { images: { featureImage } } : {}) }).eq('id', post.id);
                     if (pubErr) throw new Error(`Failed to update post status after publishing: ${pubErr.message}`);
                     await log(business.id, 'success', `Successfully published article: "${post.keyword}"`);

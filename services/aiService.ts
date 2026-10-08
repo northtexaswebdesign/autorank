@@ -1,10 +1,11 @@
 import { BusinessInfo, Keyword, ContentCluster, CompetitorAnalysis, CmsIntegration, ScheduledPost, PostImages, GeneratedImage, ContentBrief, KeywordOpportunity } from "../types.ts";
 import { uploadImageFromBase64 } from '../utils/imageStorage.ts';
 
-import { callClaude, callStockPhoto } from './claudeClient.ts';
+import { callClaude, callCover } from './claudeClient.ts';
 
-// Articles get one stock photo (Pexels, resized under 200 KB on the server) as the featured/first image.
-const IMAGES_ENABLED = false; // set to true once PEXELS_API_KEY is configured (Vercel + Supabase)
+// Articles get one branded cover (1080x1080 JPEG under 200 KB, made by /api/cover) as the featured/first image.
+// It uses the business's brand style, else colours read from its website, else a look Claude picks for the topic.
+const IMAGES_ENABLED = true;
 
 /**
  * Senior Developer Fix: 
@@ -314,16 +315,17 @@ export const generateFullArticle = async (
 export const generateArticleImages = async (
     keyword: string,
     business: BusinessInfo,
-    onProgress?: (progress: { value: number; text: string }) => void
+    onProgress?: (progress: { value: number; text: string }) => void,
+    title?: string
 ): Promise<PostImages> => {
-    onProgress?.({ value: 10, text: "Finding a stock photo..." });
-    const photo = await callStockPhoto(keyword, business.name);
+    onProgress?.({ value: 10, text: "Designing the cover image..." });
+    const cover = await callCover({ title: title || keyword, keyword, businessId: business.id, businessName: business.name, businessUrl: business.url, description: business.description, brandStyle: business.brandStyle });
 
-    onProgress?.({ value: 50, text: "Uploading photo..." });
-    const url = await uploadImageFromBase64(photo.base64, 'stock');
-    if (!url) throw new Error('The photo could not be uploaded to storage. Please try again.');
+    onProgress?.({ value: 50, text: "Uploading cover image..." });
+    const url = await uploadImageFromBase64(cover.base64, 'covers');
+    if (!url) throw new Error('The cover image could not be uploaded to storage. Please try again.');
 
-    return { featureImage: { url, prompt: photo.alt } };
+    return { featureImage: { url, prompt: cover.alt } };
 };
 
 export const analyzeArticleForGEO = async (content: string, keyword: string) => {
@@ -564,10 +566,10 @@ export const generateMetaData = async (content: string, keyword: string, busines
     }
 };
 
-/** Returns the base64 of a stock photo for the given topic (a different one each call). Used by the "regenerate image" button. */
-export const generateSingleImage = async (prompt: string, _aspectRatio: "1:1" | "16:9" = "1:1"): Promise<string> => {
-    const photo = await callStockPhoto(prompt, '', 1 + Math.floor(Math.random() * 20));
-    return photo.base64;
+/** Returns the base64 of a new cover for the article (a different layout each call). Used by the "regenerate image" button. */
+export const generateSingleImage = async (title: string, keyword: string, business: BusinessInfo): Promise<string> => {
+    const cover = await callCover({ title, keyword, businessId: business.id, businessName: business.name, businessUrl: business.url, description: business.description, brandStyle: business.brandStyle, variant: 1 + Math.floor(Math.random() * 20) });
+    return cover.base64;
 };
 
 export const generateImageAltText = async (base64: string, keyword: string) => {
