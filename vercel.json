@@ -1,6 +1,7 @@
 {
   "functions": {
-    "api/claude.ts": { "maxDuration": 300 }
+    "api/claude.ts": { "maxDuration": 300 },
+    "api/cover.ts": { "maxDuration": 60, "includeFiles": "assets/fonts/**" }
   },
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
 }

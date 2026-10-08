@@ -93,7 +93,7 @@ export const ArticleGenerationModal: React.FC<{
       let images = null;
       if (!selectedBusiness.skipImageGeneration) {
           try { 
-              images = await generateArticleImages(localPost.keyword, selectedBusiness); 
+              images = await generateArticleImages(localPost.keyword, selectedBusiness, undefined, fullData.metaTitle); 
           } catch (imageError) { 
               console.error("Image generation failed:", imageError); 
           }

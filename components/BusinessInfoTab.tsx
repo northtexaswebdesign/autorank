@@ -62,6 +62,11 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
     setFormData(prev => ({ ...prev, competitors: newCompetitors }));
   };
 
+  const brand = formData.brandStyle || {};
+  const setBrand = (key: string, value: string) =>
+    setFormData(prev => ({ ...prev, brandStyle: { ...(prev.brandStyle || {}), [key]: value, source: 'manual' } }));
+  const clearBrand = () => setFormData(prev => ({ ...prev, brandStyle: null }));
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBusiness) return;
@@ -323,6 +328,67 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
                         />
                     </button>
                 </div>
+            </div>
+
+            <div className="bg-white border border-slate-200/80 rounded-xl shadow-sm p-8 space-y-5">
+                <div>
+                    <h2 className="text-xl font-semibold text-slate-900">Brand Style for Cover Images</h2>
+                    <p className="text-sm text-slate-500 mt-1 max-w-2xl">
+                        Every article gets a cover image in your brand style. Leave this empty and we read the colors and logo from your website the first time an image is made. If that finds nothing, the AI picks a look that fits the article.
+                    </p>
+                    {brand.source === 'auto' && (
+                        <p className="text-xs text-emerald-700 mt-2">These values were read from your website. Edit any of them to override.</p>
+                    )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {([['primary', 'Main color', '#E59173'], ['secondary', 'Soft accent color', '#EFDED9'], ['background', 'Background color', '#F5F5F5'], ['text', 'Headline color', '#1A1A1A']] as const).map(([key, label, ph]) => (
+                        <div key={key}>
+                            <label className="block text-sm font-medium text-slate-700 mb-1.5">{label}</label>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="color"
+                                    aria-label={`${label} picker`}
+                                    value={/^#[0-9a-f]{6}$/i.test((brand as any)[key] || '') ? (brand as any)[key] : ph}
+                                    onChange={e => setBrand(key, e.target.value)}
+                                    className="h-10 w-12 rounded border border-slate-300 bg-white p-1"
+                                />
+                                <input
+                                    type="text"
+                                    value={(brand as any)[key] || ''}
+                                    onChange={e => setBrand(key, e.target.value)}
+                                    placeholder={ph}
+                                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition"
+                                />
+                            </div>
+                        </div>
+                    ))}
+                    {([['headingFont', 'Heading font'], ['bodyFont', 'Body font']] as const).map(([key, label]) => (
+                        <div key={key}>
+                            <label className="block text-sm font-medium text-slate-700 mb-1.5">{label}</label>
+                            <select
+                                value={(brand as any)[key] || ''}
+                                onChange={e => setBrand(key, e.target.value)}
+                                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500 transition"
+                            >
+                                <option value="">Auto</option>
+                                {['Inter', 'Montserrat', 'DM Sans', 'Poppins', 'Space Grotesk', 'Cormorant Garamond', 'Playfair Display', 'Lora'].map(f => <option key={f} value={f}>{f}</option>)}
+                            </select>
+                        </div>
+                    ))}
+                </div>
+                <InputField
+                    label="Logo image URL"
+                    name="brandLogoUrl"
+                    value={brand.logoUrl || ''}
+                    onChange={e => setBrand('logoUrl', e.target.value)}
+                    placeholder="https://yoursite.com/logo.png"
+                    description="PNG, JPG, WebP or SVG. Shown at the bottom of each cover."
+                />
+                {formData.brandStyle && (
+                    <button type="button" onClick={clearBrand} className="text-sm text-slate-600 underline hover:text-slate-900">
+                        Clear brand style (read it from my website again)
+                    </button>
+                )}
             </div>
 
             <div className="bg-white border border-slate-200/80 rounded-xl shadow-sm p-8">

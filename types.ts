@@ -1,4 +1,16 @@
 
+/** Look of a business, used for article cover images. Empty = read from the website, else Claude chooses. */
+export interface BrandStyle {
+  primary?: string;
+  secondary?: string;
+  background?: string;
+  text?: string;
+  headingFont?: string;
+  bodyFont?: string;
+  logoUrl?: string;
+  source?: 'manual' | 'auto';
+}
+
 export interface BusinessInfo {
   id: string;
   url: string;
@@ -8,6 +20,7 @@ export interface BusinessInfo {
   competitors: string[];
   autoSchedule: boolean;
   skipImageGeneration?: boolean; // New property to toggle image generation
+  brandStyle?: BrandStyle | null; // cover image look (saved by hand or detected from the website)
   language?: string; // e.g., 'English', 'Vietnamese'
   sitemapUrl?: string;
   planData?: PersonalizedPlanData;
