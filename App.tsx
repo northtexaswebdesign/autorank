@@ -390,41 +390,6 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
 const AppInner: React.FC = () => {
     const { activeTab, setActiveTab, setEditingPost, editingPost, selectedBusiness, createBusiness, userProfile, isLoadingEditingPost, editingPostId, loading } = useApp();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [hasApiKey, setHasApiKey] = useState(true);
-
-    useEffect(() => {
-        const checkKey = async () => {
-            if ((window as any).aistudio?.hasSelectedApiKey) {
-                const has = await (window as any).aistudio.hasSelectedApiKey();
-                setHasApiKey(has);
-            }
-        };
-        checkKey();
-    }, []);
-
-    if (!hasApiKey) {
-        return (
-            <div className="flex flex-col items-center justify-center h-screen bg-slate-50 p-4 text-center">
-                <SparklesIcon className="w-16 h-16 text-orange-500 mb-6" />
-                <h1 className="text-3xl font-bold text-slate-800 mb-4">API Key Required</h1>
-                <p className="text-slate-600 mb-8 max-w-md">
-                    Autorank AI uses advanced Gemini Pro models to generate high-quality SEO content. 
-                    Please select your Google Gemini API key to continue.
-                </p>
-                <button 
-                    onClick={async () => {
-                        if ((window as any).aistudio?.openSelectKey) {
-                            await (window as any).aistudio.openSelectKey();
-                            setHasApiKey(true);
-                        }
-                    }}
-                    className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg shadow-sm transition-colors"
-                >
-                    Select API Key
-                </button>
-            </div>
-        );
-    }
 
     if (loading) {
         return (

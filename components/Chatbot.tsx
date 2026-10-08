@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { ChatbotIcon } from './icons/ChatbotIcon.tsx';
 import { CloseIcon } from './icons/CloseIcon.tsx';
 import { getChatbotResponse } from '../services/aiService.ts';
@@ -101,7 +102,7 @@ export const Chatbot: React.FC = () => {
                       : 'bg-slate-100 text-slate-800 rounded-bl-lg'
                   }`}
                 >
-                  <div className="prose prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:my-1" dangerouslySetInnerHTML={{ __html: msg.parts[0].text }} />
+                  <div className="prose prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:my-1" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.parts[0].text) }} />
                 </div>
               </div>
             ))}

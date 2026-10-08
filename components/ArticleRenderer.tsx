@@ -71,7 +71,7 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ post }) => {
         srcDoc={processedHtml}
         title="Article Content Preview"
         style={{ width: '100%', height: '800px', border: 'none' }}
-        sandbox="allow-popups allow-scripts allow-same-origin"
+        sandbox="allow-popups allow-popups-to-escape-sandbox"
         className="w-full transition-opacity duration-500 ease-in"
       />
     </div>

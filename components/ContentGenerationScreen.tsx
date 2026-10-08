@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import DOMPurify from 'dompurify';
 import { ScheduledPost, PostImages } from '../types.ts';
 import { generateFullArticle, generateArticleImages, analyzeArticleForGEO, rewriteArticle, publishToWordPress, generateMetaData, generateSingleImage, syncFeaturedImageToWordPress } from '../services/aiService.ts';
 import { uploadArticleContent } from '../utils/contentStorage.ts';
@@ -88,7 +89,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
     
     useEffect(() => {
         if (isEditing && articleEditorRef.current) {
-            articleEditorRef.current.innerHTML = currentContent;
+            articleEditorRef.current.innerHTML = DOMPurify.sanitize(currentContent);
         }
     }, [isEditing, currentContent]);
 
@@ -138,7 +139,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
 
     const handleSaveClick = async () => {
         if (articleEditorRef.current && selectedBusiness) {
-            const newContent = articleEditorRef.current.innerHTML;
+            const newContent = DOMPurify.sanitize(articleEditorRef.current.innerHTML);
             setIsEditing(false); 
             setIsAnalyzing(true); 
             try {
@@ -153,7 +154,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
                     aiFeedback: analysis.aiFeedback,
                     metaTitle: meta.metaTitle,
                     metaDescription: meta.metaDescription,
-                    slug: meta.slug,
+                    ...(isTrulyPublished ? {} : { slug: meta.slug }),
                 } as any);
             } catch (e) {
                 console.error("Manual edit save error:", e);
@@ -181,7 +182,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
                 meta_title: meta.metaTitle,
                 metaDescription: meta.metaDescription,
                 meta_description: meta.metaDescription,
-                slug: meta.slug,
+                ...(isTrulyPublished ? {} : { slug: meta.slug }),
             });
         } catch (e) {
             console.error("Re-analysis error:", e);

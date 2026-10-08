@@ -1,4 +1,5 @@
 import React from 'react';
+import DOMPurify from 'dompurify';
 
 interface SimpleMarkdownRendererProps {
     text: string;
@@ -12,7 +13,8 @@ export const SimpleMarkdownRenderer: React.FC<SimpleMarkdownRendererProps> = ({ 
     const createMarkup = () => {
         if (!text) return { __html: '' };
         
-        const html = text
+        // Text can come from web-search-derived AI output, so escape it before adding our own tags.
+        const html = DOMPurify.sanitize(text, { ALLOWED_TAGS: [] })
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold
             .replace(/\*(.*?)\*/g, '<em>$1</em>'); // Italic
             

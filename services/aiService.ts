@@ -165,7 +165,7 @@ export const generateKeywords = async (business: BusinessInfo, language: string 
         }
     } catch (apiError) {
         console.error("Keyword generation API call failed:", apiError);
-        return [];
+        throw apiError; // let the UI tell the user (auth, rate limit, outage) instead of silently showing nothing
     }
 };
 
@@ -191,7 +191,7 @@ export const suggestContentCluster = async (targetKeyword: string, business: Bus
         }
     } catch (apiError) {
         console.error("Content cluster API call failed:", apiError);
-        return null;
+        throw apiError;
     }
 };
 
@@ -297,6 +297,7 @@ export const generateFullArticle = async (
     const parsedData = parseArticleResponse(responseText || '{}', keyword, business.name);
     
     const content = parsedData.articleContent || '';
+    if (!content.trim()) throw new Error('The AI returned an empty article. Please try again.');
     const analysis = await analyzeArticleForGEO(content, keyword);
 
     return { 
