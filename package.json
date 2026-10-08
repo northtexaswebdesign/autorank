@@ -10,10 +10,10 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/genai": "^1.26.0",
+    "@anthropic-ai/sdk": "^0.132.0",
+    "@supabase/supabase-js": "2.39.7",
     "react": "19.2.1",
-    "react-dom": "19.2.1",
-    "@supabase/supabase-js": "2.39.7"
+    "react-dom": "19.2.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

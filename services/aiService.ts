@@ -1,9 +1,10 @@
-import { GoogleGenAI, Type } from "@google/genai";
 import { BusinessInfo, Keyword, ContentCluster, CompetitorAnalysis, CmsIntegration, ScheduledPost, PostImages, GeneratedImage, ContentBrief, KeywordOpportunity } from "../types.ts";
 import { uploadImageFromBase64 } from '../utils/imageStorage.ts';
 
-const getAI = () => new GoogleGenAI({ apiKey: (import.meta as any).env.VITE_GEMINI_API_KEY });
-const ai = { get models() { return getAI().models; } };
+import { callClaude } from './claudeClient.ts';
+
+// Stock photos are not wired up yet; until they are, articles are generated text-only.
+const IMAGES_ENABLED = false;
 
 /**
  * Senior Developer Fix: 
@@ -126,31 +127,38 @@ const parseArticleResponse = (text: string, defaultKeyword: string, businessName
 
 export const generateKeywords = async (business: BusinessInfo, language: string = 'English'): Promise<Keyword[]> => {
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: `Generate a list of 20 high-opportunity SEO keywords for this business in ${language}:
+        const responseText = await callClaude({
+            tier: 'fast',
+            maxTokens: 4000,
+            messages: [{ role: 'user', content: `Generate a list of 20 high-opportunity SEO keywords for this business in ${language}:
             Name: ${business.name}
             URL: ${business.url}
             Description: ${business.description}
-            Audience: ${business.audience}`,
-            config: {
-                responseMimeType: 'application/json',
-                responseSchema: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            keyword: { type: Type.STRING },
-                            opportunity: { type: Type.STRING, enum: Object.values(KeywordOpportunity) }
-                        },
-                        required: ['keyword', 'opportunity']
+            Audience: ${business.audience}
+            Rate each keyword's opportunity as one of: ${Object.values(KeywordOpportunity).join(', ')}.` }],
+            schema: {
+                type: 'object',
+                properties: {
+                    keywords: {
+                        type: 'array',
+                        items: {
+                            type: 'object',
+                            properties: {
+                                keyword: { type: 'string' },
+                                opportunity: { type: 'string', enum: Object.values(KeywordOpportunity) }
+                            },
+                            required: ['keyword', 'opportunity'],
+                            additionalProperties: false
+                        }
                     }
-                }
+                },
+                required: ['keywords'],
+                additionalProperties: false
             }
         });
 
         try {
-            return JSON.parse(cleanAIResponse(response.text || '[]'));
+            return JSON.parse(cleanAIResponse(responseText || '{}')).keywords || [];
         } catch (e) {
             console.error("Failed to parse keywords", e);
             return [];
@@ -163,25 +171,21 @@ export const generateKeywords = async (business: BusinessInfo, language: string 
 
 export const suggestContentCluster = async (targetKeyword: string, business: BusinessInfo): Promise<ContentCluster | null> => {
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: `Generate a strategic content cluster for the keyword "${targetKeyword}" for the business ${business.name} (${business.description}).
-            Identify the main pillar topic (which should be related to "${targetKeyword}") and 5-7 related cluster topics.`,
-            config: {
-                responseMimeType: 'application/json',
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        pillar: { type: Type.STRING },
-                        clusters: { type: Type.ARRAY, items: { type: Type.STRING } }
-                    },
-                    required: ['pillar', 'clusters']
-                }
+        const responseText = await callClaude({
+            tier: 'fast',
+            maxTokens: 2000,
+            messages: [{ role: 'user', content: `Generate a strategic content cluster for the keyword "${targetKeyword}" for the business ${business.name} (${business.description}).
+            Identify the main pillar topic (which should be related to "${targetKeyword}") and 5-7 related cluster topics.` }],
+            schema: {
+                type: 'object',
+                properties: { pillar: { type: 'string' }, clusters: { type: 'array', items: { type: 'string' } } },
+                required: ['pillar', 'clusters'],
+                additionalProperties: false
             }
         });
 
         try {
-            return JSON.parse(cleanAIResponse(response.text || 'null'));
+            return JSON.parse(cleanAIResponse(responseText || 'null'));
         } catch (e) {
             return null;
         }
@@ -199,38 +203,24 @@ export const analyzeCompetitors = async (
     const competitors = business.competitors.join(', ');
 
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-3.1-pro-preview',
-            contents: `Perform a competitive analysis for ${business.name} against these competitors: ${competitors}.
-            Base the analysis on their likely content strategies.`,
-            config: {
-                tools: [{ googleSearch: {} }],
-                responseMimeType: 'application/json',
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        analysis: {
-                            type: Type.ARRAY,
-                            items: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    url: { type: Type.STRING },
-                                    strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
-                                    weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } },
-                                    contentStrategySummary: { type: Type.STRING }
-                                }
-                            }
-                        },
-                        strategicRecommendations: { type: Type.ARRAY, items: { type: Type.STRING } }
-                    }
-                }
-            }
+        const responseText = await callClaude({
+            tier: 'smart',
+            webSearch: true,
+            maxTokens: 6000,
+            messages: [{ role: 'user', content: `Perform a competitive analysis for ${business.name} against these competitors: ${competitors}.
+            Use web search to research their actual content strategies.
+
+            Return ONLY a JSON object (no markdown fences, no commentary) shaped exactly like:
+            {
+                "analysis": [{ "url": "competitor url", "strengths": ["..."], "weaknesses": ["..."], "contentStrategySummary": "..." }],
+                "strategicRecommendations": ["..."]
+            }` }]
         });
 
         onProgress({ value: 100, text: "Analysis complete" });
 
         try {
-            const data = JSON.parse(cleanAIResponse(response.text || '{}'));
+            const data = JSON.parse(cleanAIResponse(responseText || '{}'));
             return {
                 ...data,
                 analyzedAt: new Date().toISOString()
@@ -263,7 +253,7 @@ export const generateFullArticle = async (
 ) => {
     onProgress?.({ value: 10, text: "Gathering authoritative sources via search..." });
     
-    const imageInstruction = business.skipImageGeneration 
+    const imageInstruction = (business.skipImageGeneration || !IMAGES_ENABLED) 
         ? "5. STRICTLY NO IMAGES: Do NOT include any <img> tags, markdown images, image placeholders, base64 images, or data URIs in the HTML. The content must be 100% text only."
         : "5. IMAGES: You MUST include exactly one image placeholder in the format <p>[IMAGE_1]</p> near the beginning of the article. Do NOT include any actual <img> tags, markdown images, base64 images, or external image URLs.";
 
@@ -288,34 +278,23 @@ export const generateFullArticle = async (
     
     Return a JSON object with the following structure:
     {
-        "articleContent": "The HTML content of the article. Ensure it is highly formatted with H2s, H3s, bullet points, and bold text for readability. ${business.skipImageGeneration ? 'Do NOT include any images.' : 'Must include <p>[IMAGE_1]</p>.'} Must include an AI-optimized summary at the beginning and an FAQ section at the end.",
+        "articleContent": "The HTML content of the article. Ensure it is highly formatted with H2s, H3s, bullet points, and bold text for readability. ${(business.skipImageGeneration || !IMAGES_ENABLED) ? 'Do NOT include any images.' : 'Must include <p>[IMAGE_1]</p>.'} Must include an AI-optimized summary at the beginning and an FAQ section at the end.",
         "metaTitle": "SEO optimized meta title (around 60 characters)",
         "metaDescription": "SEO optimized meta description (around 150 characters)",
         "slug": "url-friendly-slug"
     }`;
 
-    const response = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
-        contents: prompt,
-        config: {
-            tools: [{ googleSearch: {} }],
-            responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    articleContent: { type: Type.STRING },
-                    metaTitle: { type: Type.STRING },
-                    metaDescription: { type: Type.STRING },
-                    slug: { type: Type.STRING }
-                }
-            },
-            systemInstruction: "You are an expert SEO content writer specialized in GEO (Generative Engine Optimization). Write in-depth, helpful content."
-        }
+    const responseText = await callClaude({
+        tier: 'smart',
+        webSearch: true,
+        maxTokens: 16000,
+        system: "You are an expert SEO content writer specialized in GEO (Generative Engine Optimization). Write in-depth, helpful content.",
+        messages: [{ role: 'user', content: prompt + "\n\nRespond with ONLY the JSON object. No markdown fences, no text before or after it." }]
     });
 
     onProgress?.({ value: 90, text: "Optimizing for Generative Search..." });
     
-    const parsedData = parseArticleResponse(response.text || '{}', keyword, business.name);
+    const parsedData = parseArticleResponse(responseText || '{}', keyword, business.name);
     
     const content = parsedData.articleContent || '';
     const analysis = await analyzeArticleForGEO(content, keyword);
@@ -331,49 +310,30 @@ export const generateFullArticle = async (
 };
 
 export const generateArticleImages = async (
-    keyword: string, 
-    business: BusinessInfo,
-    onProgress?: (progress: { value: number; text: string }) => void
+    _keyword: string,
+    _business: BusinessInfo,
+    _onProgress?: (progress: { value: number; text: string }) => void
 ): Promise<PostImages> => {
-    onProgress?.({ value: 10, text: "Designing feature image..." });
-    const featurePrompt = `A professional feature image for a blog post about "${keyword}" for ${business.name}. Cinematic lighting, high quality. No text.`;
-    const featureBase64 = await generateSingleImage(featurePrompt, '16:9');
-    
-    onProgress?.({ value: 50, text: "Uploading feature image..." });
-    const featureUrl = await uploadImageFromBase64(featureBase64, 'auto-generated');
-
-    if (!featureUrl) {
-        console.error('Feature image upload failed — no URL returned from storage.');
-        throw new Error('Feature image could not be uploaded to storage. Please try again.');
-    }
-
-    return {
-        featureImage: { 
-            url: featureUrl,
-            prompt: await generateImageAltText(featureBase64, keyword) 
-        }
-    };
+    // Placeholder until stock photo support lands (Claude cannot generate images).
+    return {};
 };
 
 export const analyzeArticleForGEO = async (content: string, keyword: string) => {
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-3.1-pro-preview',
-            contents: `Analyze this article for keyword "${keyword}" based on GEO (Generative Engine Optimization) principles:
-            Content: ${content}`,
-            config: {
-                responseMimeType: 'application/json',
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        geoScore: { type: Type.INTEGER },
-                        aiFeedback: { type: Type.ARRAY, items: { type: Type.STRING } }
-                    }
-                }
+        const responseText = await callClaude({
+            tier: 'smart',
+            maxTokens: 2000,
+            messages: [{ role: 'user', content: `Analyze this article for keyword "${keyword}" based on GEO (Generative Engine Optimization) principles. Give a geoScore from 0-100 and a list of specific, actionable feedback items.
+            Content: ${content}` }],
+            schema: {
+                type: 'object',
+                properties: { geoScore: { type: 'integer' }, aiFeedback: { type: 'array', items: { type: 'string' } } },
+                required: ['geoScore', 'aiFeedback'],
+                additionalProperties: false
             }
         });
         try {
-            return JSON.parse(cleanAIResponse(response.text || '{"geoScore": 70, "aiFeedback": []}'));
+            return JSON.parse(cleanAIResponse(responseText || '{"geoScore": 70, "aiFeedback": []}'));
         } catch (e) {
             return { geoScore: 75, aiFeedback: ["Analyzed with standard parameters."] };
         }
@@ -384,13 +344,15 @@ export const analyzeArticleForGEO = async (content: string, keyword: string) => 
 };
 
 export const rewriteArticle = async (content: string, keyword: string, feedback: string[], business: BusinessInfo) => {
-    const imageInstruction = business.skipImageGeneration 
+    const imageInstruction = (business.skipImageGeneration || !IMAGES_ENABLED) 
         ? "5. STRICTLY NO IMAGES: Do NOT include any <img> tags, markdown images, image placeholders, base64 images, or data URIs in the HTML. The content must be 100% text only."
         : "5. IMAGES: You MUST include exactly one image placeholder in the format <p>[IMAGE_1]</p> near the beginning of the article. Do NOT include any actual <img> tags, markdown images, base64 images, or external image URLs.";
 
-    const response = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
-        contents: `Rewrite this article for "${keyword}" for ${business.name} based on this feedback: ${feedback.join('. ')}.
+    const responseText = await callClaude({
+        tier: 'smart',
+        webSearch: true,
+        maxTokens: 16000,
+        messages: [{ role: 'user', content: `Rewrite this article for "${keyword}" for ${business.name} based on this feedback: ${feedback.join('. ')}.
         Current content: ${content}
         
         CRITICAL REQUIREMENTS:
@@ -403,27 +365,16 @@ export const rewriteArticle = async (content: string, keyword: string, feedback:
         
         Return a JSON object with the following structure:
         {
-            "articleContent": "The HTML content of the rewritten article. ${business.skipImageGeneration ? 'Do NOT include any images.' : 'Must include <p>[IMAGE_1]</p>.'} Must include an AI-optimized summary at the beginning and an FAQ section at the end.",
+            "articleContent": "The HTML content of the rewritten article. ${(business.skipImageGeneration || !IMAGES_ENABLED) ? 'Do NOT include any images.' : 'Must include <p>[IMAGE_1]</p>.'} Must include an AI-optimized summary at the beginning and an FAQ section at the end.",
             "metaTitle": "SEO optimized meta title (around 60 characters)",
             "metaDescription": "SEO optimized meta description (around 150 characters)",
             "slug": "url-friendly-slug"
-        }`,
-        config: {
-            tools: [{ googleSearch: {} }],
-            responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    articleContent: { type: Type.STRING },
-                    metaTitle: { type: Type.STRING },
-                    metaDescription: { type: Type.STRING },
-                    slug: { type: Type.STRING }
-                }
-            }
         }
+
+        Respond with ONLY the JSON object. No markdown fences, no text before or after it.` }]
     });
-    
-    const parsed = parseArticleResponse(response.text || '{}', keyword, business.name);
+
+    const parsed = parseArticleResponse(responseText || '{}', keyword, business.name);
     return {
         articleContent: parsed.articleContent || content,
         metaTitle: parsed.metaTitle,
@@ -582,24 +533,20 @@ export const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPos
 };
 
 export const generateMetaData = async (content: string, keyword: string, business: BusinessInfo) => {
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Generate SEO metadata for an article about "${keyword}" for ${business.name}.
-        Content snippet: ${content.substring(0, 1000)}`,
-        config: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    metaTitle: { type: Type.STRING },
-                    metaDescription: { type: Type.STRING },
-                    slug: { type: Type.STRING }
-                }
-            }
+    const responseText = await callClaude({
+        tier: 'fast',
+        maxTokens: 1000,
+        messages: [{ role: 'user', content: `Generate SEO metadata for an article about "${keyword}" for ${business.name}. Meta title around 60 characters, meta description around 150 characters, and a url-friendly slug.
+        Content snippet: ${content.substring(0, 1000)}` }],
+        schema: {
+            type: 'object',
+            properties: { metaTitle: { type: 'string' }, metaDescription: { type: 'string' }, slug: { type: 'string' } },
+            required: ['metaTitle', 'metaDescription', 'slug'],
+            additionalProperties: false
         }
     });
     try {
-        return JSON.parse(cleanAIResponse(response.text || '{}'));
+        return JSON.parse(cleanAIResponse(responseText || '{}'));
     } catch (e) {
         return {
             metaTitle: `${keyword} | ${business.name}`,
@@ -609,43 +556,22 @@ export const generateMetaData = async (content: string, keyword: string, busines
     }
 };
 
-export const generateSingleImage = async (prompt: string, aspectRatio: "1:1" | "16:9" = "1:1"): Promise<string> => {
-    const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-image',
-        contents: [{ text: prompt }],
-        config: {
-            imageConfig: { aspectRatio }
-        }
-    });
-
-    const candidate = response.candidates?.[0];
-    if (!candidate?.content?.parts) {
-        const blockReason = (response as any).promptFeedback?.blockReason;
-        throw new Error(
-            blockReason
-                ? `Image generation was blocked (reason: ${blockReason}).`
-                : "No image data returned from model — the response contained no candidates."
-        );
-    }
-
-    for (const part of candidate.content.parts) {
-        if (part.inlineData) return part.inlineData.data;
-    }
-    throw new Error("No image data returned from model");
+export const generateSingleImage = async (_prompt: string, _aspectRatio: "1:1" | "16:9" = "1:1"): Promise<string> => {
+    // Claude does not generate images. Stock photo support is planned; see IMAGES_ENABLED.
+    throw new Error("AI image generation is not available. Upload an image instead.");
 };
 
 export const generateImageAltText = async (base64: string, keyword: string) => {
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: {
-                parts: [
-                    { inlineData: { mimeType: 'image/jpeg', data: base64 } },
-                    { text: `Describe this image for SEO alt text for an article about "${keyword}".` }
-                ]
-            }
+        const text = await callClaude({
+            tier: 'fast',
+            maxTokens: 300,
+            messages: [{ role: 'user', content: [
+                { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
+                { type: 'text', text: `Write concise SEO alt text (under 125 characters) for this image, for an article about "${keyword}". Reply with the alt text only.` }
+            ] }]
         });
-        return response.text || "";
+        return text.trim();
     } catch (e) {
         console.error("Alt text generation failed, using fallback:", e);
         return `Image related to ${keyword}`;
@@ -748,15 +674,17 @@ export const syncFeaturedImageToWordPress = async (cms: CmsIntegration, post: Sc
 };
 
 export const getChatbotResponse = async (messages: any[]) => {
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: messages.map(m => ({
-            role: m.role,
-            parts: [{ text: m.parts[0].text }]
-        })),
-        config: {
-            systemInstruction: "You are RankBot, a helpful assistant for Autorank AI. Answer questions about SEO and how to use the app."
-        }
+    // UI uses Gemini-style {role:'model', parts:[{text}]}; Claude needs user/assistant, starting with a user turn.
+    const mapped = messages.map(m => ({
+        role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+        content: m.parts[0].text as string
+    }));
+    while (mapped.length && mapped[0].role !== 'user') mapped.shift();
+
+    return callClaude({
+        tier: 'fast',
+        maxTokens: 1500,
+        system: "You are RankBot, a helpful assistant for Autorank AI. Answer questions about SEO and how to use the app. Reply in simple HTML using only <p>, <ul>, <ol>, <li>, <strong> and <em> tags (no markdown, no scripts).",
+        messages: mapped
     });
-    return response.text || "";
 };

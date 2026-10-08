@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatbotIcon } from './icons/ChatbotIcon.tsx';
 import { CloseIcon } from './icons/CloseIcon.tsx';
-import { getChatbotResponse } from '../services/geminiService.ts';
+import { getChatbotResponse } from '../services/aiService.ts';
 import { LogoIcon } from './icons/LogoIcon.tsx';
 
 interface Message {

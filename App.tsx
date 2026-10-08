@@ -10,7 +10,7 @@ import { OnboardingModal } from './components/OnboardingModal.tsx';
 import { supabase } from './services/supabaseClient.ts';
 import { Session } from '@supabase/supabase-js';
 import { fetchArticleContent } from './utils/contentStorage.ts';
-import { generateKeywords, suggestContentCluster as suggestContentClusterService, analyzeCompetitors as analyzeCompetitorsService } from './services/geminiService.ts';
+import { generateKeywords, suggestContentCluster as suggestContentClusterService, analyzeCompetitors as analyzeCompetitorsService } from './services/aiService.ts';
 import { ContentGenerationScreen } from './components/ContentGenerationScreen.tsx';
 import { ActivityLogTab } from './components/ActivityLogTab.tsx';
 import { sessionCache } from './services/inMemoryCache.ts';
@@ -183,7 +183,7 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
             // Senior Fix: Ensure heavy fields like content are manually handled if they aren't camelized properly
         
             const { images, articleContent, article_content, ...restUpdates } = updates as any;
-            const snaked = { ...camelToSnake(restUpdates), ...(images !== undefined && { images }) };
+            const snaked: Record<string, any> = { ...(camelToSnake(restUpdates) as Record<string, any>), ...(images !== undefined && { images }) };
             
             // Explicitly clear article_content in DB if we are moving to content_url
             if (updates.contentUrl || updates.content_url) {

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ScheduledPost, AppTab, PostImages } from '../types.ts';
 import { Modal } from './Modal.tsx';
-import { generateFullArticle, generateArticleImages, analyzeArticleForGEO, rewriteArticle, publishToWordPress, generateMetaData } from '../services/geminiService.ts';
+import { generateFullArticle, generateArticleImages, analyzeArticleForGEO, rewriteArticle, publishToWordPress, generateMetaData } from '../services/aiService.ts';
 import { uploadArticleContent } from '../utils/contentStorage.ts';
 import { useApp } from '../context/AppContext.tsx';
 import { SparklesIcon } from './icons/SparklesIcon.tsx';

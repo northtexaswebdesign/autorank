@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { ScheduledPost, PostImages } from '../types.ts';
-import { generateFullArticle, generateArticleImages, analyzeArticleForGEO, rewriteArticle, publishToWordPress, generateMetaData, generateSingleImage, syncFeaturedImageToWordPress } from '../services/geminiService.ts';
+import { generateFullArticle, generateArticleImages, analyzeArticleForGEO, rewriteArticle, publishToWordPress, generateMetaData, generateSingleImage, syncFeaturedImageToWordPress } from '../services/aiService.ts';
 import { uploadArticleContent } from '../utils/contentStorage.ts';
 import { useApp } from '../context/AppContext.tsx';
 import { SparklesIcon } from './icons/SparklesIcon.tsx';
