@@ -26,14 +26,15 @@ export const ARTICLE_SEARCHES = 10;
 export const MIN_SOURCES = 4;
 
 export const SOURCE_RULES = `CREDIBLE SOURCES (strict, every article):
-    - SEARCH PLAN: you have ${ARTICLE_SEARCHES} searches. Use at most 3 to study competing pages. Spend at least 5 on finding sources: (a) official standards, regulations or government guidance on the topic, (b) guidance from professional associations, clinical or industry bodies, (c) research or statistics, (d) safety or best-practice guidance. Write only after you have found at least ${MIN_SOURCES} credible sources; if early searches come up thin, search again with different wording.
-    - Every article MUST contain at least ${MIN_SOURCES} inline citations to sources from at least 3 different publishers, even when the topic is practical or how-to. Anchor the key claims (why it matters, safety, sizing, standards, risks, best practice) on what those sources say. Never publish an article with no outside sources, and never write that the article has none.
+    - SEARCH PLAN: you have ${ARTICLE_SEARCHES} searches. Use at most 3 to study competing pages. Spend at least 5 on finding sources: (a) official standards, regulations or government guidance on the topic, (b) guidance from professional associations, clinical or industry bodies, (c) research or statistics, (d) safety or best-practice guidance. If early searches come up thin, search again with different wording.
+    - Aim for ${MIN_SOURCES} or more inline citations from at least 3 different publishers, even when the topic is practical or how-to. Anchor the key claims (why it matters, safety, sizing, standards, risks, best practice) on what those sources say. Never publish with no outside sources, and never write that the article has none.
+    - RELEVANCE OVER COUNT: cite a source only where it directly supports that exact sentence. Never stretch a source to fit (for example "this is about X, not Y, but it shows..."). Fewer strong sources beat padded ones; old or off-topic sources weaken the article.
+    - NEVER cite a business that sells the same kind of product or service as this article's subject (competitors, retailers, manufacturers' product or shop pages for that product type). Prefer non-commercial sources: government (.gov), universities (.edu), standards bodies, clinical and professional associations, peer-reviewed research, and established news or data publishers.
+    - Avoid content farms, anonymous blogs, press-release sites, forums and social posts.
     - Link each source inline as <a href="URL" target="_blank" rel="noopener">descriptive anchor text</a>, using only URLs exactly as they appear in your search results. Never guess, shorten or reconstruct a URL. Links that were not in your search results are removed automatically.
     - Name the source and year in the sentence, for example: According to the U.S. Bureau of Labor Statistics (2025), ...
-    - Prefer: government (.gov), universities (.edu), peer-reviewed research, official standards bodies and industry bodies, professional associations, and well-known publications or data providers.
-    - Avoid: competitors, content farms, anonymous blogs, press-release sites, forums and social posts.
-    - Do not state numbers, studies or regulations you did not find in a source. If one claim has no source, reword it as general guidance or drop that claim, but keep the article anchored on the sources you did find.
-    - After the FAQ section, add <h2>Sources</h2> followed by a <ul> listing each source you linked: publisher, title, year, with the link.`;
+    - Do not state numbers, studies or regulations you did not find in a source. If one claim has no source, reword it as general guidance or drop it.
+    - After the FAQ section, add <h2>Sources</h2> followed by a <ul>. EVERY entry must be: publisher, title, year, and the link as <a href="URL">. Never list an entry without its link.`;
 
 export const INTERNAL_LINK_RULES = (ownUrl: string, sitemapUrl?: string) => `INTERNAL LINKS:
     - Include 2-3 links to real content pages on ${ownUrl} (guides, articles, product or service pages) that are genuinely relevant. Find them by searching the site (for example: site:${ownUrl} followed by the topic)${sitemapUrl ? ` or by reading the sitemap (${sitemapUrl}) to discover page addresses` : ''}.
@@ -47,9 +48,9 @@ export const buildSourcePassPrompt = (html: string, keyword: string): string => 
 Search for: (a) official standards, regulations or government guidance on the topic, (b) guidance from professional associations or clinical/industry bodies, (c) research or statistics, (d) safety or best-practice guidance. You have ${ARTICLE_SEARCHES} searches.
 
 Then edit the article:
-- Add at least ${MIN_SOURCES} inline citations from at least 3 different publishers, attached to the claims they actually support. Name the source and year in the sentence and link it as <a href="URL" target="_blank" rel="noopener">descriptive anchor text</a>. Use only URLs exactly as they appear in your search results; never guess a URL.
+- Add ${MIN_SOURCES} or more inline citations from at least 3 different publishers, attached only to the claims they directly support (never stretch a source to fit). Never cite a business that sells the same kind of product as the topic; prefer government, standards, clinical/professional and research sources. Name the source and year in the sentence and link it as <a href="URL" target="_blank" rel="noopener">descriptive anchor text</a>. Use only URLs exactly as they appear in your search results; never guess a URL.
 - You may add or sharpen sentences so the sources are used where they genuinely support the point. Do not state anything the sources do not say, and do not invent numbers or quotes.
-- Replace any "Sources" section with <h2>Sources</h2> and a <ul> listing every source linked (publisher, title, year, link). Never write that the article has no sources.
+- Replace any "Sources" section with <h2>Sources</h2> and a <ul> listing every source linked; each entry is publisher, title, year and the link as <a href="URL">. Never write that the article has no sources.
 - Keep everything else: structure, headings, existing links to the business's own site, and the FAQ.
 Return ONLY the full HTML, no commentary, no code fences.
 
@@ -60,7 +61,8 @@ export const TRUST_RULES = `TRUST AND HONESTY (strict):
     - Do not invent an author, credentials, personal experience, testing, case studies, reviews, customer quotes or awards. Do not write "we tested" or "in our experience" unless the business context above states it.
     - Product or service facts about the business come only from the business context provided. Anything not stated there, say plainly that readers should confirm it with the provider.
     - Be even-handed: say what a solution does not do as well as what it does. Do not exaggerate.
-    - Never write meta-commentary about the article or its format (for example "no diagram is needed", "as an AI", "in this article we will"). Do not add a "last updated" line or schema markup; those are added automatically. Do not end with a call to action unless it links to a real page.`;
+    - Never write meta-commentary about the article or its format (for example "no diagram is needed", "as an AI", "in this article we will"). Do not add a "last updated" line or schema markup; those are added automatically. 
+    - CLOSING CALL TO ACTION: if you end with one, it must name the business and link to a real, relevant page on its site that you found (a product, category or contact page). If you found no such page, leave the call to action out. Never write "check out our catalog" or "message us" without a link.`;
 
 export const STRUCTURE_RULES = `STRUCTURE FOR SEARCH AND AI ANSWERS:
     - Open with a 40-60 word direct answer to the main question, then the summary section. Each section should open with a self-contained sentence that answers its heading, so it can be quoted on its own.
@@ -251,6 +253,15 @@ export const lintArticle = (html: string, o: LintOptions): { issues: LintIssue[]
     else if (credible === 0) add('weak-sources', 'warning', 'None of the cited sources is a government, university, standards body or major publication.');
     const badInternal = [...html.matchAll(/<a\s[^>]*href=["'](https?:\/\/[^"']+)["']/gi)].map(m => m[1]).filter(isNonContentUrl);
     if (badInternal.length) add('non-content-link', 'error', `Remove links to non-page addresses (${badInternal[0]}); link only to real content pages.`);
+    const sourcesList = html.match(/<h2[^>]*>\s*sources\s*<\/h2>([\s\S]*)$/i)?.[1] || '';
+    const unlinkedSources = (sourcesList.match(/<li[^>]*>[\s\S]*?<\/li>/gi) || []).filter(li => !/<a\s[^>]*href=/i.test(li));
+    if (unlinkedSources.length) add('unlinked-source', 'error', `${unlinkedSources.length} entr${unlinkedSources.length === 1 ? 'y' : 'ies'} in the Sources list ha${unlinkedSources.length === 1 ? 's' : 've'} no link; every entry needs publisher, title, year and its link (copy the link from the inline citation).`);
+    if (/(this|that|the) (notice|source|study|report|page|standard) (is about|concerns|covers) [^.]{0,80}, not\b/i.test(stripTags(body)))
+        add('stretched-source', 'error', 'A source is stretched to fit a claim it does not support ("it is about X, not Y, but..."). Remove that citation and sentence.');
+    const ctaParas = (body.match(/<p[^>]*>[\s\S]*?<\/p>/gi) || []).filter(p => /(check out|browse|shop|see) (our|the) (catalog|catalogue|products|store|shop)|message us|contact us/i.test(stripTags(p)));
+    if (ctaParas.some(p => !/<a\s[^>]*href=/i.test(p))) add('unlinked-cta', 'error', 'The call to action has no link. Link it to a page already linked in the article, or remove it.');
+    if (ownHost && ![...body.matchAll(/<a\s[^>]*href=["'](https?:\/\/[^"']+)["']/gi)].some(m => hostOf(m[1]) === ownHost))
+        add('no-internal-links', 'warning', 'No links to the business\'s own pages; add 1-3 links to relevant product, category or guide pages.');
     if (!/<h2[^>]*>\s*sources\s*<\/h2>/i.test(html)) add('no-sources-section', 'warning', 'Add a "Sources" section listing each cited source.');
 
     const unsourced = (body.match(/<(p|li)[^>]*>[\s\S]*?<\/\1>/gi) || []).filter(p => FIGURE.test(stripTags(p)) && !/<a\s[^>]*href=/i.test(p));

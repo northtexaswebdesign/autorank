@@ -98,3 +98,15 @@ test('sitemap links and "site directory" wording are caught', async () => {
 test('stripFences keeps HTML that contains brackets', () => {
   assert.equal(stripFences('```html\n<h1>T</h1><p>[IMAGE_1]</p>\n```'), '<h1>T</h1><p>[IMAGE_1]</p>');
 });
+
+test('flags unlinked Sources entries, stretched sources and unlinked CTAs', () => {
+  const html = '<h1>T</h1><p>That notice concerns electromagnetic interference, not canes. It shows caution.</p><p>Check out our catalog to see these solutions, or message us.</p><h2>Sources</h2><ul><li>FDA, Notice, 1995</li><li><a href="https://fda.gov/x">FDA</a></li></ul>';
+  const codes = lintArticle(html, { keyword: kw, ownUrl: 'https://shop.com' }).issues.map(i => i.code);
+  for (const c of ['unlinked-source', 'stretched-source', 'unlinked-cta', 'no-internal-links']) assert.ok(codes.includes(c), c);
+});
+
+test('a linked CTA and linked sources pass', () => {
+  const html = '<h1>T</h1><p>See <a href="https://shop.com/cane-holders/">SnapIt cane holders</a>. Check out our catalog at <a href="https://shop.com/shop/">the shop</a>.</p><h2>Sources</h2><ul><li><a href="https://fda.gov/x">FDA</a>, 2024</li></ul>';
+  const codes = lintArticle(html, { keyword: kw, ownUrl: 'https://shop.com' }).issues.map(i => i.code);
+  for (const c of ['unlinked-source', 'unlinked-cta', 'no-internal-links']) assert.ok(!codes.includes(c), c);
+});
