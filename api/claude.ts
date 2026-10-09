@@ -11,6 +11,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
  *   messages   [{ role: 'user' | 'assistant', content: string | blocks[] }]
  *   maxTokens  optional, capped at MAX_TOKENS_CAP
  *   webSearch  optional, enables Claude's web search tool
+ *   searches   optional, max web searches for this call (1-5, default 5)
  *   kind       'article' marks a new-article generation: it uses 1 credit (paid) or 1 of the free trial articles
  *   action     'photo' returns a stock photo (JPEG under 200KB) instead of text; see handlePhoto
  *   schema     optional JSON schema; response is then guaranteed to match it
@@ -258,6 +259,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const maxTokens = Math.min(Math.max(Number(body.maxTokens) || 8000, 256), MAX_TOKENS_CAP);
   const webSearch = body.webSearch === true;
+  const maxSearches = Math.min(Math.max(Math.round(Number(body.searches)) || 5, 1), 5);
   const useSchema = !!body.schema && typeof body.schema === 'object' && !webSearch;
 
   const client = new Anthropic();
@@ -279,7 +281,7 @@ export async function POST(request: Request): Promise<Response> {
           effort: tier.effort,
           ...(useSchema ? { format: { type: 'json_schema', schema: body.schema } } : {}),
         },
-        ...(webSearch ? { tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 5 }] } : {}),
+        ...(webSearch ? { tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: maxSearches }] } : {}),
       } as Anthropic.MessageStreamParams);
       final = await stream.finalMessage();
       inputTokens += final.usage.input_tokens;

@@ -61,7 +61,55 @@ const askJson = async (model: string, prompt: string, schema: Record<string, unk
     return JSON.parse(textOf(m));
 };
 
+/** Runs a prompt with web search, resuming paused turns; returns the text written after the last search step. */
+const runWithSearch = async (model: string, prompt: string, maxTokens: number, maxSearches: number, effort: 'low' | 'medium'): Promise<{ text: string; message: Anthropic.Message }> => {
+    const messages: any[] = [{ role: 'user', content: prompt }];
+    let message: Anthropic.Message | null = null;
+    for (let i = 0; i <= 4; i++) {
+        const stream = getClient().messages.stream({
+            model,
+            max_tokens: maxTokens,
+            messages,
+            output_config: { effort },
+            tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: maxSearches }],
+        } as any);
+        message = await stream.finalMessage();
+        if (message.stop_reason !== 'pause_turn') break;
+        messages.push({ role: 'assistant', content: message.content });
+    }
+    if (!message) throw new Error('No response from model.');
+    // keep only the text written after the last search step (drops "let me search..." narration)
+    let text = '';
+    for (const block of message.content as any[]) {
+        if (block.type === 'text') text += block.text;
+        else if (block.type !== 'thinking' && block.type !== 'redacted_thinking') text = '';
+    }
+    console.log(JSON.stringify({ step: 'search-call', model, in: message.usage.input_tokens, out: message.usage.output_tokens }));
+    return { text: text.trim(), message };
+};
+
+/**
+ * Gap research before writing: the light model reads the current top results and returns a short private
+ * brief (what ranks, what it misses, credible sources). Never blocks publishing: on failure, no brief.
+ */
+const researchContentGaps = async (keyword: string, business: BusinessInfo): Promise<string> => {
+    try {
+        const { text } = await runWithSearch(MODEL_LIGHT, `You are an SEO researcher. Search for "${keyword}" and study the top 5-8 organic results (skip ads; a forum or Reddit thread in the results is a useful signal of what people still ask). Do not write the article. Write a private brief for the writer, plain text, under 450 words, with these parts:
+INTENT AND FORMAT: what the searcher wants and the format that ranks (guide, list, comparison, how-to), plus a typical length.
+MUST COVER: subtopics that most top results cover (short list).
+GAPS: what the top results miss or get wrong: unanswered questions, vague advice with no specifics, outdated facts or numbers, missing steps, examples, comparisons, tables, costs, safety points or edge cases. Be specific; this is the most important part.
+ANGLE: one or two ways our article can add something new (information gain), staying on what the searcher wants.
+SOURCES: up to 5 credible pages you found (government, university, standards bodies, manufacturers, well-known publications) as "URL - the fact it supports (year)". Only URLs exactly as they appeared in your search results.
+Context: the article is published by ${business.name} (${business.description}). Use that only to judge relevance, not to steer the topic.`, 2500, 3, 'low');
+        return text.length > 200 ? text : '';
+    } catch (e: any) {
+        console.error('Gap research failed, writing without a brief:', e.message);
+        return '';
+    }
+};
+
 const generateArticleText = async (keyword: string, business: BusinessInfo): Promise<string> => {
+    const research = await researchContentGaps(keyword, business);
     const languageInstruction = business.language && business.language !== 'English'
         ? `\n**CRITICAL LANGUAGE REQUIREMENT:** The entire article MUST be written in ${business.language}.\n` : '';
     const year = new Date().getUTCFullYear();
@@ -69,6 +117,10 @@ const generateArticleText = async (keyword: string, business: BusinessInfo): Pro
     const prompt = `You are an expert-level SEO content writer specializing in GEO (Generative-Engine-Optimization) content.
 ${languageInstruction}
 **Topic:** "${keyword}"
+${research ? `\nRESEARCH BRIEF (private, from a study of the current top results; never mention it in the article):
+${research}
+
+Use the brief: cover everything under MUST COVER, make the GAPS and ANGLE the parts where this article clearly beats the current results, and match the format under INTENT AND FORMAT. URLs listed under SOURCES came from search results and may be cited; verify or add others with your own searches.\n` : ''}
 **Primary Goal: E-E-A-T & User Intent**
 - **Current Year Reference:** Use "${year}". Do not use past years.
 - **E-E-A-T:** Demonstrate Experience, Expertise, Authoritativeness, and Trustworthiness. Be factual and objective. Do not invent statistics or sources.
@@ -92,30 +144,10 @@ ${languageInstruction}
 **Business Integration:** Mention ${business.name} 2-3 times where it adds value. Informational tone.
 Output only the HTML of the article.`;
 
-    // Web search lets the model find real sources; resume if the turn pauses mid-search.
-    const messages: any[] = [{ role: 'user', content: prompt }];
-    let message: Anthropic.Message | null = null;
-    for (let i = 0; i <= 4; i++) {
-        const stream = getClient().messages.stream({
-            model: MODEL_ARTICLE,
-            max_tokens: 12000,
-            messages,
-            output_config: { effort: 'medium' },
-            tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 5 }],
-        } as any);
-        message = await stream.finalMessage();
-        if (message.stop_reason !== 'pause_turn') break;
-        messages.push({ role: 'assistant', content: message.content });
-    }
-    if (!message) throw new Error('No response from model.');
+    // Web search finds real sources; with a research brief the writer needs fewer searches of its own.
+    const { text, message } = await runWithSearch(MODEL_ARTICLE, prompt, 12000, research ? 3 : 5, 'medium');
     if (message.stop_reason === 'refusal') throw new Error('Article generation was declined by the model.');
 
-    // keep only the text written after the last search step (drops "let me search..." narration)
-    let text = '';
-    for (const block of message.content as any[]) {
-        if (block.type === 'text') text += block.text;
-        else if (block.type !== 'thinking' && block.type !== 'redacted_thinking') text = '';
-    }
     let html = text.trim().replace(/^```(?:html)?\s*/i, '').replace(/\s*```$/, '').trim();
     if (html.length < 200) throw new Error(`Article generation returned an empty or too-short response (stop_reason: ${message.stop_reason}).`);
     return await dropDeadLinks(html, business.url);

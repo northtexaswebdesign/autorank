@@ -290,6 +290,33 @@ const altAttr = (alt: string | undefined, fallback: string) => {
     return text.replace(/"/g, '&quot;');
 };
 
+/**
+ * Gap research before writing: a cheap model reads the current top results and returns a short private brief
+ * (what ranks, what it misses, credible sources). The writer uses it so the article adds what the top results
+ * lack. Never blocks writing: on any failure the article is written without a brief.
+ */
+const researchContentGaps = async (keyword: string, business: BusinessInfo): Promise<string> => {
+    try {
+        const text = await callClaude({
+            tier: 'fast',
+            webSearch: true,
+            searches: 3,
+            maxTokens: 2500,
+            messages: [{ role: 'user', content: `You are an SEO researcher. Search for "${keyword}" and study the top 5-8 organic results (skip ads; a forum or Reddit thread in the results is a useful signal of what people still ask). Do not write the article. Write a private brief for the writer, plain text, under 450 words, with these parts:
+INTENT AND FORMAT: what the searcher wants and the format that ranks (guide, list, comparison, how-to), plus a typical length.
+MUST COVER: subtopics that most top results cover (short list).
+GAPS: what the top results miss or get wrong: unanswered questions, vague advice with no specifics, outdated facts or numbers, missing steps, examples, comparisons, tables, costs, safety points or edge cases. Be specific; this is the most important part.
+ANGLE: one or two ways our article can add something new (information gain), staying on what the searcher wants.
+SOURCES: up to 5 credible pages you found (government, university, standards bodies, manufacturers, well-known publications) as "URL - the fact it supports (year)". Only URLs exactly as they appeared in your search results.
+Context: the article is published by ${business.name} (${business.description}). Use that only to judge relevance, not to steer the topic.` }]
+        });
+        return text.trim().length > 200 ? text.trim() : '';
+    } catch (e) {
+        console.error('Gap research failed, writing without a brief:', e);
+        return '';
+    }
+};
+
 export const generateFullArticle = async (
     keyword: string, 
     business: BusinessInfo, 
@@ -297,7 +324,9 @@ export const generateFullArticle = async (
     brief?: ContentBrief | null, 
     onProgress?: (progress: { value: number; text: string }) => void
 ) => {
-    onProgress?.({ value: 10, text: "Gathering authoritative sources via search..." });
+    onProgress?.({ value: 5, text: "Studying the top-ranking articles..." });
+    const research = await researchContentGaps(keyword, business);
+    onProgress?.({ value: 20, text: "Gathering authoritative sources via search..." });
     
     const imageInstruction = (business.skipImageGeneration || !IMAGES_ENABLED) 
         ? "5. STRICTLY NO IMAGES: Do NOT include any <img> tags, markdown images, image placeholders, base64 images, or data URIs in the HTML. The content must be 100% text only."
@@ -305,9 +334,10 @@ export const generateFullArticle = async (
 
     const prompt = `You are tasked with writing the absolute best, most comprehensive SEO article on the internet for the keyword: "${keyword}".
     
-    First, use your search capabilities to analyze the top-ranking articles for this keyword. Identify what they cover, but more importantly, identify their gaps, missing information, and areas where they lack depth or clarity. 
-    
-    Then, write a superior article that covers all the essential information the competitors have, PLUS fills in those gaps with unique, valuable insights. Your goal is to create a 10x better resource that outranks the current top results.
+    ${research ? `RESEARCH BRIEF (private, from a study of the current top results; never mention it in the article):
+${research}
+
+Use the brief: cover everything under MUST COVER, make the GAPS and ANGLE the parts where this article clearly beats the current results, and match the format under INTENT AND FORMAT. URLs listed under SOURCES came from search results and may be cited; verify or add others with your own searches.` : `First, use your search capabilities to analyze the top-ranking articles for this keyword and identify their gaps, missing information, and areas where they lack depth or clarity. Then write a superior article that covers what they cover PLUS fills those gaps.`}
     
     CRITICAL REQUIREMENTS:
     1. Add a well-formatted, clearly written summary at the very beginning of the article, optimized for generative AI engines to quickly extract the main points. Do NOT use the term "TL;DR" or "TL DR". Use a professional heading like "Executive Summary" or "Key Takeaways".
@@ -335,6 +365,7 @@ export const generateFullArticle = async (
         tier: 'smart',
         kind: 'article',
         webSearch: true,
+        searches: research ? 3 : 5,
         maxTokens: 16000,
         system: "You are an expert SEO content writer specialized in GEO (Generative Engine Optimization). Write in-depth, helpful content.",
         messages: [{ role: 'user', content: prompt + "\n\nRespond with ONLY the JSON object. No markdown fences, no text before or after it." }]
