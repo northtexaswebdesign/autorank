@@ -160,7 +160,7 @@ export const ArticleGenerationModal: React.FC<{
     try {
       const postToPublish = { ...localPost, metaTitle, meta_title: metaTitle, metaDescription, meta_description: metaDescription, slug };
       const contentWithImages = renderProcessedArticle(rawContent, localPost.images);
-      const result = await publishToWordPress(cmsIntegration, { ...postToPublish, articleContent: contentWithImages });
+      const result = await publishToWordPress(cmsIntegration, { ...postToPublish, articleContent: contentWithImages }, selectedBusiness);
       const updates = { publishedUrl: result.url, published_url: result.url, slug: result.slug, status: 'published' as const };
       setLocalPost({ ...localPost, ...updates });
       await updateScheduledPost(localPost.id, updates);

@@ -32,6 +32,18 @@ const post = async (payload: unknown): Promise<any> => {
 /** Calls the /api/claude serverless function (which holds the Anthropic key). Returns the model's text. */
 export const callClaude = async (req: ClaudeRequest): Promise<string> => (await post(req)).text as string;
 
+/** Like callClaude, but also returns every URL the web search found (used to drop links the model made up). */
+export const callClaudeDetailed = async (req: ClaudeRequest): Promise<{ text: string; sources: string[] }> => {
+    const data = await post(req);
+    return { text: data.text as string, sources: Array.isArray(data.sources) ? data.sources : [] };
+};
+
+export interface LinkCheck { html: string; removed: { url: string; reason: string }[]; kept: string[]; }
+
+/** Server-side check of the outside links in article HTML: removes links not found by search, blocked hosts and dead pages. */
+export const verifyArticleLinks = async (html: string, ownUrl: string, searchUrls: string[]): Promise<LinkCheck> =>
+    post({ action: 'verify-links', html, ownUrl, searchUrls });
+
 export interface CoverImage { base64: string; alt: string; width: number; height: number; bytes: number; layout: string; brandStyle?: Record<string, unknown> | null; }
 
 /** Designs a branded 1080x1080 cover (JPEG under 200 KB). `variant` > 0 gives a different layout. */
