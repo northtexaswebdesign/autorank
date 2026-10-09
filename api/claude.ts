@@ -1,5 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 
 /**
  * Server-side proxy to the Claude API. The browser never sees ANTHROPIC_API_KEY.
@@ -13,6 +15,8 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
  *   webSearch  optional, enables Claude's web search tool
  *   kind       'article' marks a new-article generation: it uses 1 credit (paid) or 1 of the free trial articles
  *   action     'photo' returns a stock photo (JPEG under 200KB) instead of text; see handlePhoto
+ *              'verify-links' checks the outside links in an article's HTML; see handleVerifyLinks
+ * Responses also carry `sources`: every URL the web search returned, so callers can drop links the model made up.
  *   schema     optional JSON schema; response is then guaranteed to match it
  *              (ignored when webSearch is on - citations can't be combined with it)
  */
@@ -218,6 +222,88 @@ Give: (1) "query": a 2-4 word search query for a stock photo site that finds a r
   }
 };
 
+// ---------------- link verification ----------------
+// Self-contained copy of the checks in supabase/functions/_shared/articleQuality.ts (relative imports break in this function).
+const BLOCKED_HOSTS = /(^|\.)(reddit|quora|facebook|instagram|twitter|x|tiktok|pinterest|linkedin|medium|tumblr|blogspot|wordpress|wixsite|youtube|youtu)\.(com|be|net)$/i;
+const normUrl = (raw: string): string => {
+  try {
+    const u = new URL(raw.trim());
+    u.hash = '';
+    for (const k of [...u.searchParams.keys()]) if (/^(utm_|fbclid|gclid)/i.test(k)) u.searchParams.delete(k);
+    return `${u.hostname.toLowerCase().replace(/^www\./, '')}${u.pathname.replace(/\/+$/, '')}${u.search}`;
+  } catch { return raw.trim().toLowerCase(); }
+};
+const hostOf = (raw: string): string => { try { return new URL(raw).hostname.toLowerCase().replace(/^www\./, ''); } catch { return ''; } };
+
+const isPrivateIp = (ip: string): boolean => {
+  if (isIP(ip) === 6) {
+    const l = ip.toLowerCase();
+    return l === '::1' || l === '::' || l.startsWith('fc') || l.startsWith('fd') || l.startsWith('fe80') || (l.startsWith('::ffff:') && isPrivateIp(l.slice(7)));
+  }
+  const [a, b] = ip.split('.').map(Number);
+  return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
+};
+
+/** Collects every URL the web search returned (tool results and text citations). */
+const collectSearchUrls = (blocks: any[]): string[] => {
+  const urls = new Set<string>();
+  const walk = (node: any, inResult: boolean) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(n => walk(n, inResult)); return; }
+    const isResult = inResult || (typeof node.type === 'string' && /tool_result$/.test(node.type));
+    if (typeof node.url === 'string' && (isResult || /^web_search_result/.test(node.type || ''))) urls.add(node.url);
+    if (Array.isArray(node.citations)) node.citations.forEach((c: any) => typeof c?.url === 'string' && urls.add(c.url));
+    for (const v of Object.values(node)) if (v && typeof v === 'object') walk(v, isResult);
+  };
+  walk(blocks, false);
+  return [...urls];
+};
+
+/** 'ok' | 'dead' (404/410/unreachable) | 'unsafe' (private or odd address). Bot-blocking statuses count as ok. */
+const checkLink = async (rawUrl: string, hops = 3): Promise<'ok' | 'dead' | 'unsafe'> => {
+  let url: URL;
+  try { url = new URL(rawUrl); } catch { return 'unsafe'; }
+  if (!/^https?:$/.test(url.protocol) || url.username || url.password || (url.port && url.port !== '80' && url.port !== '443')) return 'unsafe';
+  const records = isIP(url.hostname) ? [{ address: url.hostname }] : await lookup(url.hostname, { all: true }).catch(() => []);
+  if (!records.length) return 'dead';
+  if (records.some(r => isPrivateIp(r.address))) return 'unsafe';
+  try {
+    const res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(7000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AutorankLinkCheck/1.0)' } });
+    await res.body?.cancel();
+    if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+      return hops > 0 ? checkLink(new URL(res.headers.get('location')!, url).toString(), hops - 1) : 'ok';
+    }
+    return res.status === 404 || res.status === 410 ? 'dead' : 'ok';
+  } catch (e: any) {
+    return e?.name === 'TimeoutError' ? 'ok' : 'dead';
+  }
+};
+
+const handleVerifyLinks = async (body: any, userId: string, db: SupabaseClient): Promise<Response> => {
+  const decision = decide(await loadProfile(db, userId), false);
+  if (!decision.ok) return json(402, { error: decision.message });
+  const html = typeof body.html === 'string' ? body.html : '';
+  if (!html) return json(400, { error: 'html is required.' });
+  const ownHost = hostOf(/^https?:/.test(String(body.ownUrl || '')) ? body.ownUrl : body.ownUrl ? `https://${body.ownUrl}` : '');
+  const allowed = new Set((Array.isArray(body.searchUrls) ? body.searchUrls : []).filter((u: unknown) => typeof u === 'string').slice(0, 500).map(normUrl));
+  const urls = [...new Set([...html.matchAll(/<a\s[^>]*href=["'](https?:\/\/[^"']+)["']/gi)].map(m => m[1]))].slice(0, 30);
+
+  const bad = new Map<string, string>();
+  const live: string[] = [];
+  for (const u of urls) {
+    const host = hostOf(u);
+    if (BLOCKED_HOSTS.test(host)) bad.set(u, 'blocked-host');
+    else if (host !== ownHost && allowed.size > 0 && !allowed.has(normUrl(u))) bad.set(u, 'not-in-search-results');
+    else live.push(u);
+  }
+  await Promise.all(live.map(async u => { const r = await checkLink(u); if (r !== 'ok') bad.set(u, r); }));
+
+  const cleaned = bad.size
+    ? html.replace(/<a\s[^>]*href=["'](https?:\/\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (m, href, inner) => (bad.has(href) ? inner : m))
+    : html;
+  return json(200, { html: cleaned, removed: [...bad].map(([url, reason]) => ({ url, reason })), kept: urls.filter(u => !bad.has(u)) });
+};
+
 export async function POST(request: Request): Promise<Response> {
   if (!process.env.ANTHROPIC_API_KEY) return json(500, { error: 'ANTHROPIC_API_KEY is not configured on the server.' });
 
@@ -235,6 +321,11 @@ export async function POST(request: Request): Promise<Response> {
     const photoDb = getAdmin();
     if (!photoDb) return json(500, { error: 'Billing is not configured on the server (SUPABASE_SERVICE_ROLE_KEY).' });
     return handlePhoto(body, userId, photoDb);
+  }
+  if (body.action === 'verify-links') {
+    const linkDb = getAdmin();
+    if (!linkDb) return json(500, { error: 'Billing is not configured on the server (SUPABASE_SERVICE_ROLE_KEY).' });
+    return handleVerifyLinks(body, userId, linkDb);
   }
 
   const tier = MODELS[body.tier];
@@ -267,6 +358,7 @@ export async function POST(request: Request): Promise<Response> {
     let final: Anthropic.Message | null = null;
     let inputTokens = 0;
     let outputTokens = 0;
+    const sources = new Set<string>();
 
     // Web search can end a turn with pause_turn; resume until the model is done.
     for (let i = 0; i <= MAX_PAUSE_RESUMES; i++) {
@@ -284,6 +376,7 @@ export async function POST(request: Request): Promise<Response> {
       final = await stream.finalMessage();
       inputTokens += final.usage.input_tokens;
       outputTokens += final.usage.output_tokens;
+      collectSearchUrls(final.content as any[]).forEach(u => sources.add(u));
       if (final.stop_reason !== 'pause_turn') break;
       messages.push({ role: 'assistant', content: final.content });
     }
@@ -300,7 +393,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     console.log(JSON.stringify({ user: userId, model: tier.model, in: inputTokens, out: outputTokens, stop: final.stop_reason }));
-    return json(200, { text, stopReason: final.stop_reason, usage: { inputTokens, outputTokens } });
+    return json(200, { text, sources: [...sources], stopReason: final.stop_reason, usage: { inputTokens, outputTokens } });
   } catch (err) {
     await refund?.();
     if (err instanceof Anthropic.RateLimitError) return json(429, { error: 'The AI service is busy. Please retry shortly.' });

@@ -1,7 +1,8 @@
 import { BusinessInfo, Keyword, ContentCluster, CompetitorAnalysis, CmsIntegration, ScheduledPost, PostImages, GeneratedImage, ContentBrief, KeywordOpportunity } from "../types.ts";
 import { uploadImageFromBase64 } from '../utils/imageStorage.ts';
 
-import { callClaude, callCover } from './claudeClient.ts';
+import { callClaude, callClaudeDetailed, callCover, verifyArticleLinks } from './claudeClient.ts';
+import { SOURCE_RULES, TRUST_RULES, STRUCTURE_RULES, keywordRules, buildRepairPrompt, lintArticle, finalizeForPublish, type LintIssue } from '../supabase/functions/_shared/articleQuality.ts';
 
 // Articles get one branded cover (1080x1080 JPEG under 200 KB, made by /api/cover) as the featured/first image.
 // It uses the business's brand style, else colours read from its website, else a look Claude picks for the topic.
@@ -246,17 +247,37 @@ export const analyzeCompetitors = async (
 };
 
 /**
- * Source rules shared by new articles and rewrites. The model has a web search tool, so every outside claim
- * must come from a page it actually found; links are copied from the search results, never guessed.
+ * Quality pass run on every generated or rewritten article:
+ *  1. drop outside links the web search never returned, blocked hosts and dead pages (server side);
+ *  2. lint (keyword stuffing, leaked text, unsourced figures, missing summary/FAQ/sources, meta lengths);
+ *  3. if there are errors, one targeted repair edit (no new facts or links), then lint again.
+ * Remaining findings come back as feedback lines for the editor panel. Never throws: on failure the article is returned as is.
  */
-const SOURCE_RULES = `CREDIBLE SOURCES (strict):
-    - Every statistic, number, study result, legal or regulatory claim, and "experts say" claim MUST be backed by a source you found with your search tool, linked inline as <a href="URL" target="_blank" rel="noopener">descriptive anchor text</a>. Use only URLs exactly as they appear in your search results. Never guess, shorten or reconstruct a URL.
-    - Name the source and year in the sentence, for example: According to the U.S. Bureau of Labor Statistics (2025), ...
-    - Prefer: government (.gov), universities (.edu), peer-reviewed research, official standards and industry bodies, major trade associations, and well-known publications or data providers (for example Google Search Central, Pew Research, Census Bureau, BLS, Nielsen Norman Group, Harvard Business Review).
-    - Avoid: competitors, content farms, anonymous blogs, press-release sites, forums and social posts.
-    - Use 4 to 8 different outside sources in total.
-    - If you cannot find a credible source for a claim, remove the claim or rewrite it as general guidance without numbers. Never invent statistics, quotes, studies, or URLs.
-    - After the FAQ section, add <h2>Sources</h2> followed by a <ul> listing each source you linked: publisher, title, year, with the link.`;
+const polishArticle = async (html: string, keyword: string, business: BusinessInfo, searchUrls: string[], meta: { metaTitle?: string; metaDescription?: string }) => {
+    const lintOpts = { keyword, ownUrl: business.url, imagesAllowed: !(business.skipImageGeneration || !IMAGES_ENABLED) ? undefined : false, ...meta };
+    let content = html;
+    const notes: string[] = [];
+    try {
+        const checked = await verifyArticleLinks(content, business.url, searchUrls);
+        content = checked.html;
+        if (checked.removed.length) notes.push(`${checked.removed.length} link(s) were removed because they were not found by search, were unreachable, or were not a credible source type.`);
+    } catch (e) { console.error('Link verification failed, keeping links as written:', e); }
+
+    let { issues } = lintArticle(content, lintOpts);
+    const errors = issues.filter(i => i.severity === 'error');
+    if (errors.length) {
+        try {
+            const fixed = cleanAIResponse(await callClaude({ tier: 'smart', maxTokens: 16000, messages: [{ role: 'user', content: buildRepairPrompt(content, errors) }] }));
+            if (fixed.length > content.length * 0.7 && /<h[12]/i.test(fixed)) {
+                // the repair must not introduce links; re-check against the same search results
+                const recheck = await verifyArticleLinks(fixed, business.url, searchUrls).catch(() => ({ html: fixed }));
+                content = recheck.html;
+                issues = lintArticle(content, lintOpts).issues;
+            }
+        } catch (e) { console.error('Repair pass failed, keeping the article as written:', e); }
+    }
+    return { content, feedback: [...issues.map((i: LintIssue) => `${i.severity === 'error' ? 'Fix' : 'Improve'}: ${i.message}`), ...notes] };
+};
 
 export const generateFullArticle = async (
     keyword: string, 
@@ -285,6 +306,12 @@ export const generateFullArticle = async (
     ${imageInstruction}
     6. INTERNAL LINKING: You MUST include 2-3 highly relevant internal links to existing pages on the business's website. Use your search tool to search the site (e.g., "site:${business.url} [related topic]") or reference their sitemap (${business.sitemapUrl ? business.sitemapUrl : 'if available'}) to find the exact URLs of relevant existing articles. Embed these links naturally within the HTML content using descriptive anchor text.
     
+    ${keywordRules(keyword)}
+
+    ${STRUCTURE_RULES}
+
+    ${TRUST_RULES}
+
     Business Context: ${business.name} (${business.description})
     Target Audience: ${business.audience}
     ${instructions ? `Additional Instructions: ${instructions}` : ''}
@@ -298,7 +325,7 @@ export const generateFullArticle = async (
         "slug": "url-friendly-slug"
     }`;
 
-    const responseText = await callClaude({
+    const { text: responseText, sources: searchUrls } = await callClaudeDetailed({
         tier: 'smart',
         kind: 'article',
         webSearch: true,
@@ -313,12 +340,13 @@ export const generateFullArticle = async (
     
     const content = parsedData.articleContent || '';
     if (!content.trim()) throw new Error('The AI returned an empty article. Please try again.');
-    const analysis = await analyzeArticleForGEO(content, keyword);
+    const polished = await polishArticle(content, keyword, business, searchUrls, parsedData);
+    const analysis = await analyzeArticleForGEO(polished.content, keyword);
 
     return { 
-        articleContent: content, 
+        articleContent: polished.content, 
         geoScore: analysis.geoScore, 
-        aiFeedback: analysis.aiFeedback, 
+        aiFeedback: [...polished.feedback, ...(analysis.aiFeedback || [])], 
         metaTitle: parsedData.metaTitle, 
         metaDescription: parsedData.metaDescription, 
         slug: parsedData.slug 
@@ -371,7 +399,7 @@ export const rewriteArticle = async (content: string, keyword: string, feedback:
         ? "5. STRICTLY NO IMAGES: Do NOT include any <img> tags, markdown images, image placeholders, base64 images, or data URIs in the HTML. The content must be 100% text only."
         : "5. IMAGES: You MUST include exactly one image placeholder in the format <p>[IMAGE_1]</p> near the beginning of the article. Do NOT include any actual <img> tags, markdown images, base64 images, or external image URLs.";
 
-    const responseText = await callClaude({
+    const { text: responseText, sources: searchUrls } = await callClaudeDetailed({
         tier: 'smart',
         webSearch: true,
         maxTokens: 16000,
@@ -385,7 +413,13 @@ export const rewriteArticle = async (content: string, keyword: string, feedback:
         4. ${SOURCE_RULES}
         ${imageInstruction}
         6. INTERNAL LINKING: You MUST include 2-3 highly relevant internal links to existing pages on the business's website. Use your search tool to search the site (e.g., "site:${business.url} [related topic]") or reference their sitemap (${business.sitemapUrl ? business.sitemapUrl : 'if available'}) to find the exact URLs of relevant existing articles. Embed these links naturally within the HTML content using descriptive anchor text.
-        
+
+        ${keywordRules(keyword)}
+
+        ${STRUCTURE_RULES}
+
+        ${TRUST_RULES}
+
         Return a JSON object with the following structure:
         {
             "articleContent": "The HTML content of the rewritten article. ${(business.skipImageGeneration || !IMAGES_ENABLED) ? 'Do NOT include any images.' : 'Must include <p>[IMAGE_1]</p>.'} Must include an AI-optimized summary at the beginning and an FAQ section at the end.",
@@ -398,8 +432,12 @@ export const rewriteArticle = async (content: string, keyword: string, feedback:
     });
 
     const parsed = parseArticleResponse(responseText || '{}', keyword, business.name);
+    const polished = parsed.articleContent
+        ? await polishArticle(parsed.articleContent, keyword, business, searchUrls, parsed)
+        : { content, feedback: [] as string[] };
     return {
-        articleContent: parsed.articleContent || content,
+        articleContent: polished.content,
+        qualityFeedback: polished.feedback,
         metaTitle: parsed.metaTitle,
         metaDescription: parsed.metaDescription,
         slug: parsed.slug
@@ -464,7 +502,7 @@ const uploadImageToWP = async (auth: string, cmsUrl: string, image: GeneratedIma
     }
 };
 
-export const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost) => {
+export const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost, business?: BusinessInfo) => {
     const auth = btoa(`${cms.username}:${cms.applicationPassword}`);
     let finalContent = (post as any).article_content || post.articleContent || '';
     
@@ -472,10 +510,12 @@ export const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPos
 
     // 1. Process Featured Image and [IMAGE_1] placeholder
     let featuredMediaId = 0;
+    let featuredImageUrl: string | undefined;
     if (post.images?.featureImage) {
         const wpImg = await uploadImageToWP(auth, cms.url, post.images.featureImage, 'featured-image.jpg');
         if (wpImg) {
             featuredMediaId = wpImg.id;
+            featuredImageUrl = wpImg.url;
             // Build the real HTML tag for the content
             const imgTag = `<img src="${wpImg.url}" alt="${post.images.featureImage.prompt || ''}" class="wp-post-image" style="width:100%; height:auto; border-radius:8px; margin-bottom:2rem;" />`;
             // Replace placeholder in body
@@ -502,6 +542,14 @@ export const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPos
 
     const metaTitle = post.meta_title ?? post.metaTitle ?? post.keyword;
     const metaDesc = post.meta_description ?? post.metaDescription ?? '';
+
+    // Visible "Last updated" line + Article/FAQPage JSON-LD (WordPress keeps the script for users allowed unfiltered HTML)
+    if (business) {
+        finalContent = finalizeForPublish(finalContent, {
+            headline: metaTitle, description: metaDesc, keyword: post.keyword, businessName: business.name,
+            businessUrl: business.url, imageUrl: featuredImageUrl, language: business.language,
+        });
+    }
 
     const wpPost = {
         title: metaTitle,
