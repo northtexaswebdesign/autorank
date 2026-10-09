@@ -75,16 +75,19 @@ ${languageInstruction}
 - **Answer Intent:** Solve the user's problem completely.
 **Article Length Requirement:** 1500-2300 words.
 **Content Structure:**
-- **Direct Answer First:** Immediately after the H1, include a <div class="key-takeaways"><h3>Key Takeaways</h3><ul>...</ul></div>.
+- **Direct Answer First:** Open with one or two sentences that directly answer the topic, then include a <div class="key-takeaways"><h3>Key Takeaways</h3><ul>...</ul></div>.
 - **Question-Based Headings:** Use <h2> headings phrased as questions.
 - **Structured Data:** Use lists and tables where helpful.
-- **Logical Flow:** Clean H1 -> H2 -> H3 structure, exactly one <h1>.
+- **Logical Flow:** Clean H2 -> H3 structure. Do NOT include an <h1>: the CMS prints the title as the H1.
 **SEO & Linking Requirements:**
-- Integrate "${keyword}" 5-10 times naturally.
-- Embed exactly one internal link to: ${business.url}.
+- Use the exact phrase "${keyword}" 3-6 times; elsewhere use natural variations. Never force it into a sentence.
+- Include 2-4 internal links to existing pages on ${business.url} that you found with your search tool (e.g. "site:${business.url} topic"): at least one product, service or category page and one related article if they exist. Never guess a URL; descriptive anchor text only. End with a specific call to action linking to the most relevant of those pages.
+- **Topic Focus:** Stay on what the searcher wants. Mention the business's niche only where it genuinely fits, in a sentence or two; never add sections or FAQ questions just to bring it in.
+- **Experience:** Where a real photo or first-hand note from the business would help, leave <!-- EDITOR: add a real photo or first-hand note here: what to show --> (1-2 max). Never invent experiences or results.
+- Prefer sources from the last 3 years; older ones only when they are the primary record (law, standard, official notice).
 - CREDIBLE SOURCES (strict): every statistic, number, study result, legal or regulatory claim must be backed by a source you found with your search tool, linked inline as <a href=\"URL\" target=\"_blank\" rel=\"noopener\">descriptive anchor text</a>. Use only URLs exactly as they appear in your search results; never guess or reconstruct a URL. Name the source and year in the sentence. Prefer government (.gov), universities (.edu), peer-reviewed research, official standards and industry bodies, and well-known publications or data providers. Avoid competitors, content farms, anonymous blogs, forums and social posts. Use 4 to 8 different outside sources. If you cannot find a credible source for a claim, remove it or state it as general guidance without numbers. Never invent statistics, quotes, studies or URLs. After the last section add <h2>Sources</h2> and a <ul> listing each linked source (publisher, title, year).
 **Formatting and Style:**
-- Output clean HTML only (<h1>, <h2>, <h3>, <p>, <a>, <ul>, <li>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <strong>). No <html>, <head>, <body>, no markdown, no code fences, no images or image placeholders.
+- Output clean HTML only (<h2>, <h3>, <p>, <a>, <ul>, <li>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <strong>). No <html>, <head>, <body>, no markdown, no code fences, no images or image placeholders.
 - Do not invent an author name or byline. Short paragraphs, no fluff.
 **Business Integration:** Mention ${business.name} 2-3 times where it adds value. Informational tone.
 Output only the HTML of the article.`;
@@ -279,13 +282,15 @@ const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost, busi
             featureImage = { url: media.url, prompt: photo.alt };
             const imgTag = `<p><img src="${media.url}" alt="${photo.alt.replace(/"/g, '&quot;')}" style="max-width:100%;height:auto;border-radius:8px" /></p>`;
             if (/\[IMAGE_1\]/.test(content)) content = content.replace(/<p>\s*\[IMAGE_1\]\s*<\/p>|\[IMAGE_1\]/, imgTag);
-            else if (/<\/h1>/i.test(content)) content = content.replace(/<\/h1>/i, (m) => m + imgTag);
+            else if (/<\/p>/i.test(content)) content = content.replace(/<\/p>/i, (m) => m + imgTag);
             else content = imgTag + content;
         }
     } catch (photoError: any) {
         console.error('Photo step failed, publishing without image:', photoError.message);
     }
     content = content.replace(/<p>\s*\[IMAGE_\d+\]\s*<\/p>/g, '').replace(/\[IMAGE_\d+\]/g, '');
+    // The theme prints the title as the H1: drop a leading body H1 and demote any other.
+    content = content.replace(/^\s*<h1[^>]*>[\s\S]*?<\/h1>\s*/i, '').replace(/<h1([^>]*)>([\s\S]*?)<\/h1>/gi, '<h2$1>$2</h2>').trim();
 
     const response = await fetch(`${baseApiUrl}/posts`, {
         method: 'POST',

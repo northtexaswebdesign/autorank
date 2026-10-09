@@ -258,6 +258,38 @@ const SOURCE_RULES = `CREDIBLE SOURCES (strict):
     - If you cannot find a credible source for a claim, remove the claim or rewrite it as general guidance without numbers. Never invent statistics, quotes, studies, or URLs.
     - After the FAQ section, add <h2>Sources</h2> followed by a <ul> listing each source you linked: publisher, title, year, with the link.`;
 
+/**
+ * Writing rules shared by new articles and rewrites: stay on the searcher's topic, keep keyword use natural,
+ * leave room for first-hand experience, and produce body HTML that fits a CMS which prints the title as the H1.
+ */
+const WRITING_RULES = `TOPIC FOCUS AND STYLE:
+    - Stay on what the person searching this keyword wants. Mention the business's own niche only where it genuinely fits the topic, in a sentence or two. Never add whole sections, FAQ questions or audience groups just to bring in the business's other lines of work.
+    - Use the exact keyword 3 to 6 times (title-like H2, first paragraph, summary, a heading or two). Elsewhere use natural variations and synonyms. Never force it into a sentence.
+    - Prefer sources from the last 3 years. Cite older sources only when they are the primary record (a law, a standard, an official notice), and still say the year.
+    - Where first-hand knowledge from the business would make the article stronger (a real photo, a fitting tip, a customer situation), leave an HTML comment in that spot: <!-- EDITOR: add a real photo or first-hand note here: what to show -->. Use 1 or 2 of these at most. Never invent experiences, customers or results.
+    - End with a specific call to action that links to the most relevant product, service or category page found for the internal links, not a generic "contact us".
+    - Do NOT include an <h1>. The CMS prints the title as the H1, so the article body starts with the opening paragraph and uses <h2> and <h3> only.`;
+
+/** Internal links: point readers to the pages that convert (products, services, categories) plus related posts. */
+const internalLinkRules = (business: BusinessInfo) => `INTERNAL LINKING: You MUST include 2-4 internal links to existing pages on ${business.url}. Find them with your search tool (e.g. "site:${business.url} [related topic]")${business.sitemapUrl ? ` or the sitemap at ${business.sitemapUrl}` : ''}. Aim for at least one product, service or category page and at least one related article. Use only URLs you actually found, never guess one, and use descriptive anchor text (not "click here"). Never link only to the homepage.`;
+
+/**
+ * Last cleanup before an article goes to WordPress. The theme prints the post title as the H1, so any H1
+ * in the body becomes an H2 (the first one, usually a copy of the title, is dropped), and editor
+ * comments stay invisible on the page.
+ */
+export const prepareArticleHtml = (html: string): string => {
+    let out = html.replace(/^\s*<h1[^>]*>[\s\S]*?<\/h1>\s*/i, '');
+    out = out.replace(/<h1([^>]*)>([\s\S]*?)<\/h1>/gi, '<h2$1>$2</h2>');
+    return out.trim();
+};
+
+/** Alt text for an image tag: never a file name, quotes escaped. */
+const altAttr = (alt: string | undefined, fallback: string) => {
+    const text = !alt || /\.(jpe?g|png|webp|gif)$/i.test(alt) ? fallback : alt;
+    return text.replace(/"/g, '&quot;');
+};
+
 export const generateFullArticle = async (
     keyword: string, 
     business: BusinessInfo, 
@@ -283,7 +315,8 @@ export const generateFullArticle = async (
     3. The article MUST be between 1500 and 2000 words in length. This is a strict requirement for comprehensive coverage.
     4. ${SOURCE_RULES}
     ${imageInstruction}
-    6. INTERNAL LINKING: You MUST include 2-3 highly relevant internal links to existing pages on the business's website. Use your search tool to search the site (e.g., "site:${business.url} [related topic]") or reference their sitemap (${business.sitemapUrl ? business.sitemapUrl : 'if available'}) to find the exact URLs of relevant existing articles. Embed these links naturally within the HTML content using descriptive anchor text.
+    6. ${internalLinkRules(business)}
+    7. ${WRITING_RULES}
     
     Business Context: ${business.name} (${business.description})
     Target Audience: ${business.audience}
@@ -384,7 +417,8 @@ export const rewriteArticle = async (content: string, keyword: string, feedback:
         3. The article MUST be between 1500 and 2000 words in length. This is a strict requirement for comprehensive coverage.
         4. ${SOURCE_RULES}
         ${imageInstruction}
-        6. INTERNAL LINKING: You MUST include 2-3 highly relevant internal links to existing pages on the business's website. Use your search tool to search the site (e.g., "site:${business.url} [related topic]") or reference their sitemap (${business.sitemapUrl ? business.sitemapUrl : 'if available'}) to find the exact URLs of relevant existing articles. Embed these links naturally within the HTML content using descriptive anchor text.
+        6. ${internalLinkRules(business)}
+    7. ${WRITING_RULES}
         
         Return a JSON object with the following structure:
         {
@@ -477,7 +511,7 @@ export const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPos
         if (wpImg) {
             featuredMediaId = wpImg.id;
             // Build the real HTML tag for the content
-            const imgTag = `<img src="${wpImg.url}" alt="${post.images.featureImage.prompt || ''}" class="wp-post-image" style="width:100%; height:auto; border-radius:8px; margin-bottom:2rem;" />`;
+            const imgTag = `<img src="${wpImg.url}" alt="${altAttr(post.images.featureImage.prompt, post.keyword)}" class="wp-post-image" style="width:100%; height:auto; border-radius:8px; margin-bottom:2rem;" />`;
             // Replace placeholder in body
             finalContent = finalContent.replace(/\[IMAGE_1\]/g, imgTag);
         }
@@ -490,7 +524,7 @@ export const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPos
             const placeholder = `[IMAGE_${i + 2}]`;
             const wpImg = await uploadImageToWP(auth, cms.url, img, `inline-image-${i + 1}.jpg`);
             if (wpImg) {
-                const imgTag = `<img src="${wpImg.url}" alt="${img.prompt || ''}" class="wp-inline-image" style="width:100%; height:auto; border-radius:8px; margin:2rem 0;" />`;
+                const imgTag = `<img src="${wpImg.url}" alt="${altAttr(img.prompt, post.keyword)}" class="wp-inline-image" style="width:100%; height:auto; border-radius:8px; margin:2rem 0;" />`;
                 // Global regex to replace all occurrences of this specific placeholder
                 finalContent = finalContent.replace(new RegExp(`\\[IMAGE_${i + 2}\\]`, 'g'), imgTag);
             }
@@ -499,6 +533,7 @@ export const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPos
 
     // Final cleanup: If any stray placeholders exist (e.g. AI skipped them or they weren't generated), remove them so they don't show to users
     finalContent = finalContent.replace(/\[IMAGE_\d+\]/g, '');
+    finalContent = prepareArticleHtml(finalContent);
 
     const metaTitle = post.meta_title ?? post.metaTitle ?? post.keyword;
     const metaDesc = post.meta_description ?? post.metaDescription ?? '';
