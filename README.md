@@ -25,3 +25,6 @@ Generated articles (manual, rewrite and auto-publish) share `supabase/functions/
 - Lint: keyword stuffing, leaked meta-text, unsourced figures, missing summary/FAQ/Sources, meta lengths. Errors trigger one targeted repair edit; the rest show up as editor feedback.
 - At publish: a visible "Last updated" line and Article + FAQPage JSON-LD (WordPress strips `<script>` for users without unfiltered HTML).
 Run the tests with `npm test`. Redeploy the `autopublish-function` edge function after pulling this change.
+
+## Limits
+- AI competitive analysis: 1 per business per calendar month (UTC). `api/claude.ts` (`action: 'competitor-quota'`) stamps `businesses.competitor_analyzed_at` with the service role; a trigger stops signed-in users from editing it. If every research step fails the run is given back. **Apply `supabase/migrations/20261009000000_competitor_analysis_monthly_limit.sql` before deploying**, otherwise the analysis reports that the limit could not be checked.

@@ -68,3 +68,12 @@ export interface StockPhoto { base64: string; alt: string; width: number; height
 /** Fetches a relevant stock photo (JPEG, under 200 KB) via the server. `variant` > 0 returns a different photo. */
 export const callStockPhoto = async (keyword: string, businessName: string, variant = 0): Promise<StockPhoto> =>
     post({ action: 'photo', keyword, businessName, variant });
+
+/** Reserves this business's one AI competitive analysis for the month. Throws (with the next available date) if it is used up. */
+export const reserveCompetitorAnalysis = async (businessId: string): Promise<{ previous: string | null }> =>
+    post({ action: 'competitor-quota', op: 'reserve', businessId });
+
+/** Gives the monthly analysis back (used when every research step failed). Best effort. */
+export const releaseCompetitorAnalysis = async (businessId: string, previous: string | null): Promise<void> => {
+    try { await post({ action: 'competitor-quota', op: 'release', businessId, previous }); } catch { /* best effort */ }
+};

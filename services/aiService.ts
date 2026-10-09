@@ -1,8 +1,8 @@
 import { BusinessInfo, Keyword, ContentCluster, CompetitorAnalysis, CmsIntegration, ScheduledPost, PostImages, GeneratedImage, ContentBrief, KeywordOpportunity } from "../types.ts";
 import { uploadImageFromBase64 } from '../utils/imageStorage.ts';
 
-import { callClaude, callClaudeDetailed, callCover, verifyArticleLinks } from './claudeClient.ts';
-import { SOURCE_RULES, TRUST_RULES, STRUCTURE_RULES, keywordRules, buildRepairPrompt, lintArticle, finalizeForPublish, type LintIssue } from '../supabase/functions/_shared/articleQuality.ts';
+import { callClaude, callClaudeDetailed, callCover, verifyArticleLinks, reserveCompetitorAnalysis, releaseCompetitorAnalysis } from './claudeClient.ts';
+import { SOURCE_RULES, TRUST_RULES, STRUCTURE_RULES, INTERNAL_LINK_RULES, ARTICLE_SEARCHES, keywordRules, buildRepairPrompt, buildSourcePassPrompt, needsSourcePass, sourceStats, stripFences, lintArticle, finalizeForPublish, type LintIssue } from '../supabase/functions/_shared/articleQuality.ts';
 
 // Articles get one branded cover (1080x1080 JPEG under 200 KB, made by /api/cover) as the featured/first image.
 // It uses the business's brand style, else colours read from its website, else a look Claude picks for the topic.
@@ -228,16 +228,23 @@ Return ONLY a JSON object (no markdown fences, no commentary):
     return unverified('web search was unavailable');
 };
 
+/**
+ * AI competitive analysis. Limited to 1 per business per calendar month (enforced by /api/claude).
+ * Throws when the limit is used up or when every research step failed (the run is then given back), so the
+ * caller never overwrites an existing report with an error message.
+ */
 export const analyzeCompetitors = async (
     business: BusinessInfo, 
     onProgress: (progress: { value: number; text: string }) => void
 ): Promise<CompetitorAnalysis> => {
     const competitors = (business.competitors || []).map(c => c.trim()).filter(Boolean).slice(0, MAX_COMPETITORS);
-    const fail = (msg: string) => ({ analysis: [], strategicRecommendations: [msg], analyzedAt: new Date().toISOString() });
-    if (!competitors.length) return fail('Add at least one competitor URL in Business Info, then run the analysis again.');
+    if (!competitors.length) throw new Error('Add at least one competitor URL in Business Info, then run the analysis again.');
 
-    onProgress({ value: 10, text: "Scanning competitor domains..." });
+    onProgress({ value: 5, text: "Checking this month's analysis limit..." });
+    const { previous } = await reserveCompetitorAnalysis(business.id); // throws with the next available date if used
+
     try {
+        onProgress({ value: 10, text: "Scanning competitor domains..." });
         // One request per competitor so each gets its own search budget (a single shared budget ran out after ~2 sites).
         let done = 0;
         const analysis = await Promise.all(competitors.map(async (url) => {
@@ -247,7 +254,7 @@ export const analyzeCompetitors = async (
         }));
 
         const researched = analysis.filter(a => a.strengths.length > 0);
-        if (!researched.length) return { ...fail('Competitor research failed for every site, so no report was made. Please try again in a minute.'), analysis };
+        if (!researched.length) throw new Error('Competitor research failed for every site, so no report was made. This did not use up your monthly analysis; please try again in a minute.');
 
         onProgress({ value: 85, text: "Building strategic recommendations..." });
         let strategicRecommendations: string[] = [];
@@ -264,10 +271,10 @@ export const analyzeCompetitors = async (
 
         onProgress({ value: 100, text: "Analysis complete" });
         return { analysis, strategicRecommendations, analyzedAt: new Date().toISOString() };
-    } catch (apiError) {
-        console.error("Competitor analysis API call failed:", apiError);
+    } catch (e) {
+        await releaseCompetitorAnalysis(business.id, previous);
         onProgress({ value: 100, text: "Analysis failed" });
-        return fail('Competitor analysis failed due to a temporary API error. Please try again.');
+        throw e;
     }
 };
 
@@ -281,22 +288,37 @@ export const analyzeCompetitors = async (
 const polishArticle = async (html: string, keyword: string, business: BusinessInfo, searchUrls: string[], meta: { metaTitle?: string; metaDescription?: string }) => {
     const lintOpts = { keyword, ownUrl: business.url, imagesAllowed: !(business.skipImageGeneration || !IMAGES_ENABLED) ? undefined : false, ...meta };
     let content = html;
+    let urls = [...searchUrls];
     const notes: string[] = [];
-    try {
-        const checked = await verifyArticleLinks(content, business.url, searchUrls);
-        content = checked.html;
-        if (checked.removed.length) notes.push(`${checked.removed.length} link(s) were removed because they were not found by search, were unreachable, or were not a credible source type.`);
-    } catch (e) { console.error('Link verification failed, keeping links as written:', e); }
+    const verify = async (candidate: string) => {
+        const checked = await verifyArticleLinks(candidate, business.url, urls);
+        if (checked.removed.length) notes.push(`${checked.removed.length} link(s) were removed because they were not found by search, were unreachable, or were not a credible page.`);
+        return checked.html;
+    };
+    try { content = await verify(content); } catch (e) { console.error('Link verification failed, keeping links as written:', e); }
+
+    // Too few outside sources (or the model said it had none): a dedicated pass that searches for them.
+    if (needsSourcePass(content, business.url)) {
+        try {
+            const { text, sources } = await callClaudeDetailed({ tier: 'smart', webSearch: true, maxSearches: ARTICLE_SEARCHES, maxTokens: 16000, messages: [{ role: 'user', content: buildSourcePassPrompt(content, keyword) }] });
+            const candidate = stripFences(text);
+            if (candidate.length > content.length * 0.7 && /<h[12]/i.test(candidate)) {
+                urls = [...new Set([...urls, ...sources])];
+                const before = sourceStats(content, business.url).publishers;
+                const verified = await verify(candidate);
+                if (sourceStats(verified, business.url).publishers >= before) content = verified;
+            }
+        } catch (e) { console.error('Source pass failed, keeping the article as written:', e); }
+    }
 
     let { issues } = lintArticle(content, lintOpts);
     const errors = issues.filter(i => i.severity === 'error');
     if (errors.length) {
         try {
-            const fixed = cleanAIResponse(await callClaude({ tier: 'smart', maxTokens: 16000, messages: [{ role: 'user', content: buildRepairPrompt(content, errors) }] }));
+            const fixed = stripFences(await callClaude({ tier: 'smart', maxTokens: 16000, messages: [{ role: 'user', content: buildRepairPrompt(content, errors) }] }));
             if (fixed.length > content.length * 0.7 && /<h[12]/i.test(fixed)) {
                 // the repair must not introduce links; re-check against the same search results
-                const recheck = await verifyArticleLinks(fixed, business.url, searchUrls).catch(() => ({ html: fixed }));
-                content = recheck.html;
+                content = await verify(fixed).catch(() => fixed);
                 issues = lintArticle(content, lintOpts).issues;
             }
         } catch (e) { console.error('Repair pass failed, keeping the article as written:', e); }
@@ -319,7 +341,7 @@ export const generateFullArticle = async (
 
     const prompt = `You are tasked with writing the absolute best, most comprehensive SEO article on the internet for the keyword: "${keyword}".
     
-    First, use your search capabilities to analyze the top-ranking articles for this keyword. Identify what they cover, but more importantly, identify their gaps, missing information, and areas where they lack depth or clarity. 
+    First, use at most 3 searches to analyze the top-ranking articles for this keyword. Identify what they cover, but more importantly, identify their gaps, missing information, and areas where they lack depth or clarity. 
     
     Then, write a superior article that covers all the essential information the competitors have, PLUS fills in those gaps with unique, valuable insights. Your goal is to create a 10x better resource that outranks the current top results.
     
@@ -329,7 +351,7 @@ export const generateFullArticle = async (
     3. The article MUST be between 1500 and 2000 words in length. This is a strict requirement for comprehensive coverage.
     4. ${SOURCE_RULES}
     ${imageInstruction}
-    6. INTERNAL LINKING: You MUST include 2-3 highly relevant internal links to existing pages on the business's website. Use your search tool to search the site (e.g., "site:${business.url} [related topic]") or reference their sitemap (${business.sitemapUrl ? business.sitemapUrl : 'if available'}) to find the exact URLs of relevant existing articles. Embed these links naturally within the HTML content using descriptive anchor text.
+    6. ${INTERNAL_LINK_RULES(business.url, business.sitemapUrl)}
     
     ${keywordRules(keyword)}
 
@@ -354,6 +376,7 @@ export const generateFullArticle = async (
         tier: 'smart',
         kind: 'article',
         webSearch: true,
+        maxSearches: ARTICLE_SEARCHES,
         maxTokens: 16000,
         system: "You are an expert SEO content writer specialized in GEO (Generative Engine Optimization). Write in-depth, helpful content.",
         messages: [{ role: 'user', content: prompt + "\n\nRespond with ONLY the JSON object. No markdown fences, no text before or after it." }]
@@ -427,6 +450,7 @@ export const rewriteArticle = async (content: string, keyword: string, feedback:
     const { text: responseText, sources: searchUrls } = await callClaudeDetailed({
         tier: 'smart',
         webSearch: true,
+        maxSearches: ARTICLE_SEARCHES,
         maxTokens: 16000,
         messages: [{ role: 'user', content: `Rewrite this article for "${keyword}" for ${business.name} based on this feedback: ${feedback.join('. ')}.
         Current content: ${content}
@@ -437,7 +461,7 @@ export const rewriteArticle = async (content: string, keyword: string, feedback:
         3. The article MUST be between 1500 and 2000 words in length. This is a strict requirement for comprehensive coverage.
         4. ${SOURCE_RULES}
         ${imageInstruction}
-        6. INTERNAL LINKING: You MUST include 2-3 highly relevant internal links to existing pages on the business's website. Use your search tool to search the site (e.g., "site:${business.url} [related topic]") or reference their sitemap (${business.sitemapUrl ? business.sitemapUrl : 'if available'}) to find the exact URLs of relevant existing articles. Embed these links naturally within the HTML content using descriptive anchor text.
+        6. ${INTERNAL_LINK_RULES(business.url, business.sitemapUrl)}
 
         ${keywordRules(keyword)}
 

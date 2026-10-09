@@ -12,7 +12,7 @@
 // photo is used when PEXELS_API_KEY is set, otherwise the post publishes without an image.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Anthropic from 'npm:@anthropic-ai/sdk';
-import { SOURCE_RULES, TRUST_RULES, STRUCTURE_RULES, keywordRules, buildRepairPrompt, collectSearchUrls, verifyLinks, lintArticle, finalizeForPublish } from '../_shared/articleQuality.ts';
+import { SOURCE_RULES, TRUST_RULES, STRUCTURE_RULES, INTERNAL_LINK_RULES, ARTICLE_SEARCHES, keywordRules, buildRepairPrompt, buildSourcePassPrompt, needsSourcePass, sourceStats, stripFences, collectSearchUrls, verifyLinks, lintArticle, finalizeForPublish } from '../_shared/articleQuality.ts';
 
 const Deno = (globalThis as any).Deno;
 
@@ -62,6 +62,35 @@ const askJson = async (model: string, prompt: string, schema: Record<string, unk
     return JSON.parse(textOf(m));
 };
 
+// Runs one prompt with web search; resumes when the turn pauses mid-search. Returns the text written after the last search step
+// (drops "let me search..." narration) and every URL the search returned.
+const askWithSearch = async (prompt: string, maxTokens: number): Promise<{ text: string; urls: string[] }> => {
+    const messages: any[] = [{ role: 'user', content: prompt }];
+    let message: Anthropic.Message | null = null;
+    const urls = new Set<string>();
+    for (let i = 0; i <= 4; i++) {
+        const stream = getClient().messages.stream({
+            model: MODEL_ARTICLE,
+            max_tokens: maxTokens,
+            messages,
+            output_config: { effort: 'medium' },
+            tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: ARTICLE_SEARCHES }],
+        } as any);
+        message = await stream.finalMessage();
+        collectSearchUrls(message.content as any[]).forEach(u => urls.add(u));
+        if (message.stop_reason !== 'pause_turn') break;
+        messages.push({ role: 'assistant', content: message.content });
+    }
+    if (!message) throw new Error('No response from model.');
+    if (message.stop_reason === 'refusal') throw new Error('Article generation was declined by the model.');
+    let text = '';
+    for (const block of message.content as any[]) {
+        if (block.type === 'text') text += block.text;
+        else if (block.type !== 'thinking' && block.type !== 'redacted_thinking') text = '';
+    }
+    return { text, urls: [...urls] };
+};
+
 const generateArticleText = async (keyword: string, business: BusinessInfo): Promise<{ html: string; feedback: string[] }> => {
     const languageInstruction = business.language && business.language !== 'English'
         ? `\n**CRITICAL LANGUAGE REQUIREMENT:** The entire article MUST be written in ${business.language}.\n` : '';
@@ -81,7 +110,7 @@ ${languageInstruction}
 - **Structured Data:** Use lists and tables where helpful.
 - **Logical Flow:** Clean H1 -> H2 -> H3 structure, exactly one <h1>.
 **SEO & Linking Requirements:**
-- Embed exactly one internal link to: ${business.url}.
+${INTERNAL_LINK_RULES(business.url)}
 ${keywordRules(keyword, 1900)}
 ${SOURCE_RULES}
 ${STRUCTURE_RULES}
@@ -93,37 +122,26 @@ ${TRUST_RULES}
 **Business Integration:** Mention ${business.name} 2-3 times where it adds value. Informational tone.
 Output only the HTML of the article.`;
 
-    // Web search lets the model find real sources; resume if the turn pauses mid-search.
-    const messages: any[] = [{ role: 'user', content: prompt }];
-    let message: Anthropic.Message | null = null;
-    const searchUrls = new Set<string>();
-    for (let i = 0; i <= 4; i++) {
-        const stream = getClient().messages.stream({
-            model: MODEL_ARTICLE,
-            max_tokens: 12000,
-            messages,
-            output_config: { effort: 'medium' },
-            tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 5 }],
-        } as any);
-        message = await stream.finalMessage();
-        collectSearchUrls(message.content as any[]).forEach(u => searchUrls.add(u));
-        if (message.stop_reason !== 'pause_turn') break;
-        messages.push({ role: 'assistant', content: message.content });
-    }
-    if (!message) throw new Error('No response from model.');
-    if (message.stop_reason === 'refusal') throw new Error('Article generation was declined by the model.');
-
-    // keep only the text written after the last search step (drops "let me search..." narration)
-    let text = '';
-    for (const block of message.content as any[]) {
-        if (block.type === 'text') text += block.text;
-        else if (block.type !== 'thinking' && block.type !== 'redacted_thinking') text = '';
-    }
-    let html = text.trim().replace(/^```(?:html)?\s*/i, '').replace(/\s*```$/, '').trim();
-    if (html.length < 200) throw new Error(`Article generation returned an empty or too-short response (stop_reason: ${message.stop_reason}).`);
+    const { text: articleText, urls: found } = await askWithSearch(prompt, 12000);
+    const searchUrls = new Set<string>(found);
+    let html = stripFences(articleText);
+    if (html.length < 200) throw new Error('Article generation returned an empty or too-short response.');
 
     // 1. drop links the search never returned, blocked hosts and dead pages; 2. lint; 3. one targeted repair if there are errors
     let checked = (await verifyLinks(html, { ownUrl: business.url, searchUrls: [...searchUrls] })).html;
+
+    // Too few outside sources (or the model said it had none): a dedicated pass that searches for them.
+    if (needsSourcePass(checked, business.url)) {
+        try {
+            const pass = await askWithSearch(buildSourcePassPrompt(checked, keyword), 12000);
+            const candidate = stripFences(pass.text);
+            if (candidate.length > checked.length * 0.7 && /<h[12]/i.test(candidate)) {
+                pass.urls.forEach(u => searchUrls.add(u));
+                const verified = (await verifyLinks(candidate, { ownUrl: business.url, searchUrls: [...searchUrls] })).html;
+                if (sourceStats(verified, business.url).publishers >= sourceStats(checked, business.url).publishers) checked = verified;
+            }
+        } catch (e: any) { console.error('Source pass failed, keeping the article as written:', e.message); }
+    }
     let { issues } = lintArticle(checked, { keyword, ownUrl: business.url, imagesAllowed: false });
     const errors = issues.filter(i => i.severity === 'error');
     if (errors.length) {
@@ -133,7 +151,7 @@ Output only the HTML of the article.`;
                 messages: [{ role: 'user', content: buildRepairPrompt(checked, errors) }],
                 output_config: { effort: 'low' },
             } as any);
-            const fixed = textOf(repair).trim().replace(/^```(?:html)?\s*/i, '').replace(/\s*```$/, '').trim();
+            const fixed = stripFences(textOf(repair));
             if (fixed.length > checked.length * 0.7 && /<h[12]/i.test(fixed)) {
                 checked = (await verifyLinks(fixed, { ownUrl: business.url, searchUrls: [...searchUrls] })).html;
                 issues = lintArticle(checked, { keyword, ownUrl: business.url, imagesAllowed: false }).issues;

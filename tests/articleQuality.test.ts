@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { lintArticle, extractFaq, buildJsonLd, finalizeForPublish, collectSearchUrls, verifyLinks, isSafePublicUrl, keywordBudget, normalizeUrl } from '../supabase/functions/_shared/articleQuality.ts';
+import { needsSourcePass, sourceStats, stripFences, isNonContentUrl, lintArticle, extractFaq, buildJsonLd, finalizeForPublish, collectSearchUrls, verifyLinks, isSafePublicUrl, keywordBudget, normalizeUrl } from '../supabase/functions/_shared/articleQuality.ts';
 
 const kw = 'heavy duty wheelchair drink holder';
 const para = (n: number) => '<p>' + 'word '.repeat(n) + '</p>';
@@ -66,4 +66,35 @@ test('helpers', () => {
   assert.ok(!isSafePublicUrl('http://localhost/x') && !isSafePublicUrl('https://10.0.0.1/') && isSafePublicUrl('https://example.com/a'));
   assert.equal(keywordBudget(1800), 7);
   assert.equal(normalizeUrl('https://www.A.com/p/?utm_source=x#h'), 'a.com/p');
+});
+
+const body = (extra: string) => `<h1>Guide</h1><h2>Key Takeaways</h2><p>x</p>${extra}<h2>Sources</h2><ul></ul>`;
+const cited = '<p><a href="https://www.cdc.gov/a">CDC</a> <a href="https://www.nih.gov/b">NIH</a> <a href="https://www.iso.org/c">ISO</a></p>';
+
+test('an article that says it has no sources is an error and needs the source pass', () => {
+  const html = body('<p>This guide contains no statistics or regulatory claims, so no external sources are cited.</p>');
+  assert.ok(lintArticle(html, { keyword: kw }).issues.some(i => i.code === 'leaked-text' && i.severity === 'error'));
+  assert.equal(needsSourcePass(html), true);
+});
+
+test('source pass is not needed once 3 publishers are cited', () => {
+  assert.equal(needsSourcePass(body(cited)), false);
+  assert.deepEqual(sourceStats(body(cited)), { links: 3, publishers: 3 });
+  assert.equal(needsSourcePass(body('<p><a href="https://a.gov/x">A</a> <a href="https://a.gov/y">A2</a></p>')), true); // one publisher
+});
+
+test('sitemap links and "site directory" wording are caught', async () => {
+  assert.ok(isNonContentUrl('https://shop.com/sitemap.xml') && isNonContentUrl('https://shop.com/feed/') && isNonContentUrl('https://shop.com/?s=cups'));
+  assert.ok(!isNonContentUrl('https://shop.com/guides/cup-holders/'));
+  const html = '<p>You can browse the <a href="https://shop.com/sitemap.xml">site directory for drink holders</a>.</p>';
+  const { issues } = lintArticle(html, { keyword: kw, ownUrl: 'https://shop.com' });
+  assert.ok(issues.some(i => i.code === 'non-content-link'));
+  assert.ok(issues.some(i => i.code === 'leaked-text' && /awkward link/.test(i.message)));
+  const { html: out, report } = await verifyLinks(html, { ownUrl: 'https://shop.com', checkLive: false });
+  assert.ok(!out.includes('sitemap.xml') && out.includes('site directory for drink holders'));
+  assert.equal(report.removed[0].reason, 'not-a-content-page');
+});
+
+test('stripFences keeps HTML that contains brackets', () => {
+  assert.equal(stripFences('```html\n<h1>T</h1><p>[IMAGE_1]</p>\n```'), '<h1>T</h1><p>[IMAGE_1]</p>');
 });

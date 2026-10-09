@@ -21,21 +21,46 @@ export const keywordRules = (keyword: string, words = 1800): string => `KEYWORD 
     - Never use the exact phrase more than ${keywordBudget(words)} times in the whole article. Write for a reader first; stuffing hurts rankings.
     - Cover the topic's related questions and subtopics (the terms people also search for) so the article is complete without repeating the phrase.`;
 
-export const SOURCE_RULES = `CREDIBLE SOURCES (strict):
-    - Every statistic, number, study result, legal or regulatory claim, and "experts say" claim MUST be backed by a source you found with your search tool, linked inline as <a href="URL" target="_blank" rel="noopener">descriptive anchor text</a>. Use only URLs exactly as they appear in your search results. Never guess, shorten or reconstruct a URL. Links that were not in your search results are removed automatically.
+/** Searches an article may use: a few to study competing pages, the rest reserved for finding sources. */
+export const ARTICLE_SEARCHES = 10;
+export const MIN_SOURCES = 4;
+
+export const SOURCE_RULES = `CREDIBLE SOURCES (strict, every article):
+    - SEARCH PLAN: you have ${ARTICLE_SEARCHES} searches. Use at most 3 to study competing pages. Spend at least 5 on finding sources: (a) official standards, regulations or government guidance on the topic, (b) guidance from professional associations, clinical or industry bodies, (c) research or statistics, (d) safety or best-practice guidance. Write only after you have found at least ${MIN_SOURCES} credible sources; if early searches come up thin, search again with different wording.
+    - Every article MUST contain at least ${MIN_SOURCES} inline citations to sources from at least 3 different publishers, even when the topic is practical or how-to. Anchor the key claims (why it matters, safety, sizing, standards, risks, best practice) on what those sources say. Never publish an article with no outside sources, and never write that the article has none.
+    - Link each source inline as <a href="URL" target="_blank" rel="noopener">descriptive anchor text</a>, using only URLs exactly as they appear in your search results. Never guess, shorten or reconstruct a URL. Links that were not in your search results are removed automatically.
     - Name the source and year in the sentence, for example: According to the U.S. Bureau of Labor Statistics (2025), ...
     - Prefer: government (.gov), universities (.edu), peer-reviewed research, official standards bodies and industry bodies, professional associations, and well-known publications or data providers.
     - Avoid: competitors, content farms, anonymous blogs, press-release sites, forums and social posts.
-    - Use 4 to 8 different outside sources in total, from at least 3 different publishers.
-    - If the topic touches health, safety, money or legal matters, cite at least one authoritative body for the core guidance.
-    - If you cannot find a credible source for a claim, remove the claim or rewrite it as general guidance without numbers. Never invent statistics, quotes, studies, or URLs.
+    - Do not state numbers, studies or regulations you did not find in a source. If one claim has no source, reword it as general guidance or drop that claim, but keep the article anchored on the sources you did find.
     - After the FAQ section, add <h2>Sources</h2> followed by a <ul> listing each source you linked: publisher, title, year, with the link.`;
+
+export const INTERNAL_LINK_RULES = (ownUrl: string, sitemapUrl?: string) => `INTERNAL LINKS:
+    - Include 2-3 links to real content pages on ${ownUrl} (guides, articles, product or service pages) that are genuinely relevant. Find them by searching the site (for example: site:${ownUrl} followed by the topic)${sitemapUrl ? ` or by reading the sitemap (${sitemapUrl}) to discover page addresses` : ''}.
+    - Link only to pages you actually found. NEVER link to a sitemap, XML or feed file, a search page, an admin or API path, or a bare homepage just to have a link.
+    - Anchor text must name what the reader will find on that page, in natural words (for example "our guide to choosing a mount"). Never use "click here", "site directory", "sitemap", or a sentence that exists only to introduce a link. Do not make claims about the business just to justify a link.
+    - If you cannot find 2 genuinely relevant pages, use fewer rather than forcing links.`;
+
+/** Prompt for the dedicated source-finding pass (run with web search) on an article that came back with too few citations. */
+export const buildSourcePassPrompt = (html: string, keyword: string): string => `The article below (topic: "${keyword}") has too few credible outside sources. Use web search to find them, then return the full article with citations added.
+
+Search for: (a) official standards, regulations or government guidance on the topic, (b) guidance from professional associations or clinical/industry bodies, (c) research or statistics, (d) safety or best-practice guidance. You have ${ARTICLE_SEARCHES} searches.
+
+Then edit the article:
+- Add at least ${MIN_SOURCES} inline citations from at least 3 different publishers, attached to the claims they actually support. Name the source and year in the sentence and link it as <a href="URL" target="_blank" rel="noopener">descriptive anchor text</a>. Use only URLs exactly as they appear in your search results; never guess a URL.
+- You may add or sharpen sentences so the sources are used where they genuinely support the point. Do not state anything the sources do not say, and do not invent numbers or quotes.
+- Replace any "Sources" section with <h2>Sources</h2> and a <ul> listing every source linked (publisher, title, year, link). Never write that the article has no sources.
+- Keep everything else: structure, headings, existing links to the business's own site, and the FAQ.
+Return ONLY the full HTML, no commentary, no code fences.
+
+ARTICLE HTML:
+${html}`;
 
 export const TRUST_RULES = `TRUST AND HONESTY (strict):
     - Do not invent an author, credentials, personal experience, testing, case studies, reviews, customer quotes or awards. Do not write "we tested" or "in our experience" unless the business context above states it.
     - Product or service facts about the business come only from the business context provided. Anything not stated there, say plainly that readers should confirm it with the provider.
     - Be even-handed: say what a solution does not do as well as what it does. Do not exaggerate.
-    - Never write meta-commentary about the article or its format (for example "no diagram is needed", "as an AI", "in this article we will"). Do not add a "last updated" line or schema markup; those are added automatically.`;
+    - Never write meta-commentary about the article or its format (for example "no diagram is needed", "as an AI", "in this article we will"). Do not add a "last updated" line or schema markup; those are added automatically. Do not end with a call to action unless it links to a real page.`;
 
 export const STRUCTURE_RULES = `STRUCTURE FOR SEARCH AND AI ANSWERS:
     - Open with a 40-60 word direct answer to the main question, then the summary section. Each section should open with a self-contained sentence that answers its heading, so it can be quoted on its own.
@@ -91,6 +116,14 @@ const BLOCKED_HOSTS = /(^|\.)(reddit|quora|facebook|instagram|twitter|x|tiktok|p
 const CREDIBLE_TLD = /\.(gov|edu|mil|int)(\.[a-z]{2})?$/i;
 const CREDIBLE_HOSTS = /(^|\.)(iso|ansi|astm|iec|ieee|w3|nist|resna|aota|apta|who|nature|science|sciencedirect|springer|wiley|jamanetwork|thelancet|bmj|nejm|mayoclinic|clevelandclinic|hopkinsmedicine|pewresearch|nngroup|hbr|reuters|apnews|bbc|nytimes|wsj|economist|statista|gartner|forrester|mckinsey|developers\.google|support\.google|schema)\.(org|com|co\.uk|net|edu)$/i;
 
+/** Addresses that are not readable pages: sitemaps, feeds, XML/JSON files, WordPress API/admin, search pages. */
+export const isNonContentUrl = (raw: string): boolean => {
+    try {
+        const u = new URL(raw);
+        return /\.(xml|json|txt|rss|atom)$/i.test(u.pathname) || /\/(sitemap[^/]*|feed|rss|wp-json|wp-admin|wp-content)(\/|$)/i.test(u.pathname) || u.searchParams.has('s');
+    } catch { return false; }
+};
+
 export const isBlockedHost = (host: string) => BLOCKED_HOSTS.test(host);
 export const isCredibleHost = (host: string) => CREDIBLE_TLD.test(host) || CREDIBLE_HOSTS.test(host);
 
@@ -126,7 +159,7 @@ export const isSafePublicUrl = (raw: string): boolean => {
     } catch { return false; }
 };
 
-export interface LinkReport { removed: { url: string; reason: 'not-in-search-results' | 'blocked-host' | 'unsafe' | 'dead' }[]; kept: string[]; }
+export interface LinkReport { removed: { url: string; reason: 'not-in-search-results' | 'blocked-host' | 'not-a-content-page' | 'unsafe' | 'dead' }[]; kept: string[]; }
 
 const unlink = (html: string, bad: Set<string>) =>
     bad.size ? html.replace(/<a\s[^>]*href=["'](https?:\/\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (m, href, inner) => (bad.has(href) ? inner : m)) : html;
@@ -148,6 +181,7 @@ export const verifyLinks = async (html: string, opts: { ownUrl?: string; searchU
         const own = !!ownHost && host === ownHost;
         if (!isSafePublicUrl(u)) bad.set(u, 'unsafe');
         else if (isBlockedHost(host)) bad.set(u, 'blocked-host');
+        else if (isNonContentUrl(u)) bad.set(u, 'not-a-content-page');
         else if (!own && allowed.size > 0 && !allowed.has(normalizeUrl(u))) bad.set(u, 'not-in-search-results');
         else if (opts.checkLive !== false) toCheck.push(u);
     }
@@ -177,6 +211,8 @@ const LEAK_PATTERNS: [RegExp, string][] = [
     [/\bas an ai\b|\bi (searched|found|looked)\b|let me search|\bin this article,? (we|i) will\b/i, 'AI or process narration'],
     [/lorem ipsum|\bTODO\b|\[citation needed\]|\[insert[^\]]*\]|\[(source|link|url)\]/i, 'placeholder text'],
     [/```|<html|<body|<head>/i, 'code fence or page wrapper'],
+    [/no (external |outside |third[- ]party )?sources? (are |is )?(cited|used|included)|contains? no statistics|no statistics or regulatory claims/i, 'a statement that the article has no sources (it needs real sources)'],
+    [/\b(site directory|sitemap|click here)\b/i, 'awkward link wording such as "site directory", "sitemap" or "click here"; name the destination instead'],
 ];
 
 const FIGURE = /(\d[\d,.]*\s?(%|percent\b)|\$\s?\d|\b\d[\d,.]*\s?(million|billion|trillion)\b|\b(study|survey|research|report)s?\s+(found|show|shows|showed|suggest|suggests)\b)/i;
@@ -213,6 +249,8 @@ export const lintArticle = (html: string, o: LintOptions): { issues: LintIssue[]
     const credible = [...publishers].filter(isCredibleHost).length;
     if (ext.length < 3 || publishers.size < 3) add('few-sources', 'warning', `Only ${ext.length} outside links from ${publishers.size} publishers; credible articles cite at least 3-4 independent sources.`);
     else if (credible === 0) add('weak-sources', 'warning', 'None of the cited sources is a government, university, standards body or major publication.');
+    const badInternal = [...html.matchAll(/<a\s[^>]*href=["'](https?:\/\/[^"']+)["']/gi)].map(m => m[1]).filter(isNonContentUrl);
+    if (badInternal.length) add('non-content-link', 'error', `Remove links to non-page addresses (${badInternal[0]}); link only to real content pages.`);
     if (!/<h2[^>]*>\s*sources\s*<\/h2>/i.test(html)) add('no-sources-section', 'warning', 'Add a "Sources" section listing each cited source.');
 
     const unsourced = (body.match(/<(p|li)[^>]*>[\s\S]*?<\/\1>/gi) || []).filter(p => FIGURE.test(stripTags(p)) && !/<a\s[^>]*href=/i.test(p));
@@ -229,6 +267,20 @@ export const lintArticle = (html: string, o: LintOptions): { issues: LintIssue[]
 
     return { issues, metrics: { words, phraseCount, phraseHeadings, externalLinks: ext.length, publishers: publishers.size, crediblePublishers: credible } };
 };
+
+/** Outside links and distinct publishers in an article body (the Sources list is ignored). */
+export const sourceStats = (html: string, ownUrl?: string): { links: number; publishers: number } => {
+    const ownHost = hostOf(ownUrl && /^https?:/.test(ownUrl) ? ownUrl : ownUrl ? `https://${ownUrl}` : '');
+    const ext = externalLinks(html.replace(/<h2[^>]*>\s*sources\s*<\/h2>[\s\S]*$/i, ''), ownHost);
+    return { links: ext.length, publishers: new Set(ext.map(hostOf)).size };
+};
+
+/** True when the article cites fewer than 3 publishers or says it has no sources: it needs the search-backed source pass. */
+export const needsSourcePass = (html: string, ownUrl?: string): boolean =>
+    sourceStats(html, ownUrl).publishers < 3 || LEAK_PATTERNS.some(([re, label]) => /no sources/.test(label) && re.test(html));
+
+/** Model output that should be HTML: strips a code fence if the model added one. */
+export const stripFences = (text: string): string => text.trim().replace(/^```(?:html)?\s*/i, '').replace(/\s*```$/, '').trim();
 
 // ---------------------------------------------------------------- FAQ + JSON-LD
 
