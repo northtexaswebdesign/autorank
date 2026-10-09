@@ -79,6 +79,12 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
     alert('Business information saved successfully!');
   };
 
+  // 1 AI competitive analysis per business per calendar month (UTC); the server enforces it, this only explains it
+  const analyzedAt = selectedBusiness?.competitorAnalyzedAt ? new Date(selectedBusiness.competitorAnalyzedAt) : null;
+  const now = new Date();
+  const limitReached = !!analyzedAt && analyzedAt.getUTCFullYear() === now.getUTCFullYear() && analyzedAt.getUTCMonth() === now.getUTCMonth();
+  const nextAvailable = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+
   const handleAnalyze = async () => {
     if (!selectedBusiness) return;
     
@@ -261,10 +267,13 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
                             />
                         ))}
                     </div>
+                     {limitReached && (
+                        <p className="mt-4 text-sm text-slate-600">AI competitive analysis is limited to 1 per month for each business. The next one is available on <strong>{nextAvailable}</strong>. You can still view the existing report below.</p>
+                     )}
                      <button 
                         type="button"
                         onClick={handleAnalyze}
-                        disabled={isAnalyzing || !formData.competitors.some(c => c)}
+                        disabled={isAnalyzing || limitReached || !formData.competitors.some(c => c)}
                         className="mt-4 bg-orange-700 text-white px-4 py-2 rounded-lg font-semibold hover:bg-orange-800 disabled:bg-slate-400 disabled:cursor-not-allowed flex items-center transition-all shadow-sm"
                     >
                        <SparklesIcon className={`w-5 h-5 mr-2 ${isAnalyzing ? 'animate-spin' : ''}`} />
@@ -276,7 +285,7 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
              {selectedBusiness.competitorAnalysis && (
                 <div className="bg-white border border-slate-200/80 rounded-xl shadow-sm p-8">
                     <h2 className="text-xl font-semibold text-slate-900 mb-4">Existing Analysis</h2>
-                    <p className="text-slate-600 mb-4">An AI-powered competitive analysis has already been generated. You can view the full report in the "AI Intelligence" tab, or run a new analysis to overwrite it.</p>
+                    <p className="text-slate-600 mb-4">An AI-powered competitive analysis has already been generated. You can view the full report in the "AI Intelligence" tab, or run a new analysis (1 per month) to replace it.</p>
                      <button 
                         type="button"
                         onClick={() => setActiveTab('intelligence')}
