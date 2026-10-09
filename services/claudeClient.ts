@@ -8,6 +8,8 @@ export interface ClaudeRequest {
     messages: { role: 'user' | 'assistant'; content: any }[];
     maxTokens?: number;
     webSearch?: boolean;
+    /** searches allowed in this one request when webSearch is on (server default 5, max 10) */
+    maxSearches?: number;
     /** 'article' = a new article; uses one credit / free trial article */
     kind?: 'article';
     schema?: Record<string, unknown>;
@@ -33,9 +35,9 @@ const post = async (payload: unknown): Promise<any> => {
 export const callClaude = async (req: ClaudeRequest): Promise<string> => (await post(req)).text as string;
 
 /** Like callClaude, but also returns every URL the web search found (used to drop links the model made up). */
-export const callClaudeDetailed = async (req: ClaudeRequest): Promise<{ text: string; sources: string[] }> => {
+export const callClaudeDetailed = async (req: ClaudeRequest): Promise<{ text: string; sources: string[]; searchErrors: string[] }> => {
     const data = await post(req);
-    return { text: data.text as string, sources: Array.isArray(data.sources) ? data.sources : [] };
+    return { text: data.text as string, sources: Array.isArray(data.sources) ? data.sources : [], searchErrors: Array.isArray(data.searchErrors) ? data.searchErrors : [] };
 };
 
 export interface LinkCheck { html: string; removed: { url: string; reason: string }[]; kept: string[]; }

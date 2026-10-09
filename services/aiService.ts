@@ -197,52 +197,77 @@ export const suggestContentCluster = async (targetKeyword: string, business: Bus
     }
 };
 
+const MAX_COMPETITORS = 6;
+
+/** Researches one competitor with its own search budget. Never throws; an unverified result says so. */
+const researchCompetitor = async (business: BusinessInfo, url: string): Promise<CompetitorAnalysis['analysis'][number]> => {
+    const unverified = (why: string) => ({ url, strengths: [], weaknesses: [], contentStrategySummary: `Could not research this competitor (${why}). Try again, or check the site directly.` });
+    const request = () => callClaudeDetailed({
+        tier: 'smart',
+        webSearch: true,
+        maxSearches: 6,
+        maxTokens: 3000,
+        messages: [{ role: 'user', content: `Research one competitor of ${business.name} (${business.description}): ${url}
+
+Use web search to look at what this site actually publishes: its blog or resources, topics covered, content formats, how often it posts, how it presents products or services, and how well it appears to target search and AI answers. Use at most 5 searches. Base every point on what you found; if something could not be verified, say so rather than guessing.
+
+Return ONLY a JSON object (no markdown fences, no commentary):
+{ "url": "${url}", "strengths": ["3-4 specific points"], "weaknesses": ["3-4 specific gaps ${business.name} could exploit"], "contentStrategySummary": "2-3 sentences on their content strategy" }` }],
+    });
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const { text, searchErrors } = await request();
+            if (searchErrors.length && attempt === 0 && searchErrors.some(e => /too_many_requests|max_uses|unavailable/.test(e))) continue; // search was throttled; one retry
+            const data = JSON.parse(cleanAIResponse(text || '{}'));
+            if (!Array.isArray(data.strengths) || !data.contentStrategySummary) throw new Error('incomplete');
+            return { url, strengths: data.strengths, weaknesses: Array.isArray(data.weaknesses) ? data.weaknesses : [], contentStrategySummary: data.contentStrategySummary };
+        } catch (e: any) {
+            if (attempt === 1) { console.error(`Competitor research failed for ${url}:`, e?.message); return unverified('the research step failed'); }
+        }
+    }
+    return unverified('web search was unavailable');
+};
+
 export const analyzeCompetitors = async (
     business: BusinessInfo, 
     onProgress: (progress: { value: number; text: string }) => void
 ): Promise<CompetitorAnalysis> => {
+    const competitors = (business.competitors || []).map(c => c.trim()).filter(Boolean).slice(0, MAX_COMPETITORS);
+    const fail = (msg: string) => ({ analysis: [], strategicRecommendations: [msg], analyzedAt: new Date().toISOString() });
+    if (!competitors.length) return fail('Add at least one competitor URL in Business Info, then run the analysis again.');
+
     onProgress({ value: 10, text: "Scanning competitor domains..." });
-    const competitors = business.competitors.join(', ');
-
     try {
-        const responseText = await callClaude({
-            tier: 'smart',
-            webSearch: true,
-            maxTokens: 6000,
-            messages: [{ role: 'user', content: `Perform a competitive analysis for ${business.name} against these competitors: ${competitors}.
-            Use web search to research their actual content strategies.
+        // One request per competitor so each gets its own search budget (a single shared budget ran out after ~2 sites).
+        let done = 0;
+        const analysis = await Promise.all(competitors.map(async (url) => {
+            const result = await researchCompetitor(business, url);
+            onProgress({ value: 10 + Math.round((++done / competitors.length) * 70), text: `Researched ${done} of ${competitors.length} competitors...` });
+            return result;
+        }));
 
-            Return ONLY a JSON object (no markdown fences, no commentary) shaped exactly like:
-            {
-                "analysis": [{ "url": "competitor url", "strengths": ["..."], "weaknesses": ["..."], "contentStrategySummary": "..." }],
-                "strategicRecommendations": ["..."]
-            }` }]
-        });
+        const researched = analysis.filter(a => a.strengths.length > 0);
+        if (!researched.length) return { ...fail('Competitor research failed for every site, so no report was made. Please try again in a minute.'), analysis };
+
+        onProgress({ value: 85, text: "Building strategic recommendations..." });
+        let strategicRecommendations: string[] = [];
+        try {
+            const text = await callClaude({
+                tier: 'smart',
+                maxTokens: 1500,
+                messages: [{ role: 'user', content: `${business.name} (${business.description}) targets ${business.audience}. Here is research on its competitors:\n${JSON.stringify(researched)}\n\nGive 4-6 specific, actionable content-strategy recommendations that exploit these competitors' gaps. Use only what the research says.` }],
+                schema: { type: 'object', properties: { recommendations: { type: 'array', items: { type: 'string' } } }, required: ['recommendations'], additionalProperties: false },
+            });
+            strategicRecommendations = JSON.parse(cleanAIResponse(text)).recommendations || [];
+        } catch (e) { console.error('Competitor recommendations failed:', e); }
+        if (!strategicRecommendations.length) strategicRecommendations = ['Recommendations could not be generated this time; the competitor findings above are still valid.'];
 
         onProgress({ value: 100, text: "Analysis complete" });
-
-        try {
-            const data = JSON.parse(cleanAIResponse(responseText || '{}'));
-            return {
-                ...data,
-                analyzedAt: new Date().toISOString()
-            };
-        } catch (parseError) {
-            console.error("Failed to parse competitor analysis JSON:", parseError);
-            return {
-                analysis: [],
-                strategicRecommendations: ["Competitor analysis could not be parsed. Please try again."],
-                analyzedAt: new Date().toISOString()
-            };
-        }
+        return { analysis, strategicRecommendations, analyzedAt: new Date().toISOString() };
     } catch (apiError) {
         console.error("Competitor analysis API call failed:", apiError);
         onProgress({ value: 100, text: "Analysis failed" });
-        return {
-            analysis: [],
-            strategicRecommendations: ["Competitor analysis failed due to a temporary API error. Please try again."],
-            analyzedAt: new Date().toISOString()
-        };
+        return fail('Competitor analysis failed due to a temporary API error. Please try again.');
     }
 };
 

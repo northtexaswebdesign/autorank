@@ -13,6 +13,7 @@ import { isIP } from 'node:net';
  *   messages   [{ role: 'user' | 'assistant', content: string | blocks[] }]
  *   maxTokens  optional, capped at MAX_TOKENS_CAP
  *   webSearch  optional, enables Claude's web search tool
+ *   maxSearches optional, searches allowed per request when webSearch is on (default 5, max 10)
  *   kind       'article' marks a new-article generation: it uses 1 credit (paid) or 1 of the free trial articles
  *   action     'photo' returns a stock photo (JPEG under 200KB) instead of text; see handlePhoto
  *              'verify-links' checks the outside links in an article's HTML; see handleVerifyLinks
@@ -349,6 +350,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const maxTokens = Math.min(Math.max(Number(body.maxTokens) || 8000, 256), MAX_TOKENS_CAP);
   const webSearch = body.webSearch === true;
+  const maxSearches = Math.min(Math.max(Math.floor(Number(body.maxSearches)) || 5, 1), 10);
   const useSchema = !!body.schema && typeof body.schema === 'object' && !webSearch;
 
   const client = new Anthropic();
@@ -359,6 +361,7 @@ export async function POST(request: Request): Promise<Response> {
     let inputTokens = 0;
     let outputTokens = 0;
     const sources = new Set<string>();
+    const searchErrors = new Set<string>();
 
     // Web search can end a turn with pause_turn; resume until the model is done.
     for (let i = 0; i <= MAX_PAUSE_RESUMES; i++) {
@@ -371,12 +374,15 @@ export async function POST(request: Request): Promise<Response> {
           effort: tier.effort,
           ...(useSchema ? { format: { type: 'json_schema', schema: body.schema } } : {}),
         },
-        ...(webSearch ? { tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 5 }] } : {}),
+        ...(webSearch ? { tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: maxSearches }] } : {}),
       } as Anthropic.MessageStreamParams);
       final = await stream.finalMessage();
       inputTokens += final.usage.input_tokens;
       outputTokens += final.usage.output_tokens;
       collectSearchUrls(final.content as any[]).forEach(u => sources.add(u));
+      for (const b of final.content as any[]) {
+        if (b.type === 'web_search_tool_result' && b.content?.type === 'web_search_tool_result_error') searchErrors.add(String(b.content.error_code));
+      }
       if (final.stop_reason !== 'pause_turn') break;
       messages.push({ role: 'assistant', content: final.content });
     }
@@ -393,7 +399,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     console.log(JSON.stringify({ user: userId, model: tier.model, in: inputTokens, out: outputTokens, stop: final.stop_reason }));
-    return json(200, { text, sources: [...sources], stopReason: final.stop_reason, usage: { inputTokens, outputTokens } });
+    return json(200, { text, sources: [...sources], searchErrors: [...searchErrors], stopReason: final.stop_reason, usage: { inputTokens, outputTokens } });
   } catch (err) {
     await refund?.();
     if (err instanceof Anthropic.RateLimitError) return json(429, { error: 'The AI service is busy. Please retry shortly.' });
