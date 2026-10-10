@@ -1,5 +1,6 @@
 import React from 'react';
 
+/** The Autorank "A" glyph (a summit with a dot marking the top spot). Inherits the text colour. */
 export const LogoIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg
     width="24"
@@ -7,19 +8,14 @@ export const LogoIcon: React.FC<{ className?: string }> = ({ className }) => (
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2.5"
+    strokeWidth="2.6"
     strokeLinecap="round"
     strokeLinejoin="round"
     xmlns="http://www.w3.org/2000/svg"
     className={className}
+    aria-hidden="true"
   >
-    {/* RankBot Body */}
-    <rect x="6" y="11" width="12" height="9" rx="2" />
-    
-    {/* RankBot Eye */}
-    <circle cx="12" cy="16" r="1" />
-    
-    {/* Antenna with upward-trending graph */}
-    <path d="M12 11V6L14 8L16 6L18 4" />
+    <path d="M5.5 19.5L12 5l6.5 14.5" />
+    <circle cx="12" cy="15" r="1.6" fill="currentColor" stroke="none" opacity="0.6" />
   </svg>
 );

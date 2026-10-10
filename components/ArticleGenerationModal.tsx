@@ -184,25 +184,25 @@ export const ArticleGenerationModal: React.FC<{
       <div className="flex flex-col lg:flex-row gap-6 h-full min-h-[600px]">
         
         {/* Main Content Area */}
-        <div className="flex-grow border border-slate-200 rounded-lg overflow-hidden bg-white shadow-inner flex flex-col">
+        <div className="flex-grow border border-stone-200 rounded-lg overflow-hidden bg-white shadow-inner flex flex-col">
           {!rawContent && !isGeneratingText ? (
             <div className="flex-grow flex flex-col items-center justify-center p-12 text-center">
-              <SparklesIcon className="w-16 h-16 text-slate-200 mb-4" />
-              <h3 className="text-xl font-bold text-slate-800">Ready to Generate?</h3>
-              <p className="text-slate-500 max-w-sm mb-6">Start your GEO strategy by generating a professional, search-ready article for this keyword.</p>
+              <SparklesIcon className="w-16 h-16 text-stone-200 mb-4" />
+              <h3 className="text-xl font-bold text-stone-800">Ready to Generate?</h3>
+              <p className="text-stone-500 max-w-sm mb-6">Start your GEO strategy by generating a professional, search-ready article for this keyword.</p>
               <button 
                 onClick={handleGenerateText} 
                 disabled={isGeneratingText}
-                className="bg-orange-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-orange-700 active:scale-95 transition-all"
+                className="bg-brand-600 text-white px-8 py-3 rounded-xl font-bold shadow-lg hover:bg-brand-700 active:scale-95 transition-all"
               >
                 Generate Article with AI
               </button>
             </div>
           ) : isGeneratingText ? (
              <div className="flex-grow flex flex-col items-center justify-center p-12 text-center">
-                <div className="w-12 h-12 border-4 border-orange-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <h3 className="text-xl font-bold text-slate-800">Writing Content...</h3>
-                <p className="text-slate-500">This usually takes about 30 seconds.</p>
+                <div className="w-12 h-12 border-4 border-brand-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                <h3 className="text-xl font-bold text-stone-800">Writing Content...</h3>
+                <p className="text-stone-500">This usually takes about 30 seconds.</p>
              </div>
           ) : (
             <iframe
@@ -219,16 +219,16 @@ export const ArticleGenerationModal: React.FC<{
         <aside className="w-full lg:w-80 flex flex-col gap-4">
 
           {/* GEO Score */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">GEO Score</h3>
+          <div className="bg-white border border-stone-200 rounded-xl p-4 shadow-sm">
+            <h3 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">GEO Score</h3>
             {geoScore !== null ? (
               <div className="flex items-center justify-center">
                 <GeoScoreCircularProgress score={geoScore} size={80} strokeWidth={8} />
               </div>
             ) : (
               <div className="flex items-center justify-center">
-                <div className="w-20 h-20 rounded-full border-4 border-slate-100 flex items-center justify-center">
-                  <span className="text-lg font-bold text-slate-300">—</span>
+                <div className="w-20 h-20 rounded-full border-4 border-stone-100 flex items-center justify-center">
+                  <span className="text-lg font-bold text-stone-300">—</span>
                 </div>
               </div>
             )}
@@ -236,30 +236,30 @@ export const ArticleGenerationModal: React.FC<{
 
           {/* Featured Image */}
           {localPost.images?.featureImage && (
-            <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Featured Image</h3>
+            <div className="bg-white border border-stone-200 rounded-xl p-4 shadow-sm">
+              <h3 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">Featured Image</h3>
               <img
                 src={localPost.images.featureImage.url || (localPost.images.featureImage.base64 ? `data:image/jpeg;base64,${localPost.images.featureImage.base64}` : '')}
                 alt={localPost.images.featureImage.prompt || localPost.keyword}
                 className="w-full rounded-lg object-cover"
                 style={{ maxHeight: '140px' }}
               />
-              <p className="text-xs text-slate-400 mt-2 italic line-clamp-2">{localPost.images.featureImage.prompt}</p>
+              <p className="text-xs text-stone-400 mt-2 italic line-clamp-2">{localPost.images.featureImage.prompt}</p>
             </div>
           )}
 
           {/* Meta Settings */}
-          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3">
+          <div className="bg-white border border-stone-200 rounded-xl p-4 shadow-sm flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Meta Settings</h3>
+              <h3 className="text-xs font-bold text-stone-500 uppercase tracking-wider">Meta Settings</h3>
               <button
                 onClick={handleGenerateMeta}
                 disabled={isGeneratingMeta || !rawContent}
                 title="Auto-fill with AI"
-                className="flex items-center gap-1 text-xs font-semibold text-orange-600 hover:text-orange-700 disabled:text-slate-300 transition-colors"
+                className="flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700 disabled:text-stone-300 transition-colors"
               >
                 {isGeneratingMeta ? (
-                  <span className="w-3 h-3 border-2 border-orange-400 border-t-transparent rounded-full animate-spin inline-block" />
+                  <span className="w-3 h-3 border-2 border-brand-400 border-t-transparent rounded-full animate-spin inline-block" />
                 ) : (
                   <SparklesIcon className="w-3.5 h-3.5" />
                 )}
@@ -268,44 +268,44 @@ export const ArticleGenerationModal: React.FC<{
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-slate-500 font-medium">Meta Title</label>
+              <label className="text-xs text-stone-500 font-medium">Meta Title</label>
               <input
                 type="text"
                 value={metaTitle}
                 onChange={e => setMetaTitle(e.target.value)}
                 onBlur={handleMetaBlur}
                 placeholder="SEO Optimized Title..."
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition"
+                className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
               />
-              <span className={`text-xs mt-0.5 ${metaTitle.length > 60 ? 'text-red-400' : 'text-slate-400'}`}>
+              <span className={`text-xs mt-0.5 ${metaTitle.length > 60 ? 'text-red-400' : 'text-stone-400'}`}>
                 {metaTitle.length}/60 characters
               </span>
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-slate-500 font-medium">Meta Description</label>
+              <label className="text-xs text-stone-500 font-medium">Meta Description</label>
               <textarea
                 value={metaDescription}
                 onChange={e => setMetaDescription(e.target.value)}
                 onBlur={handleMetaBlur}
                 placeholder="Brief summary for search results..."
                 rows={3}
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition resize-none"
+                className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition resize-none"
               />
-              <span className={`text-xs mt-0.5 ${metaDescription.length > 160 ? 'text-red-400' : 'text-slate-400'}`}>
+              <span className={`text-xs mt-0.5 ${metaDescription.length > 160 ? 'text-red-400' : 'text-stone-400'}`}>
                 {metaDescription.length}/160 characters
               </span>
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs text-slate-500 font-medium">Slug (URL Path)</label>
+              <label className="text-xs text-stone-500 font-medium">Slug (URL Path)</label>
               <input
                 type="text"
                 value={slug}
                 onChange={e => setSlug(e.target.value)}
                 onBlur={handleMetaBlur}
                 placeholder="url-friendly-slug"
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition font-mono"
+                className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2 text-stone-800 placeholder-stone-300 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition font-mono"
               />
             </div>
           </div>
@@ -316,7 +316,7 @@ export const ArticleGenerationModal: React.FC<{
               <button
                 onClick={handleGenerateText}
                 disabled={isGeneratingText}
-                className="w-full bg-slate-100 text-slate-700 py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 hover:bg-slate-200 transition-colors disabled:opacity-50"
+                className="w-full bg-stone-100 text-stone-700 py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 hover:bg-stone-200 transition-colors disabled:opacity-50"
               >
                 <SparklesIcon className="w-4 h-4" />
                 {isGeneratingText ? 'Regenerating...' : 'Regenerate Article'}
@@ -326,7 +326,7 @@ export const ArticleGenerationModal: React.FC<{
             <button 
               onClick={handlePublish}
               disabled={isPublishing || !rawContent || !cmsIntegration}
-              className="w-full bg-slate-900 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors disabled:bg-slate-300 shadow-md"
+              className="w-full bg-stone-900 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-stone-800 transition-colors disabled:bg-stone-300 shadow-md"
             >
               {isPublishing ? 'Publishing...' : 'Publish to WordPress'}
               <LinkIcon className="w-4 h-4" />
@@ -337,7 +337,7 @@ export const ArticleGenerationModal: React.FC<{
                 href={localPost.publishedUrl || localPost.published_url} 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="w-full bg-white border border-slate-300 text-slate-700 py-3 rounded-lg font-bold text-center hover:bg-slate-50 transition-colors"
+                className="w-full bg-white border border-stone-300 text-stone-700 py-3 rounded-lg font-bold text-center hover:bg-stone-50 transition-colors"
               >
                 View Live Post
               </a>

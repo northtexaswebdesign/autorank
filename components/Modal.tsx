@@ -14,12 +14,12 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-screen-xl border border-slate-200/80 flex flex-col max-h-[90vh]">
-        <div className="flex justify-between items-center p-4 border-b border-slate-200/80 flex-shrink-0">
-          <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-screen-xl border border-stone-200/80 flex flex-col max-h-[90vh]">
+        <div className="flex justify-between items-center p-4 border-b border-stone-200/80 flex-shrink-0">
+          <h2 className="text-lg font-semibold text-stone-900">{title}</h2>
           <button
             onClick={onClose}
-            className="text-slate-500 hover:text-slate-800 transition-colors"
+            className="text-stone-500 hover:text-stone-800 transition-colors"
           >
             <CloseIcon className="w-6 h-6" />
           </button>

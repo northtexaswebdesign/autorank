@@ -74,20 +74,20 @@ const draftOf = (u: AdminUser): Draft => ({
 const STATUS_STYLE: Record<PlanStatus, string> = {
     paid: 'bg-green-100 text-green-800',
     trial: 'bg-amber-100 text-amber-800',
-    expired: 'bg-slate-200 text-slate-700',
+    expired: 'bg-stone-200 text-stone-700',
 };
 
 const isLapsed = (u: AdminUser) => u.planStatus === 'paid' && !!u.subscriptionEndDate && new Date(u.subscriptionEndDate) < new Date();
 
 const Field: React.FC<{ label: string; hint?: string; children: React.ReactNode }> = ({ label, hint, children }) => (
     <label className="block">
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</span>
+        <span className="text-xs font-bold uppercase tracking-wider text-stone-500">{label}</span>
         <div className="mt-1">{children}</div>
-        {hint && <span className="mt-1 block text-xs text-slate-400">{hint}</span>}
+        {hint && <span className="mt-1 block text-xs text-stone-400">{hint}</span>}
     </label>
 );
 
-const inputCls = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200';
+const inputCls = 'w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200';
 
 const EditPanel: React.FC<{ user: AdminUser; onClose: () => void; onSaved: (msg: string) => void }> = ({ user, onClose, onSaved }) => {
     const [d, setD] = useState<Draft>(draftOf(user));
@@ -121,28 +121,28 @@ const EditPanel: React.FC<{ user: AdminUser; onClose: () => void; onSaved: (msg:
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex justify-end bg-stone-900/40" onClick={onClose}>
             <div className="h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
                 <div className="flex items-start justify-between">
                     <div>
-                        <h3 className="text-lg font-bold text-slate-900 break-all">{user.email}</h3>
-                        <p className="text-sm text-slate-500">{user.fullName || 'No name'} · joined {fmt(user.createdAt)}</p>
+                        <h3 className="text-lg font-bold text-stone-900 break-all">{user.email}</h3>
+                        <p className="text-sm text-stone-500">{user.fullName || 'No name'} · joined {fmt(user.createdAt)}</p>
                     </div>
-                    <button onClick={onClose} className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Close">✕</button>
+                    <button onClick={onClose} className="rounded-lg px-2 py-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700" aria-label="Close">✕</button>
                 </div>
 
-                <div className="mt-5 rounded-xl bg-slate-50 p-4">
-                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Quick actions</p>
+                <div className="mt-5 rounded-xl bg-stone-50 p-4">
+                    <p className="text-xs font-bold uppercase tracking-wider text-stone-500">Quick actions</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                         <button className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-green-700"
                             onClick={() => set({ planStatus: 'paid', subscriptionStartDate: today(), subscriptionEndDate: addDays(today(), 30), creditsRemaining: '30' })}>
                             Paid: 30 days + 30 credits
                         </button>
-                        <button className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                        <button className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-semibold text-stone-700 hover:bg-stone-100"
                             onClick={() => set({ planStatus: 'paid', subscriptionEndDate: addDays(d.subscriptionEndDate && d.subscriptionEndDate > today() ? d.subscriptionEndDate : today(), 30) })}>
                             Extend 30 days
                         </button>
-                        <button className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                        <button className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-semibold text-stone-700 hover:bg-stone-100"
                             onClick={() => set({ creditsRemaining: String(Number(d.creditsRemaining || 0) + 10) })}>
                             +10 credits
                         </button>
@@ -151,7 +151,7 @@ const EditPanel: React.FC<{ user: AdminUser; onClose: () => void; onSaved: (msg:
                             Expire
                         </button>
                     </div>
-                    <p className="mt-2 text-xs text-slate-400">Quick actions only fill the form. Nothing is saved until you press Save.</p>
+                    <p className="mt-2 text-xs text-stone-400">Quick actions only fill the form. Nothing is saved until you press Save.</p>
                 </div>
 
                 <div className="mt-5 grid grid-cols-2 gap-4">
@@ -187,24 +187,24 @@ const EditPanel: React.FC<{ user: AdminUser; onClose: () => void; onSaved: (msg:
                 </div>
 
                 {Object.keys(changes).length > 0 && (
-                    <div className="mt-5 rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900">
+                    <div className="mt-5 rounded-lg border border-brand-200 bg-brand-50 p-3 text-sm text-brand-900">
                         Will change: {Object.keys(changes).join(', ')}
                     </div>
                 )}
                 {error && <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
                 <div className="mt-6 flex gap-3">
-                    <button disabled={saving} onClick={save} className="flex-1 rounded-lg bg-orange-500 px-4 py-2.5 font-semibold text-white hover:bg-orange-600 disabled:opacity-60">
+                    <button disabled={saving} onClick={save} className="flex-1 rounded-lg bg-brand-500 px-4 py-2.5 font-semibold text-white hover:bg-brand-600 disabled:opacity-60">
                         {saving ? 'Saving...' : 'Save'}
                     </button>
-                    <button onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2.5 font-semibold text-slate-700 hover:bg-slate-100">Cancel</button>
+                    <button onClick={onClose} className="rounded-lg border border-stone-300 px-4 py-2.5 font-semibold text-stone-700 hover:bg-stone-100">Cancel</button>
                 </div>
 
                 {user.businesses.length > 0 && (
                     <div className="mt-8">
-                        <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Businesses</p>
-                        <ul className="mt-2 space-y-1 text-sm text-slate-600">
-                            {user.businesses.map(b => <li key={b.url + b.name}>{b.name} <span className="text-slate-400">{b.url}</span></li>)}
+                        <p className="text-xs font-bold uppercase tracking-wider text-stone-500">Businesses</p>
+                        <ul className="mt-2 space-y-1 text-sm text-stone-600">
+                            {user.businesses.map(b => <li key={b.url + b.name}>{b.name} <span className="text-stone-400">{b.url}</span></li>)}
                         </ul>
                     </div>
                 )}
@@ -247,28 +247,28 @@ export const AdminUsersTab: React.FC = () => {
         <div className="mx-auto max-w-7xl">
             <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-900">Users</h1>
-                    <p className="mt-1 text-slate-500">Change plans, credits and dates by hand. Every change is recorded in the activity log.</p>
+                    <h1 className="font-serif text-4xl md:text-[44px] leading-none tracking-[-0.01em] text-stone-900">Users</h1>
+                    <p className="mt-1 text-stone-500">Change plans, credits and dates by hand. Every change is recorded in the activity log.</p>
                 </div>
-                <button onClick={load} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">Refresh</button>
+                <button onClick={load} className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-100">Refresh</button>
             </div>
 
             <div className="mt-6 flex flex-wrap gap-2">
                 {(['all', 'paid', 'trial', 'expired'] as const).map(s => (
                     <button key={s} onClick={() => setStatus(s)}
-                        className={`rounded-full px-4 py-1.5 text-sm font-semibold capitalize ${status === s ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'}`}>
+                        className={`rounded-full px-4 py-1.5 text-sm font-semibold capitalize ${status === s ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-100'}`}>
                         {s} <span className="opacity-60">{counts[s]}</span>
                     </button>
                 ))}
-                <input className="ml-auto w-full rounded-lg border border-slate-300 px-3 py-2 text-sm sm:w-72" placeholder="Search email, name or business" value={search} onChange={e => setSearch(e.target.value)} />
+                <input className="ml-auto w-full rounded-lg border border-stone-300 px-3 py-2 text-sm sm:w-72" placeholder="Search email, name or business" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
 
             {notice && <p className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
             {error && <p className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
-            <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <div className="mt-4 overflow-x-auto rounded-xl border border-stone-200 bg-white">
                 <table className="min-w-full text-sm">
-                    <thead className="bg-slate-50 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
+                    <thead className="bg-stone-50 text-left text-xs font-bold uppercase tracking-wider text-stone-500">
                         <tr>
                             <th className="px-4 py-3">User</th>
                             <th className="px-4 py-3">Plan</th>
@@ -280,31 +280,31 @@ export const AdminUsersTab: React.FC = () => {
                             <th className="px-4 py-3"></th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {loading && <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">Loading users...</td></tr>}
-                        {!loading && shown.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">No users match.</td></tr>}
+                    <tbody className="divide-y divide-stone-100">
+                        {loading && <tr><td colSpan={8} className="px-4 py-10 text-center text-stone-400">Loading users...</td></tr>}
+                        {!loading && shown.length === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-stone-400">No users match.</td></tr>}
                         {!loading && shown.map(u => (
-                            <tr key={u.id} className="hover:bg-slate-50">
+                            <tr key={u.id} className="hover:bg-stone-50">
                                 <td className="px-4 py-3">
-                                    <p className="font-semibold text-slate-900">{u.email}</p>
-                                    <p className="text-xs text-slate-500">{[u.fullName, u.businesses[0]?.name, u.role === 'admin' ? 'admin' : ''].filter(Boolean).join(' · ') || '—'}</p>
+                                    <p className="font-semibold text-stone-900">{u.email}</p>
+                                    <p className="text-xs text-stone-500">{[u.fullName, u.businesses[0]?.name, u.role === 'admin' ? 'admin' : ''].filter(Boolean).join(' · ') || '—'}</p>
                                 </td>
                                 <td className="px-4 py-3">
                                     <span className={`rounded-full px-2.5 py-1 text-xs font-bold capitalize ${STATUS_STYLE[u.planStatus] || STATUS_STYLE.expired}`}>{u.planStatus}</span>
-                                    {u.stripeCustomer && <span className="ml-1 text-xs text-slate-400">Stripe</span>}
+                                    {u.stripeCustomer && <span className="ml-1 text-xs text-stone-400">Stripe</span>}
                                 </td>
-                                <td className="px-4 py-3 font-semibold text-slate-800">{u.creditsRemaining ?? '—'}</td>
-                                <td className="px-4 py-3 text-slate-600">{u.trialArticlesCreated}/3</td>
-                                <td className="px-4 py-3 text-slate-600">
+                                <td className="px-4 py-3 font-semibold text-stone-800">{u.creditsRemaining ?? '—'}</td>
+                                <td className="px-4 py-3 text-stone-600">{u.trialArticlesCreated}/3</td>
+                                <td className="px-4 py-3 text-stone-600">
                                     {u.subscriptionEndDate ? <>until {fmt(u.subscriptionEndDate)}</> : u.trialEndDate ? <>trial until {fmt(u.trialEndDate)}</> : '—'}
                                     {isLapsed(u) && <p className="text-xs font-semibold text-red-600">End date passed</p>}
                                 </td>
-                                <td className="px-4 py-3 text-slate-600">{u.publishedArticles}</td>
-                                <td className="px-4 py-3 text-slate-500">{fmt(u.lastSignInAt)}</td>
+                                <td className="px-4 py-3 text-stone-600">{u.publishedArticles}</td>
+                                <td className="px-4 py-3 text-stone-500">{fmt(u.lastSignInAt)}</td>
                                 <td className="px-4 py-3 text-right">
                                     {u.hasProfile
-                                        ? <button onClick={() => { setNotice(''); setEditing(u); }} className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700">Edit</button>
-                                        : <span className="text-xs text-slate-400">No profile</span>}
+                                        ? <button onClick={() => { setNotice(''); setEditing(u); }} className="rounded-lg bg-stone-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-stone-700">Edit</button>
+                                        : <span className="text-xs text-stone-400">No profile</span>}
                                 </td>
                             </tr>
                         ))}

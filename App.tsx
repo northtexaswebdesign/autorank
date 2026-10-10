@@ -433,10 +433,10 @@ const AppInner: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-screen bg-slate-50">
+            <div className="flex items-center justify-center h-screen bg-canvas">
                 <div className="flex flex-col items-center">
-                    <SparklesIcon className="w-12 h-12 text-orange-500 animate-spin mb-4" />
-                    <p className="text-slate-500 font-medium">Loading your workspace...</p>
+                    <SparklesIcon className="w-12 h-12 text-brand-500 animate-spin mb-4" />
+                    <p className="text-stone-500 font-medium">Loading your workspace...</p>
                 </div>
             </div>
         );
@@ -464,31 +464,31 @@ const AppInner: React.FC = () => {
     };
 
     return (
-        <div className="flex h-screen bg-slate-50 overflow-hidden">
+        <div className="flex h-screen bg-canvas overflow-hidden">
             <Sidebar 
                 activeTab={activeTab} setActiveTab={setActiveTab} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen}
                 onLogout={() => supabase.auth.signOut()} setEditingPost={setEditingPost} userEmail={userProfile?.fullName || ''} showAdmin={isOwner}
             />
-            <div className="flex-1 flex flex-col min-w-0 overflow-hidden ml-0 md:ml-64 transition-all duration-300">
-                <header className="md:hidden bg-white border-b border-slate-200 p-4 flex items-center justify-between flex-shrink-0">
-                    <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-slate-600 focus:outline-none"><HamburgerIcon className="w-6 h-6" /></button>
-                    <span className="font-bold text-slate-800">Autorank AI</span>
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden ml-0 md:ml-60 transition-all duration-300">
+                <header className="md:hidden bg-canvas px-3 py-2 flex items-center justify-between flex-shrink-0">
+                    <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-stone-600 focus:outline-none"><HamburgerIcon className="w-6 h-6" /></button>
+                    <span className="font-semibold tracking-tight text-stone-900">autorank</span>
                     <div className="w-10"></div>
                 </header>
-                <main className="flex-1 overflow-y-auto relative">
+                <main className="flex-1 overflow-y-auto relative bg-white mx-2 mb-2 md:mt-2 rounded-2xl border border-[#E7E4DC] shadow-[0_1px_2px_rgba(28,27,25,0.04),0_8px_24px_rgba(28,27,25,0.05)]">
                     {editingPostId ? (
-                        <div className="absolute inset-0 z-50 bg-white">
+                        <div className="absolute inset-0 z-50 bg-white rounded-2xl">
                             {isLoadingEditingPost || !editingPost ? (
                                 <div className="flex flex-col items-center justify-center h-full">
-                                    <SparklesIcon className="w-10 h-10 text-orange-500 animate-spin" />
-                                    <p className="mt-4 text-slate-500">Opening Article...</p>
+                                    <SparklesIcon className="w-10 h-10 text-brand-500 animate-spin" />
+                                    <p className="mt-4 text-stone-500">Opening Article...</p>
                                 </div>
                             ) : (
                                 <ContentGenerationScreen post={editingPost} onBack={() => setEditingPost(null)} />
                             )}
                         </div>
                     ) : (
-                        <div className="p-4 md:p-10">
+                        <div className="px-5 py-6 md:px-9 md:py-8 max-w-[1280px]">
                             {renderTab()}
                         </div>
                     )}

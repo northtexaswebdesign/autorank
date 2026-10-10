@@ -13,12 +13,12 @@ interface HelpSectionProps {
 }
 
 const HelpSection: React.FC<HelpSectionProps> = ({ icon, title, children }) => (
-    <div className="bg-white border border-slate-200/80 rounded-xl shadow-sm p-8">
+    <div className="bg-white border border-stone-200/80 rounded-xl shadow-sm p-8">
         <div className="flex items-center mb-3">
-            <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-slate-600 mr-3">
+            <div className="w-8 h-8 bg-stone-100 rounded-lg flex items-center justify-center text-stone-600 mr-3">
                 {icon}
             </div>
-            <h3 className="text-xl font-semibold text-slate-900">{title}</h3>
+            <h3 className="text-xl font-semibold text-stone-900">{title}</h3>
         </div>
         <div className="prose prose-slate max-w-none prose-sm sm:prose-base">
             {children}
@@ -29,8 +29,8 @@ const HelpSection: React.FC<HelpSectionProps> = ({ icon, title, children }) => (
 export const HelpTab: React.FC = () => {
   return (
     <div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Help & Documentation</h1>
-        <p className="mt-1 text-slate-600 mb-8">A complete guide to getting the most out of Autorank AI.</p>
+        <h1 className="font-serif text-4xl md:text-[44px] leading-none tracking-[-0.01em] text-stone-900">Help center</h1>
+        <p className="mt-1 text-stone-600 mb-8">A complete guide to getting the most out of Autorank AI.</p>
         <div className="space-y-6">
             
             <HelpSection icon={<BrainCircuitIcon className="w-5 h-5" />} title="Welcome to Autorank AI: Your Automated GEO Content Platform">
@@ -111,8 +111,8 @@ export const HelpTab: React.FC = () => {
             </HelpSection>
 
             <div className="text-center pt-4">
-                <p className="text-sm text-slate-500">
-                    For more detailed instructions and advanced guides, please visit our official <a href="https://autorank-ai.com/help-center/" target="_blank" rel="noopener noreferrer" className="font-semibold text-orange-600 hover:underline">Help Center</a>.
+                <p className="text-sm text-stone-500">
+                    For more detailed instructions and advanced guides, please visit our official <a href="https://autorank-ai.com/help-center/" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-600 hover:underline">Help Center</a>.
                 </p>
             </div>
         </div>

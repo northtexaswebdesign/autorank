@@ -16,8 +16,8 @@ export const GeoScoreCircularProgress: React.FC<CircularProgressProps> = ({
   const offset = circumference - (score / 100) * circumference;
 
   const getStrokeColor = () => {
-    if (score >= 75) return '#ea580c'; // orange-600
-    if (score >= 35) return '#fb923c'; // orange-400
+    if (score >= 75) return '#ea580c'; // brand-600
+    if (score >= 35) return '#fb923c'; // brand-400
     return '#78716c'; // stone-500
   };
 
@@ -25,7 +25,7 @@ export const GeoScoreCircularProgress: React.FC<CircularProgressProps> = ({
     <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
       <svg className="absolute" width={size} height={size}>
         <circle
-          className="text-slate-100"
+          className="text-stone-100"
           stroke="currentColor"
           strokeWidth={strokeWidth}
           fill="transparent"
@@ -50,7 +50,7 @@ export const GeoScoreCircularProgress: React.FC<CircularProgressProps> = ({
           }}
         />
       </svg>
-      <span className="text-3xl font-bold text-slate-800">
+      <span className="text-3xl font-bold text-stone-800">
         {score}
       </span>
     </div>

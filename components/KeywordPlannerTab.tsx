@@ -34,20 +34,20 @@ const StatCard: React.FC<{
     <button
         onClick={onClick}
         disabled={disabled}
-        className={`p-4 text-left bg-gradient-to-br from-white to-slate-50 border rounded-xl shadow-lg transition-all duration-300 ease-in-out ${
+        className={`px-[18px] py-4 text-left bg-[#F7F6F3] border rounded-2xl shadow-[inset_0_1px_0_#fff,0_1px_2px_rgba(28,27,25,0.05)] transition-colors duration-150 ${
             isActive 
-                ? 'border-orange-400 shadow-orange-500/20' 
-                : 'border-slate-200 hover:border-slate-300 hover:shadow-xl hover:-translate-y-1'
+                ? 'border-stone-900' 
+                : 'border-[#ECE9E2] hover:border-stone-300'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
     >
         <div className="flex items-start justify-between">
-            <div className="text-slate-500">
+            <div className="text-stone-500">
                 {icon}
             </div>
-            <p className="text-3xl font-bold text-slate-900">{count}</p>
+            <p className="font-serif text-[40px] leading-none text-stone-900 tabular-nums">{count}</p>
         </div>
-        <h3 className="text-base font-semibold text-slate-800 mt-3">{label}</h3>
-        <p className="text-xs text-slate-500">{description}</p>
+        <h3 className="text-base font-semibold text-stone-800 mt-3">{label}</h3>
+        <p className="text-xs text-stone-500">{description}</p>
     </button>
 ));
 
@@ -65,7 +65,7 @@ const KeywordRow: React.FC<{
 }> = React.memo(({ keyword, isSelected, onSelect, onToggleStar, onDelete, onAddToPlan, onRemoveFromPlan, onGenerate, isLocked }) => {
     
     const opportunityColor = {
-        High: 'text-orange-700 bg-orange-100',
+        High: 'text-brand-700 bg-brand-100',
         Medium: 'text-amber-700 bg-amber-100',
         Low: 'text-stone-700 bg-stone-100'
     };
@@ -76,22 +76,22 @@ const KeywordRow: React.FC<{
     const handleGenerate = () => onGenerate(keyword);
     
     return (
-        <tr className={`md:border-b md:border-slate-200/80 md:hover:bg-slate-50/50 ${isSelected ? 'bg-orange-50/50' : ''}`}>
+        <tr className={`md:border-b md:border-stone-200/80 md:hover:bg-stone-50/50 ${isSelected ? 'bg-brand-50/50' : ''}`}>
             <td className="text-center md:table-cell md:px-2 md:py-4 md:w-12 align-middle">
                 <input 
                     type="checkbox" 
                     checked={isSelected} 
                     onChange={() => keyword.id && onSelect(keyword.id)}
-                    className="w-4 h-4 text-orange-600 rounded border-slate-300 focus:ring-orange-500 cursor-pointer accent-orange-600"
+                    className="w-4 h-4 text-brand-600 rounded border-stone-300 focus:ring-brand-500 cursor-pointer accent-brand-600"
                 />
             </td>
             <td className="text-center md:table-cell md:px-2 md:py-4 md:w-12 align-middle">
-                <button onClick={handleToggleStar} className="p-2 text-slate-400 hover:text-amber-500">
+                <button onClick={handleToggleStar} className="p-2 text-stone-400 hover:text-amber-500">
                     <StarIcon className="w-5 h-5" filled={keyword.isStarred} />
                 </button>
             </td>
             <td data-label="Keyword" className="md:table-cell md:px-4 md:py-4 align-middle">
-                <p className="font-medium text-slate-800 md:text-left">{keyword.keyword}</p>
+                <p className="font-medium text-stone-800 md:text-left">{keyword.keyword}</p>
             </td>
             <td data-label="Opportunity" className="md:table-cell md:px-4 md:py-4 md:text-center align-middle">
                 <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${opportunityColor[keyword.opportunity]}`}>
@@ -103,7 +103,7 @@ const KeywordRow: React.FC<{
                     onClick={handleGenerate} 
                     disabled={isLocked}
                     title={isLocked ? "Your trial has ended. Please upgrade your plan." : "Generate article"}
-                    className="bg-gradient-to-r from-amber-400 to-orange-500 text-white px-3 py-1.5 text-sm rounded-md font-semibold hover:from-amber-500 hover:to-orange-600 flex items-center transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-1 active:scale-95 shadow-sm disabled:from-slate-400 disabled:to-slate-400 disabled:cursor-not-allowed"
+                    className="bg-white text-stone-900 border border-stone-300 px-3 py-1.5 text-sm rounded-md font-semibold hover:border-stone-900 flex items-center transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-1 active:scale-95 disabled:text-stone-400 disabled:border-stone-200 disabled:cursor-not-allowed"
                 >
                     <SparklesIcon className="w-4 h-4 mr-1.5" />
                     Generate
@@ -112,17 +112,17 @@ const KeywordRow: React.FC<{
             <td className="md:table-cell md:px-4 md:py-4 md:text-right align-middle">
                 <div className="flex items-center justify-end gap-2">
                     {keyword.isQueued ? (
-                         <button onClick={handleRemoveFromPlan} className="bg-slate-100 text-slate-700 px-3 py-1.5 text-sm rounded-md font-semibold hover:bg-slate-200 flex items-center transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1 active:bg-slate-300 active:scale-95">
+                         <button onClick={handleRemoveFromPlan} className="bg-stone-100 text-stone-700 px-3 py-1.5 text-sm rounded-md font-semibold hover:bg-stone-200 flex items-center transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-stone-400 focus:ring-offset-1 active:bg-stone-300 active:scale-95">
                             <CloseIcon className="w-4 h-4 mr-1.5" />
                             Remove from Plan
                         </button>
                     ) : (
-                        <button onClick={handleAddToPlan} className="bg-orange-100 text-orange-700 px-3 py-1.5 text-sm rounded-md font-semibold hover:bg-orange-200 flex items-center transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-1 active:bg-orange-300 active:scale-95">
+                        <button onClick={handleAddToPlan} className="bg-brand-100 text-brand-700 px-3 py-1.5 text-sm rounded-md font-semibold hover:bg-brand-200 flex items-center transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-1 active:bg-brand-300 active:scale-95">
                             <PlusIcon className="w-4 h-4 mr-1.5" />
                             Add to Plan
                         </button>
                     )}
-                    <button onClick={() => onDelete(keyword)} className="p-2 text-slate-400 hover:text-red-500 rounded-md hover:bg-red-50 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1 active:bg-red-100">
+                    <button onClick={() => onDelete(keyword)} className="p-2 text-stone-400 hover:text-red-500 rounded-md hover:bg-red-50 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1 active:bg-red-100">
                         <TrashIcon className="w-4 h-4" />
                     </button>
                 </div>
@@ -142,8 +142,8 @@ const TopicCard: React.FC<{
       onClick={onToggle}
       className={`p-4 rounded-lg border-2 flex items-start gap-4 cursor-pointer transition-all duration-200 ${
         isSelected
-          ? isPillar ? 'bg-orange-50 border-orange-500' : 'bg-slate-50 border-slate-400'
-          : 'bg-white border-slate-200 hover:border-slate-300'
+          ? isPillar ? 'bg-brand-50 border-brand-500' : 'bg-stone-50 border-stone-400'
+          : 'bg-white border-stone-200 hover:border-stone-300'
       }`}
     >
       <input
@@ -152,20 +152,20 @@ const TopicCard: React.FC<{
         readOnly
         onClick={(e) => e.stopPropagation()}
         onChange={onToggle}
-        className="mt-1 h-5 w-5 rounded border-slate-300 text-orange-600 focus:ring-orange-500 cursor-pointer"
+        className="mt-1 h-5 w-5 rounded border-stone-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
         aria-label={`Select topic: ${topic}`}
       />
       <div>
         <span
           className={`px-2 py-0.5 text-[10px] font-bold tracking-wider rounded ${
             isPillar
-              ? 'bg-orange-100 text-orange-700'
-              : 'bg-slate-200 text-slate-600'
+              ? 'bg-brand-100 text-brand-700'
+              : 'bg-stone-200 text-stone-600'
           }`}
         >
           {isPillar ? 'PILLAR PAGE' : 'CLUSTER PAGE'}
         </span>
-        <p className="font-semibold text-slate-800 mt-1.5">{topic}</p>
+        <p className="font-semibold text-stone-800 mt-1.5">{topic}</p>
       </div>
     </div>
   );
@@ -210,12 +210,12 @@ const ContentClusterModal: React.FC<{
     <Modal isOpen={isOpen} onClose={onClose} title="AI-Suggested Content Cluster">
         {isLoading ? (
             <div className="text-center py-20">
-                <SparklesIcon className="w-12 h-12 mx-auto text-slate-300 animate-spin mb-4" />
-                <p className="text-slate-600">Analyzing keyword to find the best cluster...</p>
+                <SparklesIcon className="w-12 h-12 mx-auto text-stone-300 animate-spin mb-4" />
+                <p className="text-stone-600">Analyzing keyword to find the best cluster...</p>
             </div>
         ) : cluster ? (
             <div>
-                <p className="text-slate-600 mb-6">The AI has identified a strategic content cluster to build topical authority. Deselect any topics you don't want to add to your plan.</p>
+                <p className="text-stone-600 mb-6">The AI has identified a strategic content cluster to build topical authority. Deselect any topics you don't want to add to your plan.</p>
                 
                  <div className="space-y-4">
                     <TopicCard
@@ -238,13 +238,13 @@ const ContentClusterModal: React.FC<{
                 </div>
 
                  <div className="flex justify-end items-center gap-3 mt-8">
-                    <button onClick={onSuggestAnother} className="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-semibold hover:bg-slate-200">
+                    <button onClick={onSuggestAnother} className="bg-stone-100 text-stone-700 px-4 py-2 rounded-lg font-semibold hover:bg-stone-200">
                         Suggest Another
                     </button>
                     <button 
                         onClick={() => onAccept(selectedTopics)} 
                         disabled={selectedTopics.length === 0}
-                        className="bg-orange-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-orange-600 flex items-center disabled:bg-orange-300"
+                        className="bg-brand-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-600 flex items-center disabled:bg-brand-300"
                     >
                         <CheckIcon className="w-5 h-5 mr-2" />
                         Accept & Add {selectedTopics.length} to Plan
@@ -253,14 +253,14 @@ const ContentClusterModal: React.FC<{
             </div>
         ) : (
             <div className="py-8">
-                 <p className="text-slate-600 mb-4">Enter a core keyword or topic (e.g., "Gun Site") and the AI will generate a strategic content cluster around it, including a pillar topic and 5-7 related cluster topics.</p>
+                 <p className="text-stone-600 mb-4">Enter a core keyword or topic (e.g., "Gun Site") and the AI will generate a strategic content cluster around it, including a pillar topic and 5-7 related cluster topics.</p>
                  <div className="flex flex-col gap-4">
                      <input
                          type="text"
                          value={targetKeyword}
                          onChange={(e) => setTargetKeyword(e.target.value)}
                          placeholder="Enter target keyword..."
-                         className="w-full bg-white border border-slate-300 rounded-lg px-4 py-3 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition"
+                         className="w-full bg-white border border-stone-300 rounded-lg px-4 py-3 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
                          autoFocus
                          onKeyDown={(e) => {
                              if (e.key === 'Enter' && targetKeyword.trim()) {
@@ -272,7 +272,7 @@ const ContentClusterModal: React.FC<{
                          <button 
                              onClick={() => onGenerate(targetKeyword.trim())} 
                              disabled={!targetKeyword.trim()}
-                             className="bg-orange-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-orange-600 disabled:bg-orange-300 transition-colors"
+                             className="bg-brand-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-brand-600 disabled:bg-brand-300 transition-colors"
                          >
                              Generate Cluster
                          </button>
@@ -510,12 +510,12 @@ export const KeywordPlannerTab: React.FC<KeywordPlannerTabProps> = ({ setActiveT
     return (
         <div>
             <div className="flex justify-between items-baseline mb-2">
-                <h1 className="text-3xl font-bold tracking-tight text-slate-900">Keyword Planner</h1>
+                <h1 className="font-serif text-4xl md:text-[44px] leading-none tracking-[-0.01em] text-stone-900">Keyword Planner</h1>
                 {selectedBusiness && (
-                    <h2 className="text-xl font-semibold text-slate-600 tracking-tight">Welcome, {selectedBusiness.name}!</h2>
+                    <p className="text-sm text-stone-500">{selectedBusiness.name.trim()}</p>
                 )}
             </div>
-            <p className="text-slate-600 mb-8">{filterMetadata[activeFilter].description}</p>
+            <p className="text-stone-600 mb-8">{filterMetadata[activeFilter].description}</p>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <StatCard icon={<KeywordIcon className="w-6 h-6"/>} label="All Keywords" count={statCounts.all} description="Complete keyword list" isActive={activeFilter === 'all'} onClick={handleFilterAll} />
@@ -526,20 +526,20 @@ export const KeywordPlannerTab: React.FC<KeywordPlannerTabProps> = ({ setActiveT
                 <StatCard icon={<CloseIcon className="w-6 h-6"/>} label="Failed" count={0} description="Action required" isActive={false} onClick={() => {}} disabled />
             </div>
 
-            <div className="mt-8 bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm">
+            <div className="mt-8 bg-white p-6 rounded-xl border border-stone-200/80 shadow-sm">
                 <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-4">
                     <div className="flex gap-2 items-center flex-wrap">
-                         <button onClick={() => setIsAddModalOpen(true)} className="bg-slate-800 text-white px-4 py-2 rounded-lg font-semibold hover:bg-slate-900 flex items-center transition-colors shadow-sm">
+                         <button onClick={() => setIsAddModalOpen(true)} className="bg-stone-800 text-white px-4 py-2 rounded-lg font-semibold hover:bg-stone-900 flex items-center transition-colors shadow-sm">
                            <PlusIcon className="w-5 h-5 mr-2" />
                            Add Keyword
                         </button>
                         
-                        <div className="h-8 w-px bg-slate-300 mx-2 hidden md:block"></div>
+                        <div className="h-8 w-px bg-stone-300 mx-2 hidden md:block"></div>
 
                         <select
                             value={selectedLanguage}
                             onChange={(e) => setSelectedLanguage(e.target.value)}
-                            className="bg-white border border-slate-300 text-slate-700 text-sm rounded-lg focus:ring-orange-500 focus:border-orange-500 block px-3 py-2 cursor-pointer hover:border-orange-400 transition-colors"
+                            className="bg-white border border-stone-300 text-stone-700 text-sm rounded-lg focus:ring-brand-500 focus:border-brand-500 block px-3 py-2 cursor-pointer hover:border-brand-400 transition-colors"
                             title="Select target language for new keywords"
                         >
                             <option value="English">English</option>
@@ -553,7 +553,7 @@ export const KeywordPlannerTab: React.FC<KeywordPlannerTabProps> = ({ setActiveT
                             onClick={handleGenerateKeywords} 
                             disabled={isGeneratingKeywords || !selectedBusiness}
                             title={generateButtonTitle}
-                            className="bg-gradient-to-r from-amber-400 to-orange-500 text-white px-4 py-2 rounded-lg font-semibold hover:from-amber-500 hover:to-orange-600 disabled:from-slate-400 disabled:to-slate-400 disabled:cursor-not-allowed flex items-center transition-all shadow-sm"
+                            className="bg-brand-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-700 disabled:bg-stone-400 disabled:cursor-not-allowed flex items-center transition-all shadow-sm"
                         >
                            <SparklesIcon className={`w-5 h-5 mr-2 ${isGeneratingKeywords ? 'animate-spin' : ''}`} />
                            {generateButtonText}
@@ -562,7 +562,7 @@ export const KeywordPlannerTab: React.FC<KeywordPlannerTabProps> = ({ setActiveT
                             onClick={handleOpenClusterModal} 
                             disabled={!selectedBusiness}
                             title="Suggest a Content Cluster"
-                            className="bg-gradient-to-r from-orange-600 to-red-700 text-white px-4 py-2 rounded-lg font-semibold hover:from-orange-700 hover:to-red-800 disabled:from-slate-400 disabled:to-slate-400 disabled:cursor-not-allowed flex items-center transition-all shadow-sm"
+                            className="bg-white text-stone-900 border border-stone-300 px-4 py-2 rounded-lg font-semibold hover:border-stone-400 hover:bg-stone-50 disabled:text-stone-400 disabled:cursor-not-allowed flex items-center transition-all"
                         >
                            <LinkIcon className={`w-5 h-5 mr-2 ${isSuggestingCluster ? 'animate-spin' : ''}`} />
                            Suggest Cluster
@@ -584,9 +584,9 @@ export const KeywordPlannerTab: React.FC<KeywordPlannerTabProps> = ({ setActiveT
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             placeholder="Search keywords..."
-                            className="w-full md:w-64 bg-white border border-slate-300 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-orange-500 transition"
+                            className="w-full md:w-64 bg-white border border-stone-300 rounded-lg pl-10 pr-4 py-2 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-1 focus:ring-brand-500 transition"
                         />
-                         <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                         <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                     </div>
@@ -595,13 +595,13 @@ export const KeywordPlannerTab: React.FC<KeywordPlannerTabProps> = ({ setActiveT
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm responsive-table">
                         <thead className="md:table-header-group">
-                            <tr className="text-left font-semibold text-slate-500 bg-slate-50">
+                            <tr className="text-left font-semibold text-stone-500 bg-stone-50">
                                 <th className="px-2 py-3 w-12 text-center">
                                     <input 
                                         type="checkbox" 
                                         checked={isAllPageSelected}
                                         onChange={handleSelectAll}
-                                        className="w-4 h-4 text-orange-600 rounded border-slate-300 focus:ring-orange-500 cursor-pointer accent-orange-600"
+                                        className="w-4 h-4 text-brand-600 rounded border-stone-300 focus:ring-brand-500 cursor-pointer accent-brand-600"
                                         title="Select all on this page"
                                     />
                                 </th>
@@ -633,16 +633,16 @@ export const KeywordPlannerTab: React.FC<KeywordPlannerTabProps> = ({ setActiveT
 
                 {memoizedKeywords.length === 0 && (
                      <div className="text-center py-16">
-                        <KeywordIcon className="w-12 h-12 mx-auto text-slate-300 mb-4" />
-                        <p className="text-slate-500">No keywords found for this filter.</p>
-                        {activeFilter === 'recommended' && <p className="text-slate-500 mt-1">Try generating new ideas!</p>}
+                        <KeywordIcon className="w-12 h-12 mx-auto text-stone-300 mb-4" />
+                        <p className="text-stone-500">No keywords found for this filter.</p>
+                        {activeFilter === 'recommended' && <p className="text-stone-500 mt-1">Try generating new ideas!</p>}
                     </div>
                 )}
                 
                  {totalPages > 1 && (
                     <div className="flex justify-between items-center mt-6 text-sm">
                         <div>
-                            <p className="text-slate-600">
+                            <p className="text-stone-600">
                                 Showing <span className="font-semibold">{paginatedKeywords.length}</span> of <span className="font-semibold">{memoizedKeywords.length}</span> keywords
                             </p>
                         </div>
@@ -650,17 +650,17 @@ export const KeywordPlannerTab: React.FC<KeywordPlannerTabProps> = ({ setActiveT
                              <button
                                 onClick={() => setCurrentPage(p => p - 1)}
                                 disabled={currentPage === 1}
-                                className="px-2 py-1.5 border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-2 py-1.5 border border-stone-300 rounded-md hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <ChevronLeftIcon className="w-5 h-5" />
                             </button>
-                            <span className="text-slate-600 font-medium">
+                            <span className="text-stone-600 font-medium">
                                 Page {currentPage} of {totalPages}
                             </span>
                              <button
                                 onClick={() => setCurrentPage(p => p + 1)}
                                 disabled={currentPage === totalPages}
-                                className="px-2 py-1.5 border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-2 py-1.5 border border-stone-300 rounded-md hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <ChevronRightIcon className="w-5 h-5" />
                             </button>

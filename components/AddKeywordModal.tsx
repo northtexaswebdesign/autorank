@@ -30,7 +30,7 @@ export const AddKeywordModal: React.FC<AddKeywordModalProps> = ({ isOpen, onClos
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Add a New Keyword">
       <form onSubmit={handleSubmit}>
-        <p className="text-slate-600 mb-4">
+        <p className="text-stone-600 mb-4">
           Manually add a keyword to your list. The system will assign default metrics.
         </p>
         <div className="flex gap-4">
@@ -39,13 +39,13 @@ export const AddKeywordModal: React.FC<AddKeywordModalProps> = ({ isOpen, onClos
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="e.g., how to optimize local SEO for plumbers"
-            className="flex-grow bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition"
+            className="flex-grow bg-white border border-stone-300 rounded-lg px-3 py-2 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
             autoFocus
           />
           <button 
             type="submit" 
             disabled={isLoading || !keyword.trim()}
-            className="bg-slate-800 text-white px-4 py-2 rounded-lg font-semibold hover:bg-slate-900 flex items-center transition-colors shadow-sm disabled:bg-slate-400"
+            className="bg-stone-800 text-white px-4 py-2 rounded-lg font-semibold hover:bg-stone-900 flex items-center transition-colors shadow-sm disabled:bg-stone-400"
           >
             <PlusIcon className="w-5 h-5 mr-2" />
             {isLoading ? 'Adding...' : 'Add to Keywords List'}

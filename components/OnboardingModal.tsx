@@ -34,17 +34,17 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl border border-slate-200/80 transform transition-all animate-fade-in-up">
+    <div className="fixed inset-0 bg-stone-900/60 z-50 flex items-center justify-center p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl border border-stone-200/80 transform transition-all animate-fade-in-up">
         <form onSubmit={handleSubmit} className="p-10">
           <div className="flex items-center mb-4">
-            <div className="w-10 h-10 bg-slate-900 text-white rounded-lg flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 bg-stone-900 text-white rounded-lg flex items-center justify-center flex-shrink-0">
                 <LogoIcon className="w-6 h-6" />
             </div>
-            <h1 className="ml-4 text-2xl font-bold text-slate-900">Welcome to Autorank AI</h1>
+            <h1 className="ml-4 text-2xl font-bold text-stone-900">Welcome to Autorank AI</h1>
           </div>
           
-          <p className="text-slate-600 mb-8">Let's get your content strategy started in 2 minutes. First, tell us about your business.</p>
+          <p className="text-stone-600 mb-8">Let's get your content strategy started in 2 minutes. First, tell us about your business.</p>
           
           <div className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -56,7 +56,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
           </div>
           
           <div className="flex justify-end mt-8">
-            <button type="submit" disabled={!isFormFilled} className="bg-slate-700 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-slate-800 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors shadow-sm hover:shadow-md">
+            <button type="submit" disabled={!isFormFilled} className="bg-stone-700 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-stone-800 disabled:bg-stone-400 disabled:cursor-not-allowed transition-colors shadow-sm hover:shadow-md">
               Next Step
             </button>
           </div>

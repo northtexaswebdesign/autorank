@@ -11,23 +11,23 @@ const LogItem: React.FC<{ log: ActivityLog }> = React.memo(({ log }) => {
     const statusConfig = {
         success: {
             icon: <CheckIcon className="w-4 h-4 text-green-600" />,
-            text: 'text-slate-700'
+            text: 'text-stone-700'
         },
         error: {
             icon: <CloseIcon className="w-4 h-4 text-red-600" />,
             text: 'text-red-700 font-medium'
         },
         running: {
-            icon: <LogsIcon className="w-4 h-4 text-slate-400" />,
-            text: 'text-slate-500 italic'
+            icon: <LogsIcon className="w-4 h-4 text-stone-400" />,
+            text: 'text-stone-500 italic'
         }
     };
     
     // Default to success if status is unknown, or use alert for generic
-    const config = statusConfig[log.status] || { icon: <AlertTriangleIcon className="w-4 h-4 text-amber-500" />, text: 'text-slate-700' };
+    const config = statusConfig[log.status] || { icon: <AlertTriangleIcon className="w-4 h-4 text-amber-500" />, text: 'text-stone-700' };
 
     return (
-        <div className="flex items-center justify-between py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors px-4 -mx-4">
+        <div className="flex items-center justify-between py-3 border-b border-stone-100 last:border-0 hover:bg-stone-50 transition-colors px-4 -mx-4">
             <div className="flex items-start gap-3 overflow-hidden">
                 <div className="mt-0.5 flex-shrink-0">
                     {config.icon}
@@ -41,7 +41,7 @@ const LogItem: React.FC<{ log: ActivityLog }> = React.memo(({ log }) => {
                     </p>
                 </div>
             </div>
-            <span className="text-xs text-slate-400 flex-shrink-0 whitespace-nowrap">
+            <span className="text-xs text-stone-400 flex-shrink-0 whitespace-nowrap">
                 {new Date(log.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
             </span>
         </div>
@@ -64,19 +64,19 @@ export const ActivityLogTab: React.FC = () => {
 
     return (
         <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">System Activity</h1>
-            <p className="mt-1 text-slate-600 mb-8">Recent actions performed by your automation assistant.</p>
+            <h1 className="font-serif text-4xl md:text-[44px] leading-none tracking-[-0.01em] text-stone-900">Activity log</h1>
+            <p className="mt-1 text-stone-600 mb-8">Recent actions performed by your automation assistant.</p>
             
-            <div className="bg-white border border-slate-200/80 rounded-xl shadow-sm overflow-hidden">
+            <div className="bg-white border border-stone-200/80 rounded-xl shadow-sm overflow-hidden">
                 {filteredLogs.length > 0 ? (
                     <div className="px-4 py-2">
                         {filteredLogs.map(log => <LogItem key={log.id} log={log} />)}
                     </div>
                 ) : (
                     <div className="text-center py-16">
-                        <LogsIcon className="w-12 h-12 mx-auto text-slate-300 mb-4" />
-                        <h2 className="text-xl font-bold text-slate-700">No Recent Activity</h2>
-                        <p className="text-slate-500 mt-2">No automated actions recorded in the last 3 days.</p>
+                        <LogsIcon className="w-12 h-12 mx-auto text-stone-300 mb-4" />
+                        <h2 className="font-serif text-[26px] leading-tight text-stone-900">No Recent Activity</h2>
+                        <p className="text-stone-500 mt-2">No automated actions recorded in the last 3 days.</p>
                     </div>
                 )}
             </div>

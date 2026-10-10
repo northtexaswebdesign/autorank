@@ -8,11 +8,16 @@
     <title>Autorank AI</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       body {
-        font-family: 'Inter', sans-serif;
+        font-family: 'Geist', ui-sans-serif, system-ui, sans-serif;
+      }
+      @keyframes ar-shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+      .ar-shimmer { animation: ar-shimmer 2.2s ease-in-out infinite; }
+      @media (prefers-reduced-motion: reduce) {
+        .ar-shimmer, .animate-pulse { animation: none; }
       }
       ::-webkit-scrollbar {
         width: 8px;
@@ -222,11 +227,30 @@
   <script>
     tailwind.config = {
       darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            serif: ['"Instrument Serif"', 'Georgia', 'serif'],
+          },
+          colors: {
+            // Warm frame behind the sidebar and the main panel.
+            canvas: '#F4F3EF',
+            // Ink scale used for primary actions, focus rings and highlights.
+            brand: {
+              50: '#F7F6F3', 100: '#EFEDE8', 200: '#E4E1D9', 300: '#CFCAC0', 400: '#8C887F',
+              500: '#2A2B30', 600: '#111214', 700: '#000000', 800: '#000000', 900: '#000000',
+            },
+            // Used sparingly, only for "live" and AI-in-progress moments.
+            accent: '#EA580C',
+          },
+        },
+      },
     }
     window.process = { env: {} };
   </script>
 </head>
-  <body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-200 antialiased">
+  <body class="bg-canvas text-stone-800 dark:bg-stone-900 dark:text-stone-200 antialiased">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
     <script>

@@ -54,12 +54,12 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ isOpen
     <Modal isOpen={isOpen} onClose={handleClose} title="Sign In Via Email Link">
       <form onSubmit={handlePasswordReset}>
         <div className="space-y-4">
-          <p className="text-slate-600">
+          <p className="text-stone-600">
             Enter your email address and we'll send you a secure link to access your account.
           </p>
           
           <div>
-            <label htmlFor="reset-email" className="block text-sm font-medium text-slate-700 mb-1.5">Email Address</label>
+            <label htmlFor="reset-email" className="block text-sm font-medium text-stone-700 mb-1.5">Email Address</label>
             <input
               id="reset-email"
               name="email"
@@ -68,7 +68,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ isOpen
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2.5 text-slate-800 placeholder-slate-400 bg-slate-50 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all"
+              className="w-full px-4 py-2.5 text-stone-800 placeholder-stone-400 bg-stone-50 border border-stone-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all"
               placeholder="you@example.com"
               autoFocus
             />
@@ -97,14 +97,14 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ isOpen
           <button
             type="button"
             onClick={handleClose}
-            className="px-4 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+            className="px-4 py-2 text-sm font-semibold text-stone-700 bg-white border border-stone-300 rounded-lg hover:bg-stone-50 transition-colors"
           >
             Cancel
           </button>
           <button 
             type="submit" 
             disabled={loading || !email.trim() || success}
-            className="px-6 py-2 bg-slate-900 text-white text-sm font-bold rounded-lg hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 transition-all disabled:opacity-50"
+            className="px-6 py-2 bg-stone-900 text-white text-sm font-bold rounded-lg hover:bg-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-500 transition-all disabled:opacity-50"
           >
             {loading ? 'Sending...' : 'Send Magic Link'}
           </button>

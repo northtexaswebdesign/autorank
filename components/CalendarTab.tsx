@@ -53,23 +53,23 @@ const PostCard: React.FC<{ post: ScheduledPost }> = React.memo(({ post }) => {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             onClick={() => setEditingPost(post)}
-            className="bg-slate-50 rounded-lg border border-slate-200 p-2.5 shadow-md hover:shadow-lg hover:border-orange-400 transition-all cursor-pointer text-sm"
+            className="bg-stone-50 rounded-lg border border-stone-200 p-2.5 shadow-md hover:shadow-lg hover:border-brand-400 transition-all cursor-pointer text-sm"
         >
             <div className="flex justify-between items-center">
                 <span className={`px-2 py-0.5 text-[10px] font-bold tracking-wider rounded ${currentStatus.bg} ${currentStatus.text_color}`}>
                     {currentStatus.text}
                 </span>
                  <div className="flex items-center space-x-1">
-                    <button onClick={handleEdit} className="p-1 text-slate-400 hover:text-slate-800 transition-colors" aria-label="Edit Post">
+                    <button onClick={handleEdit} className="p-1 text-stone-400 hover:text-stone-800 transition-colors" aria-label="Edit Post">
                         <SparklesIcon className="w-4 h-4" />
                     </button>
-                    <button onClick={handleDelete} className="p-1 text-slate-400 hover:text-slate-800 transition-colors" aria-label="Delete Post">
+                    <button onClick={handleDelete} className="p-1 text-stone-400 hover:text-stone-800 transition-colors" aria-label="Delete Post">
                         <TrashIcon className="w-4 h-4" />
                     </button>
                 </div>
             </div>
 
-            <p className="font-semibold text-slate-800 leading-tight mt-2">{post.keyword}</p>
+            <p className="font-semibold text-stone-800 leading-tight mt-2">{post.keyword}</p>
             
         </div>
     );
@@ -89,7 +89,7 @@ const Month: React.FC<{
 
     return (
         <div className="grid grid-cols-7">
-            {Array.from({ length: startDay }).map((_, i) => <div key={`empty-${i}`} className="border-r border-b border-slate-200/80 bg-slate-50/50"></div>)}
+            {Array.from({ length: startDay }).map((_, i) => <div key={`empty-${i}`} className="border-r border-b border-stone-200/80 bg-stone-50/50"></div>)}
             {daysInMonth.map(day => {
                 const dateString = toYYYYMMDD(day);
                 const postsOnDay = getPostsForDate(day, allPosts);
@@ -104,9 +104,9 @@ const Month: React.FC<{
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        className={`min-h-[9rem] p-2 border-r border-b border-slate-200/80 flex flex-col transition-colors duration-200`}
+                        className={`min-h-[9rem] p-2 border-r border-b border-stone-200/80 flex flex-col transition-colors duration-200`}
                     >
-                        <span className={`text-xs font-semibold self-end ${isToday ? 'text-orange-600' : 'text-slate-500'}`}>
+                        <span className={`text-xs font-semibold self-end ${isToday ? 'text-brand-600' : 'text-stone-500'}`}>
                             {day.getDate()}
                         </span>
                         <div className="flex-grow space-y-2 pt-1">
@@ -292,38 +292,38 @@ export const CalendarTab: React.FC = () => {
         <div className="flex flex-col h-full">
             <div className="flex flex-col md:flex-row justify-between md:items-start gap-4 mb-6 flex-shrink-0">
                  <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-900">Content Calendar</h1>
+                    <h1 className="font-serif text-4xl md:text-[44px] leading-none tracking-[-0.01em] text-stone-900">Calendar</h1>
                 </div>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 self-start md:self-end">
                      <button
                         onClick={handleAutofillAll}
                         disabled={suggestedKeywords.length === 0 || isAutofilling}
-                        className="w-full sm:w-auto justify-center bg-slate-800 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-slate-900 disabled:bg-slate-400 disabled:cursor-not-allowed flex items-center transition-all shadow-sm hover:shadow-md"
+                        className="w-full sm:w-auto justify-center bg-stone-800 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-stone-900 disabled:bg-stone-400 disabled:cursor-not-allowed flex items-center transition-all shadow-sm hover:shadow-md"
                     >
                         Autofill from All Keywords ({suggestedKeywords.length})
                     </button>
                     <button
                         onClick={handleAutofill}
                         disabled={queuedKeywords.length === 0 || isAutofilling}
-                        className="w-full sm:w-auto justify-center bg-gradient-to-r from-amber-400 to-orange-500 text-white px-5 py-2.5 rounded-lg font-semibold hover:from-amber-500 hover:to-orange-600 disabled:from-slate-400 disabled:to-slate-400 disabled:cursor-not-allowed flex items-center transition-all shadow-sm hover:shadow-md"
+                        className="w-full sm:w-auto justify-center bg-brand-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-brand-700 disabled:bg-stone-400 disabled:cursor-not-allowed flex items-center transition-all shadow-sm hover:shadow-md"
                     >
                         Autofill from Content Plan ({queuedKeywords.length})
                     </button>
                 </div>
             </div>
 
-            <div ref={calendarContainerRef} className="bg-white border border-slate-200/80 rounded-xl shadow-sm overflow-y-auto flex-grow">
+            <div ref={calendarContainerRef} className="bg-white border border-stone-200/80 rounded-xl shadow-sm overflow-y-auto flex-grow">
                  <div className="p-0">
                     <div ref={topSentinelRef} style={{ height: 1 }} />
                     {visibleMonths.map(month => (
                         <div key={month.getTime()}>
                              <h2 
-                                className="text-lg font-semibold text-slate-800 p-4 sticky top-0 bg-white/80 backdrop-blur-sm z-10 border-b border-slate-200/80"
+                                className="text-lg font-semibold text-stone-800 p-4 sticky top-0 bg-white/80 backdrop-blur-sm z-10 border-b border-stone-200/80"
                                 data-month-iso={month.toISOString()}
                             >
                                 {getMonthYearString(month)}
                             </h2>
-                             <div className="grid grid-cols-7 text-center text-xs font-semibold text-slate-500 bg-slate-50/80 border-b border-slate-200/80">
+                             <div className="grid grid-cols-7 text-center text-xs font-semibold text-stone-500 bg-stone-50/80 border-b border-stone-200/80">
                                 {WEEKDAYS.map(day => <div key={day} className="py-2">
                                     <span className="hidden sm:inline">{day}</span>
                                     <span className="sm:hidden">{day.charAt(0)}</span>

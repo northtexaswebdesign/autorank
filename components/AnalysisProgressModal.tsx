@@ -12,8 +12,8 @@ interface AnalysisProgressModalProps {
 }
 
 const ProgressBar: React.FC<{ percentage: number }> = ({ percentage }) => (
-    <div className="w-full bg-slate-200 rounded-full h-2.5">
-        <div className="bg-orange-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }}></div>
+    <div className="w-full bg-stone-200 rounded-full h-2.5">
+        <div className="bg-brand-500 h-2.5 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }}></div>
     </div>
 );
 
@@ -26,22 +26,22 @@ export const AnalysisProgressModal: React.FC<AnalysisProgressModalProps> = ({ is
                     <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
                         <CheckIcon className="w-8 h-8 text-green-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-slate-800">Analysis Complete!</h2>
-                    <p className="text-slate-500 mt-2 mb-8 max-w-md">
+                    <h2 className="font-serif text-[26px] leading-tight text-stone-900">Analysis Complete!</h2>
+                    <p className="text-stone-500 mt-2 mb-8 max-w-md">
                         Your competitive intelligence report is ready. View it now to uncover strategic insights.
                     </p>
                     <button
                         onClick={onGoToReport}
-                        className="bg-orange-500 text-white hover:bg-orange-600 px-6 py-2.5 rounded-lg font-semibold flex items-center justify-center transition-colors shadow-sm"
+                        className="bg-brand-500 text-white hover:bg-brand-600 px-6 py-2.5 rounded-lg font-semibold flex items-center justify-center transition-colors shadow-sm"
                     >
                         View Report
                     </button>
                 </>
             ) : (
                 <>
-                    <SparklesIcon className="w-12 h-12 text-slate-400 mb-4 animate-spin" />
-                    <h2 className="text-2xl font-bold text-slate-800">Performing Magic...</h2>
-                    <p className="text-slate-500 mt-2 mb-8 max-w-md">
+                    <SparklesIcon className="w-12 h-12 text-stone-400 mb-4 animate-spin" />
+                    <h2 className="font-serif text-[26px] leading-tight text-stone-900">Performing Magic...</h2>
+                    <p className="text-stone-500 mt-2 mb-8 max-w-md">
                         {progress.text}
                     </p>
                     <div className="w-full max-w-md">
