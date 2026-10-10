@@ -126,43 +126,127 @@ const parseArticleResponse = (text: string, defaultKeyword: string, businessName
     };
 };
 
-export const generateKeywords = async (business: BusinessInfo, language: string = 'English'): Promise<Keyword[]> => {
-    try {
-        const responseText = await callClaude({
-            tier: 'fast',
-            maxTokens: 4000,
-            messages: [{ role: 'user', content: `Generate a list of 20 high-opportunity SEO keywords for this business in ${language}:
-            Name: ${business.name}
-            URL: ${business.url}
-            Description: ${business.description}
-            Audience: ${business.audience}
-            Rate each keyword's opportunity as one of: ${Object.values(KeywordOpportunity).join(', ')}.` }],
-            schema: {
-                type: 'object',
-                properties: {
-                    keywords: {
-                        type: 'array',
-                        items: {
-                            type: 'object',
-                            properties: {
-                                keyword: { type: 'string' },
-                                opportunity: { type: 'string', enum: Object.values(KeywordOpportunity) }
-                            },
-                            required: ['keyword', 'opportunity'],
-                            additionalProperties: false
-                        }
-                    }
-                },
-                required: ['keywords'],
-                additionalProperties: false
-            }
-        });
+/** Lowercased, single-spaced form of a keyword, used to spot duplicates. */
+const normKeyword = (k: string) => k.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
 
+/** Business facts every keyword prompt needs, including what the site already targets. */
+const keywordContext = (business: BusinessInfo, existing: string[]) => {
+    const competitors = business.competitorAnalysis?.strategicRecommendations?.slice(0, 5).join(' | ');
+    return `Business: ${business.name} (${business.url})
+Description: ${business.description}
+Audience: ${business.audience}
+${business.competitors?.length ? `Competitors: ${business.competitors.join(', ')}` : ''}
+${competitors ? `Competitor analysis takeaways: ${competitors}` : ''}
+${existing.length ? `ALREADY TARGETED (never repeat these or close variants that would compete for the same search results):\n${existing.slice(0, 150).join('\n')}` : ''}`;
+};
+
+/** Drops keywords that are already targeted or repeated within the list. */
+const dedupeKeywords = <T extends { keyword: string }>(items: T[], existing: string[]): T[] => {
+    const seen = new Set(existing.map(normKeyword));
+    return items.filter(k => {
+        const n = normKeyword(k.keyword || '');
+        if (!n || seen.has(n)) return false;
+        seen.add(n);
+        return true;
+    });
+};
+
+const KEYWORD_RULES = `WHAT MAKES A GOOD KEYWORD HERE:
+- Relevant: the business can genuinely answer it, and a reader searching it could plausibly become a customer. Tie it to the actual products, services, problems and audience above, not the industry in general.
+- Winnable: a newer site with modest authority can reach page one. Prefer specific long-tail phrases (usually 3-7 words): questions, "how to", "best X for Y", "X vs Y", cost/price, problems and fixes, use cases, buying guides. Avoid one- or two-word head terms and anything dominated by huge brands, marketplaces, Wikipedia or government sites.
+- Real: phrased the way people actually type or ask it, with real search demand. No invented jargon, no keyword stuffing, no brand names of competitors unless it is a natural "vs" or "alternative" search.
+- Distinct: each keyword needs its own search intent. Two phrases that would show the same Google results count as one; keep the better one.
+- Balanced: mostly informational and commercial-investigation keywords (these suit blog articles), plus a few transactional ones tied to what the business sells. Include local modifiers only if the business serves a specific area.`;
+
+/**
+ * Keyword research in two steps. 1) Brainstorm a wide candidate list from the business, skipping what is already
+ * targeted. 2) Check real search results for the most promising candidates and keep the ones that are relevant and
+ * winnable, rating opportunity from what actually ranks. If step 2 fails, step 1's best picks are used.
+ */
+export const generateKeywords = async (business: BusinessInfo, language: string = 'English', existing: string[] = []): Promise<Keyword[]> => {
+    const context = keywordContext(business, existing);
+    const candidateSchema = {
+        type: 'object',
+        properties: {
+            candidates: {
+                type: 'array',
+                items: {
+                    type: 'object',
+                    properties: {
+                        keyword: { type: 'string' },
+                        intent: { type: 'string', enum: ['informational', 'commercial', 'transactional'] },
+                        relevance: { type: 'integer', description: '1-10: how closely it maps to what the business sells' },
+                        winnability: { type: 'integer', description: '1-10: estimated chance a modest site reaches page one' }
+                    },
+                    required: ['keyword', 'intent', 'relevance', 'winnability'],
+                    additionalProperties: false
+                }
+            }
+        },
+        required: ['candidates'],
+        additionalProperties: false
+    };
+
+    try {
+        // Step 1: wide brainstorm (cheap, no search)
+        const step1 = await callClaude({
+            tier: 'fast',
+            maxTokens: 5000,
+            messages: [{ role: 'user', content: `You are an SEO strategist doing keyword research in ${language} for this business:
+${context}
+
+${KEYWORD_RULES}
+
+List 45 candidate keywords in ${language}. Cover every main product or service line and the problems, questions and comparisons customers have before buying. Score each one honestly.` }],
+            schema: candidateSchema
+        });
+        let candidates: { keyword: string; intent: string; relevance: number; winnability: number }[] = [];
+        try { candidates = JSON.parse(cleanAIResponse(step1 || '{}')).candidates || []; } catch { candidates = []; }
+        candidates = dedupeKeywords(candidates, existing)
+            .filter(c => c.relevance >= 6)
+            .sort((a, b) => (b.relevance + b.winnability) - (a.relevance + a.winnability))
+            .slice(0, 30);
+        if (candidates.length === 0) return [];
+
+        const fallback = (): Keyword[] => candidates.slice(0, 20).map(c => ({
+            keyword: c.keyword,
+            opportunity: c.relevance + c.winnability >= 16 ? KeywordOpportunity.High : c.relevance + c.winnability >= 13 ? KeywordOpportunity.Medium : KeywordOpportunity.Low
+        }));
+
+        // Step 2: check what actually ranks (cheap model, a few searches cover groups of similar candidates)
         try {
-            return JSON.parse(cleanAIResponse(responseText || '{}')).keywords || [];
+            const step2 = await callClaude({
+                tier: 'fast',
+                webSearch: true,
+                searches: 5,
+                maxTokens: 4000,
+                messages: [{ role: 'user', content: `You are an SEO strategist vetting keyword candidates in ${language} for this business:
+${context}
+
+${KEYWORD_RULES}
+
+CANDIDATES (keyword | intent | relevance | winnability):
+${candidates.map(c => `${c.keyword} | ${c.intent} | ${c.relevance} | ${c.winnability}`).join('\n')}
+
+Use your searches on the candidates you are least sure about (group similar ones; one search can inform several). Look at who ranks:
+- Weak results (forums, Reddit/Quora, thin or outdated posts, small sites, pages that don't really answer the query) = a good chance to rank.
+- Strong results (major brands, marketplaces, Wikipedia, government, large publishers holding every top spot) = hard.
+- Results that are product pages, videos or tools when we would write an article = intent mismatch, drop it.
+- Rephrase a candidate to the wording that search results and "People also ask" show people really use.
+
+Then choose the best 20: relevant to what the business sells, realistic to rank, each with a distinct intent, and a sensible spread across products/services and funnel stages. Rate opportunity: High = clearly relevant and the results looked weak or beatable; Medium = relevant with moderate competition; Low = relevant but hard, kept for coverage.
+
+Reply with ONLY this JSON, no other text: {"keywords":[{"keyword":"...","opportunity":"High|Medium|Low"}]}` }]
+            });
+            const parsed = JSON.parse(cleanAIResponse(step2 || '{}')).keywords || [];
+            const valid = Object.values(KeywordOpportunity) as string[];
+            const vetted: Keyword[] = dedupeKeywords<Keyword>(parsed, existing)
+                .filter((k: any) => typeof k.keyword === 'string' && valid.includes(k.opportunity))
+                .slice(0, 20);
+            return vetted.length >= 10 ? vetted : fallback();
         } catch (e) {
-            console.error("Failed to parse keywords", e);
-            return [];
+            console.error('Keyword SERP check failed, using brainstorm picks:', e);
+            return fallback();
         }
     } catch (apiError) {
         console.error("Keyword generation API call failed:", apiError);
@@ -170,23 +254,36 @@ export const generateKeywords = async (business: BusinessInfo, language: string 
     }
 };
 
-export const suggestContentCluster = async (targetKeyword: string, business: BusinessInfo): Promise<ContentCluster | null> => {
+/**
+ * A topic cluster around one keyword: a pillar plus supporting articles, each a real search phrase with its own
+ * intent, so the articles support each other instead of competing for the same results.
+ */
+export const suggestContentCluster = async (targetKeyword: string, business: BusinessInfo, existing: string[] = []): Promise<ContentCluster | null> => {
     try {
         const responseText = await callClaude({
             tier: 'fast',
-            maxTokens: 2000,
-            messages: [{ role: 'user', content: `Generate a strategic content cluster for the keyword "${targetKeyword}" for the business ${business.name} (${business.description}).
-            Identify the main pillar topic (which should be related to "${targetKeyword}") and 5-7 related cluster topics.` }],
-            schema: {
-                type: 'object',
-                properties: { pillar: { type: 'string' }, clusters: { type: 'array', items: { type: 'string' } } },
-                required: ['pillar', 'clusters'],
-                additionalProperties: false
-            }
+            webSearch: true,
+            searches: 2,
+            maxTokens: 2500,
+            messages: [{ role: 'user', content: `You are an SEO strategist building a topic cluster around "${targetKeyword}".
+${keywordContext(business, existing)}
+
+Search for "${targetKeyword}" (and one closely related query if useful) and note the related searches, "People also ask" questions and the subtopics the top results cover.
+
+Then return:
+- pillar: the broad guide keyword the cluster hangs on. Use "${targetKeyword}" itself unless a slightly broader phrase is clearly the better hub; keep it closely related.
+- clusters: 6-8 supporting article keywords. Each must be a real search phrase (long-tail, the way people type it), answerable by this business, and have its own search intent: no two that would show the same results, none that would compete with the pillar, none from ALREADY TARGETED. Mix questions, how-tos, comparisons, costs and problems, and include at least one that leads toward what the business sells.
+
+${KEYWORD_RULES}
+
+Reply with ONLY this JSON, no other text: {"pillar":"...","clusters":["...","..."]}` }]
         });
 
         try {
-            return JSON.parse(cleanAIResponse(responseText || 'null'));
+            const cluster = JSON.parse(cleanAIResponse(responseText || 'null')) as ContentCluster;
+            if (!cluster?.pillar || !Array.isArray(cluster.clusters)) return null;
+            const clusters = dedupeKeywords(cluster.clusters.filter(c => typeof c === 'string').map(keyword => ({ keyword })), [...existing, cluster.pillar]).map(c => c.keyword);
+            return { pillar: cluster.pillar, clusters };
         } catch (e) {
             return null;
         }
