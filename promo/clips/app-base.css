@@ -1,0 +1,215 @@
+
+      body {
+        font-family: 'Geist', ui-sans-serif, system-ui, sans-serif;
+      }
+      @keyframes ar-shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+      .ar-shimmer { animation: ar-shimmer 2.2s ease-in-out infinite; }
+      @media (prefers-reduced-motion: reduce) {
+        .ar-shimmer, .animate-pulse { animation: none; }
+      }
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f5f9; /* slate-100 */
+      }
+      .dark ::-webkit-scrollbar-track {
+        background: #1e293b; /* slate-800 */
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #94a3b8; /* slate-400 */
+        border-radius: 4px;
+      }
+      .dark ::-webkit-scrollbar-thumb {
+        background: #475569; /* slate-600 */
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #64748b; /* slate-500 */
+      }
+      .dark ::-webkit-scrollbar-thumb:hover {
+        background: #64748b; /* slate-500 */
+      }
+      .prose h1, .prose h2, .prose h3 {
+        color: #0f172a; /* slate-900 */
+        font-weight: 700;
+      }
+      .dark .prose h1, .dark .prose h2, .dark .prose h3 {
+        color: #f1f5f9; /* slate-100 */
+      }
+       .prose p {
+        color: #334155; /* slate-700 */
+      }
+      .dark .prose p {
+        color: #94a3b8; /* slate-400 */
+      }
+      .prose a {
+        color: #ea580c; /* orange-600 */
+      }
+      .dark .prose a {
+        color: #fb923c; /* orange-400 */
+      }
+       .prose strong {
+        color: #1e293b; /* slate-800 */
+      }
+      .dark .prose strong {
+        color: #e2e8f0; /* slate-200 */
+      }
+      .prose img {
+        margin-top: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      }
+      /* Standardized Table Styling for AI Content */
+      .prose table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 2rem;
+        margin-bottom: 2rem;
+        font-size: 0.875rem;
+        text-align: left;
+      }
+      .prose th {
+        background-color: #f8fafc; /* slate-50 */
+        font-weight: 600;
+        color: #1e293b; /* slate-800 */
+        padding: 0.75rem 1rem;
+        border: 1px solid #e2e8f0; /* slate-200 */
+      }
+      .dark .prose th {
+        background-color: #1e293b; /* slate-800 */
+        color: #f1f5f9; /* slate-100 */
+        border-color: #334155; /* slate-700 */
+      }
+      .prose td {
+        padding: 0.75rem 1rem;
+        border: 1px solid #e2e8f0; /* slate-200 */
+        color: #334155; /* slate-700 */
+      }
+      .dark .prose td {
+        border-color: #334155; /* slate-700 */
+        color: #94a3b8; /* slate-400 */
+      }
+      .prose tr:nth-child(even) {
+        background-color: #fcfcfc;
+      }
+      .dark .prose tr:nth-child(even) {
+        background-color: #0f172a;
+      }
+      
+      .prose blockquote {
+        font-style: italic;
+        border-left: 4px solid #f97316; /* orange-500 */
+        padding-left: 1rem;
+        margin-top: 1.5rem;
+        margin-bottom: 1.5rem;
+        color: #475569;
+      }
+      .dark .prose blockquote {
+        color: #cbd5e1;
+      }
+
+      .drag-over {
+        background-color: #F3F1EC;
+        box-shadow: inset 0 0 0 2px #111214;
+      }
+      .dark .drag-over {
+        background-color: #7c2d12; /* orange-900 */
+      }
+      .key-takeaways {
+        background-color: #f8fafc; /* slate-50 */
+        border: 1px solid #e2e8f0; /* slate-200 */
+        border-left: 4px solid #f97316; /* orange-500 */
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-top: 2rem;
+        margin-bottom: 2rem;
+      }
+      .dark .key-takeaways {
+        background-color: #1e293b; /* slate-800 */
+        border-color: #334155; /* slate-700 */
+      }
+      .key-takeaways h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #1e293b; /* slate-800 */
+        margin-top: 0;
+        margin-bottom: 0.75rem;
+      }
+      .dark .key-takeaways h3 {
+        color: #f1f5f9; /* slate-100 */
+      }
+      .key-takeaways ul {
+        list-style-type: disc;
+        padding-left: 1.5rem;
+        margin-bottom: 0;
+      }
+      .key-takeaways li {
+        margin-bottom: 0.5rem;
+        color: #475569; /* slate-600 */
+      }
+      .dark .key-takeaways li {
+        color: #94a3b8; /* slate-400 */
+      }
+
+      /* Animation for login page */
+      @keyframes scroll-up {
+        from {
+          transform: translateY(0);
+        }
+        to {
+          transform: translateY(-50%);
+        }
+      }
+      .animate-scroll-up {
+        animation: scroll-up 40s linear infinite;
+      }
+      
+      /* Responsive Tables */
+      @media (max-width: 767px) {
+        .responsive-table thead {
+          display: none;
+        }
+        .responsive-table tr {
+          display: block;
+          margin-bottom: 1rem;
+          border: 1px solid #e2e8f0; /* slate-200 */
+          border-radius: 0.5rem;
+          box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+          overflow: hidden;
+        }
+        .dark .responsive-table tr {
+          border-color: #334155; /* slate-700 */
+        }
+        .responsive-table td {
+          display: block;
+          text-align: right; /* Content to the right */
+          padding: 0.75rem 1rem;
+          border-bottom: 1px solid #f1f5f9; /* slate-100 */
+        }
+        .dark .responsive-table td {
+          border-bottom-color: #1e293b; /* slate-800 */
+        }
+        .responsive-table td:last-child {
+          border-bottom: 0;
+        }
+        .responsive-table td[data-label]::before {
+          content: attr(data-label);
+          float: left; /* Label to the left */
+          font-weight: 600;
+          color: #475569; /* slate-600 */
+          font-size: 0.75rem;
+          text-transform: uppercase;
+        }
+        .dark .responsive-table td[data-label]::before {
+          color: #94a3b8; /* slate-400 */
+        }
+        /* Allow prose tables to scroll horizontally on mobile */
+        .prose table {
+          display: block;
+          overflow-x: auto;
+          white-space: nowrap;
+        }
+      }
+    
