@@ -279,7 +279,8 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
             } as any);
             logActivity(`Rewrote article: ${post.keyword}`, 'success');
         } catch (e) {
-            alert("Rewrite failed.");
+            console.error("Rewrite failed:", e);
+            alert(`Rewrite failed: ${(e as any)?.message || 'Unknown error'}`);
         } finally {
             setIsRewriting(false);
         }
