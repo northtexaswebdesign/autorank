@@ -182,7 +182,7 @@ export const AccountSettingsTab: React.FC = () => {
                                             
                                             <div className="my-8">
                                                 <div className="flex items-baseline gap-1">
-                                                    <span className="text-5xl font-black text-stone-900">$499</span>
+                                                    <span className="text-5xl font-black text-stone-900">$97</span>
                                                     <span className="text-stone-500 font-bold">/ month</span>
                                                 </div>
                                             </div>

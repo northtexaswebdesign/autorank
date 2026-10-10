@@ -150,6 +150,9 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
     const normKeyword = (k: string) => k.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
     const isTargeted = (k: string) => { const n = normKeyword(k); return !n || targetedKeywords().some(t => normKeyword(t) === n); };
 
+    // a trial ends after its 3 articles or on its end date, whichever comes first
+    const trialOver = userProfile?.planStatus === 'trial' && ((userProfile.trialArticlesCreated ?? 0) >= 3 ||
+        (!!userProfile.trialEndDate && new Date(userProfile.trialEndDate).getTime() < Date.now()));
     const contextValue: AppContextType = {
         selectedBusiness, 
         updateBusiness: async (info) => {
@@ -415,10 +418,9 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
         cachePlanData: async (data) => {
             if (selectedBusiness) await contextValue.updateBusiness({ ...selectedBusiness, planData: data });
         },
-        isLocked: userProfile?.planStatus === 'expired' ||
-            (userProfile?.planStatus === 'trial' && (userProfile.trialArticlesCreated ?? 0) >= 3) ||
+        isLocked: userProfile?.planStatus === 'expired' || trialOver ||
             (userProfile?.planStatus === 'paid' && (userProfile.creditsRemaining ?? 0) <= 0),
-        isTrialExpired: userProfile?.planStatus === 'trial' && (userProfile.trialArticlesCreated ?? 0) >= 3,
+        isTrialExpired: trialOver,
         isSubscriptionExpired: userProfile?.planStatus === 'expired',
         cmsIntegration,
         activityLogs

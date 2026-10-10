@@ -33,6 +33,7 @@ interface Profile {
   plan_status: 'trial' | 'paid' | 'expired' | null;
   credits_remaining: number | null;
   trial_articles_created: number | null;
+  trial_end_date?: string | null;
 }
 
 // (tsconfig is not strict, so a flat shape narrows more reliably than a discriminated union)
@@ -42,7 +43,7 @@ type Decision = { ok: boolean; message?: string };
  * Pure entitlement rules.
  *  - expired: nothing allowed.
  *  - paid:    "heavy" calls (smart model or web search) need credits left; light calls are free.
- *  - trial:   heavy calls allowed until TRIAL_ARTICLE_LIMIT articles have been created.
+ *  - trial:   heavy calls allowed until TRIAL_ARTICLE_LIMIT articles have been created; nothing after trial_end_date.
  */
 const decide = (profile: Profile | null, heavy: boolean): Decision => {
   if (!profile) return { ok: false, message: 'Account not found.' };
@@ -53,6 +54,9 @@ const decide = (profile: Profile | null, heavy: boolean): Decision => {
       }
       return { ok: true };
     case 'trial':
+      if (profile.trial_end_date && new Date(profile.trial_end_date).getTime() < Date.now()) {
+        return { ok: false, message: 'Your free trial has ended. Please upgrade to continue.' };
+      }
       if (heavy && (profile.trial_articles_created ?? 0) >= TRIAL_ARTICLE_LIMIT) {
         return { ok: false, message: `You have used your ${TRIAL_ARTICLE_LIMIT} free trial articles. Please upgrade to continue.` };
       }
@@ -71,7 +75,7 @@ const getAdmin = (): SupabaseClient | null => {
 };
 
 const loadProfile = async (db: SupabaseClient, userId: string): Promise<Profile | null> => {
-  const { data } = await db.from('profiles').select('plan_status, credits_remaining, trial_articles_created').eq('id', userId).maybeSingle();
+  const { data } = await db.from('profiles').select('plan_status, credits_remaining, trial_articles_created, trial_end_date').eq('id', userId).maybeSingle();
   return (data as Profile) ?? null;
 };
 
