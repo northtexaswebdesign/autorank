@@ -46,6 +46,40 @@ interface ScheduledPost {
 interface CmsIntegration { id: string; businessId: string; platform: 'wordpress'; url: string; username: string; applicationPassword?: string; }
 interface UserProfile { id: string; planStatus: 'trial' | 'paid' | 'expired'; creditsRemaining?: number; }
 
+// --- Billing: one article = one credit (paid) or one of the free trial articles, charged when the article is
+// written. Articles written in the app were already charged there, so publishing them costs nothing here. ---
+const TRIAL_ARTICLE_LIMIT = 3;
+
+/** Takes one article from the user's plan (compare-and-swap, so parallel runs cannot overdraw). Returns a refund. */
+const reserveArticle = async (db: any, userId: string): Promise<{ ok: true; refund: () => Promise<void> } | { ok: false; reason: string }> => {
+    for (let attempt = 0; attempt < 4; attempt++) {
+        const { data: p } = await db.from('profiles').select('plan_status, credits_remaining, trial_articles_created').eq('id', userId).maybeSingle();
+        if (!p) return { ok: false, reason: 'Could not read the user profile.' };
+        const paid = p.plan_status === 'paid';
+        if (p.plan_status !== 'paid' && p.plan_status !== 'trial') return { ok: false, reason: 'Subscription expired.' };
+        if (paid && (p.credits_remaining ?? 0) < 1) return { ok: false, reason: 'No credits remaining.' };
+        if (!paid && (p.trial_articles_created ?? 0) >= TRIAL_ARTICLE_LIMIT) return { ok: false, reason: 'Free trial articles used up.' };
+        const column = paid ? 'credits_remaining' : 'trial_articles_created';
+        const current = (paid ? p.credits_remaining : p.trial_articles_created) ?? 0;
+        const { data } = await db.from('profiles').update({ [column]: paid ? current - 1 : current + 1 }).eq('id', userId).eq(column, current).select('id');
+        if (data && data.length) {
+            return {
+                ok: true,
+                refund: async () => {
+                    for (let i = 0; i < 4; i++) {
+                        const { data: l } = await db.from('profiles').select(column).eq('id', userId).maybeSingle();
+                        if (!l) return;
+                        const cur = l[column] ?? 0;
+                        const { data: done } = await db.from('profiles').update({ [column]: paid ? cur + 1 : Math.max(0, cur - 1) }).eq('id', userId).eq(column, cur).select('id');
+                        if (done && done.length) return;
+                    }
+                },
+            };
+        }
+    }
+    return { ok: false, reason: 'Could not reserve a credit.' };
+};
+
 // --- Claude helpers ---
 let client: Anthropic;
 const getClient = () => (client ??= new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') }));
@@ -384,7 +418,7 @@ Deno.serve(async (req: Request) => {
             const profile = snakeToCamel<UserProfile>(profileResult.data);
 
             let postsQuery = supabaseAdmin.from('posts').select('*')
-                .eq('business_id', business.id).in('status', ['scheduled', 'draft']).lte('publish_date', utcNowISO);
+                .eq('business_id', business.id).eq('status', 'scheduled').lte('publish_date', utcNowISO); // drafts are never auto-published
             if (target.post_id) postsQuery = postsQuery.eq('id', target.post_id);
             const postsResult = await postsQuery;
             if (postsResult.error) { await log(business.id, 'error', `Failed to fetch posts: ${postsResult.error.message}`); continue; }
@@ -403,10 +437,6 @@ Deno.serve(async (req: Request) => {
                         await log(business.id, 'error', `Subscription expired. Skipping "${post.keyword}".`);
                         continue;
                     }
-                    if (profile.planStatus === 'paid' && (profile.creditsRemaining ?? 0) <= 0) {
-                        await log(business.id, 'error', `No credits remaining for "${post.keyword}". Skipping publish.`);
-                        continue;
-                    }
                     processed++;
 
                     // Article body may be inline or in storage (content_url); only generate when truly missing.
@@ -417,23 +447,35 @@ Deno.serve(async (req: Request) => {
                     }
 
                     if (!content || !content.trim()) {
+                        // writing the article here is what costs the credit (or trial article); refunded if writing fails
+                        const reservation = await reserveArticle(supabaseAdmin, businessRaw.user_id);
+                        if (reservation.ok === false) {
+                            await log(business.id, 'error', `${reservation.reason} Skipping "${post.keyword}".`);
+                            continue;
+                        }
                         await log(business.id, 'success', `Content not found for "${post.keyword}". Generating new article...`);
-                        const generated = await generateArticleText(post.keyword, business);
-                        const articleContent = generated.html;
-                        const [analysis, meta] = await Promise.all([
-                            analyzeArticleForGEO(articleContent, post.keyword),
-                            generateMetaData(articleContent, post.keyword, business),
-                        ]);
-                        const updates = {
-                            articleContent, status: 'draft',
-                            geoScore: analysis.geoScore, aiFeedback: [...generated.feedback, ...(analysis.aiFeedback || [])],
-                            metaTitle: meta.metaTitle, metaDescription: meta.metaDescription,
-                        };
-                        const { error: updateError } = await supabaseAdmin.from('posts').update(camelToSnake(updates)).eq('id', post.id);
-                        if (updateError) throw new Error(`Failed to save generated content: ${updateError.message}`);
-                        post = { ...post, ...updates };
+                        try {
+                            const generated = await generateArticleText(post.keyword, business);
+                            const articleContent = generated.html;
+                            const [analysis, meta] = await Promise.all([
+                                analyzeArticleForGEO(articleContent, post.keyword),
+                                generateMetaData(articleContent, post.keyword, business),
+                            ]);
+                            // saved as still scheduled: if publishing below fails, the next run publishes this text without writing (or charging) again
+                            const updates = {
+                                articleContent, status: 'scheduled',
+                                geoScore: analysis.geoScore, aiFeedback: [...generated.feedback, ...(analysis.aiFeedback || [])],
+                                metaTitle: meta.metaTitle, metaDescription: meta.metaDescription,
+                            };
+                            const { error: updateError } = await supabaseAdmin.from('posts').update(camelToSnake(updates)).eq('id', post.id);
+                            if (updateError) throw new Error(`Failed to save generated content: ${updateError.message}`);
+                            post = { ...post, ...updates };
+                        } catch (e) {
+                            await reservation.refund(); // nothing usable was saved, so the article is not charged
+                            throw e;
+                        }
                     } else {
-                        await log(business.id, 'success', `Content found for draft "${post.keyword}". Preparing to publish.`);
+                        await log(business.id, 'success', `Content found for "${post.keyword}". Preparing to publish.`);
                         post.articleContent = content;
                     }
 
@@ -442,12 +484,6 @@ Deno.serve(async (req: Request) => {
                     if (pubErr) throw new Error(`Failed to update post status after publishing: ${pubErr.message}`);
                     await log(business.id, 'success', `Successfully published article: "${post.keyword}"`);
 
-                    if (profile.planStatus === 'paid') {
-                        const newCredits = (profile.creditsRemaining ?? 1) - 1;
-                        const { error: creditError } = await supabaseAdmin.from('profiles').update({ credits_remaining: newCredits }).eq('id', businessRaw.user_id);
-                        if (creditError) await log(business.id, 'error', `Failed to deduct credit for "${post.keyword}": ${creditError.message}`);
-                        else profile.creditsRemaining = newCredits;
-                    }
                 } catch (postError: any) {
                     await log(business.id, 'error', `Failed to publish "${postRaw.keyword}": ${postError.message}`);
                     await supabaseAdmin.from('posts').update({ status: 'scheduled' }).eq('id', postRaw.id);

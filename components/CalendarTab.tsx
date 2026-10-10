@@ -214,12 +214,20 @@ export const CalendarTab: React.FC = () => {
         };
     }, [loadMoreMonths]);
 
+    // one autofill at a time: a second click would schedule every keyword twice
+    const [isAutofilling, setIsAutofilling] = useState(false);
+    const runAutofill = async (fill: () => Promise<void>) => {
+        if (isAutofilling) return;
+        setIsAutofilling(true);
+        try { await fill(); } finally { setIsAutofilling(false); }
+    };
+
     const handleAutofill = async () => {
         if (queuedKeywords.length === 0) {
             alert("Your content plan is empty. Add some keywords from the planner first!");
             return;
         }
-        await schedulePostsFromContentPlan();
+        await runAutofill(schedulePostsFromContentPlan);
     };
 
     const handleAutofillAll = async () => {
@@ -227,7 +235,7 @@ export const CalendarTab: React.FC = () => {
             alert("You have no recommended keywords to schedule. Generate some in the planner first!");
             return;
         }
-        await schedulePostsFromAllKeywords();
+        await runAutofill(schedulePostsFromAllKeywords);
     };
 
     const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -288,14 +296,14 @@ export const CalendarTab: React.FC = () => {
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 self-start md:self-end">
                      <button
                         onClick={handleAutofillAll}
-                        disabled={suggestedKeywords.length === 0}
+                        disabled={suggestedKeywords.length === 0 || isAutofilling}
                         className="w-full sm:w-auto justify-center bg-slate-800 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-slate-900 disabled:bg-slate-400 disabled:cursor-not-allowed flex items-center transition-all shadow-sm hover:shadow-md"
                     >
                         Autofill from All Keywords ({suggestedKeywords.length})
                     </button>
                     <button
                         onClick={handleAutofill}
-                        disabled={queuedKeywords.length === 0}
+                        disabled={queuedKeywords.length === 0 || isAutofilling}
                         className="w-full sm:w-auto justify-center bg-gradient-to-r from-amber-400 to-orange-500 text-white px-5 py-2.5 rounded-lg font-semibold hover:from-amber-500 hover:to-orange-600 disabled:from-slate-400 disabled:to-slate-400 disabled:cursor-not-allowed flex items-center transition-all shadow-sm hover:shadow-md"
                     >
                         Autofill from Content Plan ({queuedKeywords.length})

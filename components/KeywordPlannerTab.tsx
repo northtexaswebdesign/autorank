@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Keyword, AppTab, KeywordOpportunity, ContentCluster } from '../types.ts';
 import { useApp } from '../context/AppContext.tsx';
 import { SparklesIcon } from './icons/SparklesIcon.tsx';
@@ -442,8 +442,14 @@ export const KeywordPlannerTab: React.FC<KeywordPlannerTabProps> = ({ setActiveT
         removeKeywordFromQueue(keyword);
     }, [removeKeywordFromQueue]);
 
-    const handleGenerateArticle = useCallback((keyword: Keyword) => {
-        generateArticleFromKeyword(keyword);
+    // a keyword already being turned into an article ignores further clicks (each click would create a post)
+    const generatingKeywords = useRef(new Set<string>());
+    const handleGenerateArticle = useCallback(async (keyword: Keyword) => {
+        const key = keyword.id || keyword.keyword;
+        if (generatingKeywords.current.has(key)) return;
+        generatingKeywords.current.add(key);
+        try { await generateArticleFromKeyword(keyword); }
+        finally { generatingKeywords.current.delete(key); }
     }, [generateArticleFromKeyword]);
 
     // Bulk Actions
