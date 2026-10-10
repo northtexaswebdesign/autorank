@@ -137,7 +137,7 @@ export const DashboardTab: React.FC = () => {
         const today = new Date();
         today.setHours(0, 0, 0, 0); // include today's posts that have not gone out yet
         return scheduledPosts
-            .filter(p => p.status !== 'published' && p.status !== 'draft' && new Date(p.publishDate) >= today)
+            .filter(p => p.status !== 'published' && (p.publishAttempts ?? 0) < 3 && new Date(p.publishDate) >= today)
             .sort((a, b) => new Date(a.publishDate).getTime() - new Date(b.publishDate).getTime())[0] || null;
     }, [scheduledPosts]);
 
@@ -197,7 +197,7 @@ export const DashboardTab: React.FC = () => {
                     <StatCard label="Keywords found" value={allKeywords} hint={`${suggestedKeywords.length} waiting to be planned`} onClick={() => setActiveTab('planner')} />
                     <StatCard label="In content plan" value={queuedKeywords.length} hint={queuedKeywords.length ? 'Ready to schedule' : 'Add keywords to keep publishing'} onClick={() => setActiveTab('planner')} />
                     <StatCard label="Published" value={published.length} hint={`${publishedThisMonth} this month`} trend={publishedTrend} onClick={() => setActiveTab('past-articles')} />
-                    <StatCard label="Drafts" value={draftCount} hint={draftCount ? 'Waiting for a date' : 'None waiting'} onClick={() => setActiveTab('past-articles')} />
+                    <StatCard label="Drafts" value={draftCount} hint={draftCount ? 'Publish on their calendar dates' : 'None waiting'} onClick={() => setActiveTab('past-articles')} />
                 </section>
 
                 <section aria-labelledby="recent-articles" className="flex flex-col gap-3 mt-2">

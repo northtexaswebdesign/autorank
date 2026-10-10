@@ -36,7 +36,7 @@ const PostCard: React.FC<{ post: ScheduledPost }> = React.memo(({ post }) => {
     const statusConfig: { [key in ScheduledPost['status']]: { label: string; dot: string; card: string } } = {
         'scheduled': { label: 'Scheduled', dot: 'bg-blue-600', card: 'bg-[#F3F7FE] border-[#DCE6F7]' },
         'published': { label: 'Published', dot: 'bg-green-600', card: 'bg-white border-[#ECE9E2]' },
-        'draft': { label: 'Draft', dot: 'bg-stone-400', card: 'bg-[#F7F6F3] border-[#ECE9E2]' },
+        'draft': { label: 'Written, publishes on this date', dot: 'bg-stone-400', card: 'bg-[#F7F6F3] border-[#ECE9E2]' },
         'generating-text': IN_PROGRESS,
         'generating-images': IN_PROGRESS,
         'analyzing': IN_PROGRESS,
@@ -278,11 +278,12 @@ export const CalendarTab: React.FC = () => {
         if (existingPostOnTarget) {
             const originalDate = postToMove.publishDate;
             await Promise.all([
-                updateScheduledPost(postToMove.id, { publishDate: newPublishDate }),
-                updateScheduledPost(existingPostOnTarget.id, { publishDate: originalDate })
+                updateScheduledPost(postToMove.id, { publishDate: newPublishDate, publishAttempts: 0 }),
+                updateScheduledPost(existingPostOnTarget.id, { publishDate: originalDate, publishAttempts: 0 })
             ]);
         } else {
-            await updateScheduledPost(postToMove.id, { publishDate: newPublishDate });
+            // a new date means "try again": clears the failure count that parks a post after repeated failed publishes
+            await updateScheduledPost(postToMove.id, { publishDate: newPublishDate, publishAttempts: 0 });
         }
     }, [scheduledPosts, updateScheduledPost]);
 
@@ -292,7 +293,7 @@ export const CalendarTab: React.FC = () => {
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     });
     const publishedThisMonth = thisMonth.filter(p => p.status === 'published').length;
-    const scheduledThisMonth = thisMonth.filter(p => p.status !== 'published' && p.status !== 'draft').length;
+    const scheduledThisMonth = thisMonth.filter(p => p.status !== 'published').length; // dated drafts publish on their date too
 
     return (
         <div className="flex flex-col h-full">

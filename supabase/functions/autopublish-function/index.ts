@@ -427,7 +427,9 @@ Deno.serve(async (req: Request) => {
             const profile = snakeToCamel<UserProfile>(profileResult.data);
 
             let postsQuery = supabaseAdmin.from('posts').select('*')
-                .eq('business_id', business.id).eq('status', 'scheduled').lte('publish_date', utcNowISO); // drafts are never auto-published
+                .eq('business_id', business.id).in('status', ['scheduled', 'draft']).lte('publish_date', utcNowISO)
+                // a draft whose date has come is published as written; a post that failed MAX_PUBLISH_ATTEMPTS times stays parked
+                .or(`publish_attempts.is.null,publish_attempts.lt.${MAX_PUBLISH_ATTEMPTS}`);
             if (target.post_id) postsQuery = postsQuery.eq('id', target.post_id);
             const postsResult = await postsQuery;
             if (postsResult.error) { await log(business.id, 'error', `Failed to fetch posts: ${postsResult.error.message}`); continue; }
@@ -496,7 +498,7 @@ Deno.serve(async (req: Request) => {
                 } catch (postError: any) {
                     const attempts = (postRaw.publish_attempts ?? 0) + 1;
                     if (attempts >= MAX_PUBLISH_ATTEMPTS) {
-                        await log(business.id, 'error', `Failed to publish "${postRaw.keyword}" ${attempts} times (last error: ${postError.message}). Moved it back to draft; fix the problem, then schedule it again.`);
+                        await log(business.id, 'error', `Failed to publish "${postRaw.keyword}" ${attempts} times (last error: ${postError.message}). Moved it back to draft and stopped retrying; fix the problem, then publish it from the editor.`);
                         await supabaseAdmin.from('posts').update({ status: 'draft', publish_attempts: attempts }).eq('id', postRaw.id);
                     } else {
                         await log(business.id, 'error', `Failed to publish "${postRaw.keyword}" (attempt ${attempts} of ${MAX_PUBLISH_ATTEMPTS}): ${postError.message}`);
