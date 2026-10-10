@@ -309,11 +309,13 @@ const researchCompetitor = async (business: BusinessInfo, url: string): Promise<
     const request = () => callClaudeDetailed({
         tier: 'smart',
         webSearch: true,
-        maxSearches: 6,
+        maxSearches: 4,
+        webFetch: true,
+        maxFetches: 4,
         maxTokens: 3000,
         messages: [{ role: 'user', content: `Research one competitor of ${business.name} (${business.description}): ${url}
 
-Use web search to look at what this site actually publishes: its blog or resources, topics covered, content formats, how often it posts, how it presents products or services, and how well it appears to target search and AI answers. Use at most 5 searches. Base every point on what you found; if something could not be verified, say so rather than guessing.
+First open the site itself with web fetch: the homepage, then up to 3 of its own pages linked from there (services, blog or resources, about). Then use web search (at most 3 searches) for anything the pages don't show, such as how often it publishes or how it ranks. Look at what the site actually publishes: topics covered, content formats, how it presents products or services, and how well it appears to target search and AI answers. Base every point on what you found. If the site could not be opened, say that plainly in the summary (for example "the site did not load") and only use what search found.
 
 Return ONLY a JSON object (no markdown fences, no commentary):
 { "url": "${url}", "strengths": ["3-4 specific points"], "weaknesses": ["3-4 specific gaps ${business.name} could exploit"], "contentStrategySummary": "2-3 sentences on their content strategy" }` }],
@@ -321,7 +323,7 @@ Return ONLY a JSON object (no markdown fences, no commentary):
     for (let attempt = 0; attempt < 2; attempt++) {
         try {
             const { text, searchErrors } = await request();
-            if (searchErrors.length && attempt === 0 && searchErrors.some(e => /too_many_requests|max_uses|unavailable/.test(e))) continue; // search was throttled; one retry
+            if (searchErrors.length && attempt === 0 && searchErrors.some(e => /^(?!fetch:).*(too_many_requests|unavailable)/.test(e))) continue; // search was throttled; one retry
             const data = JSON.parse(cleanAIResponse(text || '{}'));
             if (!Array.isArray(data.strengths) || !data.contentStrategySummary) throw new Error('incomplete');
             return { url, strengths: data.strengths, weaknesses: Array.isArray(data.weaknesses) ? data.weaknesses : [], contentStrategySummary: data.contentStrategySummary };

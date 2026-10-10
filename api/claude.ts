@@ -14,13 +14,15 @@ import { isIP } from 'node:net';
  *   maxTokens  optional, capped at MAX_TOKENS_CAP
  *   webSearch  optional, enables Claude's web search tool
  *   maxSearches optional, searches allowed per request when webSearch is on (default 5, max 10)
+ *   webFetch   optional, enables Claude's web fetch tool so it can open pages named in the prompt
+ *   maxFetches optional, fetches allowed per request when webFetch is on (default 4, max 8)
  *   kind       'article' marks a new-article generation: it uses 1 credit (paid) or 1 of the free trial articles
  *   action     'photo' returns a stock photo (JPEG under 200KB) instead of text; see handlePhoto
  *              'competitor-quota' reserves / releases the monthly competitor analysis; see handleCompetitorQuota
  *              'verify-links' checks the outside links in an article's HTML; see handleVerifyLinks
  * Responses also carry `sources`: every URL the web search returned, so callers can drop links the model made up.
  *   schema     optional JSON schema; response is then guaranteed to match it
- *              (ignored when webSearch is on - citations can't be combined with it)
+ *              (ignored when webSearch or webFetch is on - citations can't be combined with it)
  */
 
 // ---------------- plan / credit rules ----------------
@@ -428,7 +430,7 @@ export async function POST(request: Request): Promise<Response> {
   // --- plan / credit enforcement ---
   const db = getAdmin();
   if (!db) return json(500, { error: 'Billing is not configured on the server (SUPABASE_SERVICE_ROLE_KEY).' });
-  const heavy = body.tier === 'smart' || body.webSearch === true;
+  const heavy = body.tier === 'smart' || body.webSearch === true || body.webFetch === true;
   let refund: (() => Promise<void>) | null = null;
   if (body.kind === 'article') {
     const reservation = await reserveArticle(db, userId);
@@ -447,7 +449,14 @@ export async function POST(request: Request): Promise<Response> {
   const maxTokens = Math.min(Math.max(Number(body.maxTokens) || 8000, 256), MAX_TOKENS_CAP);
   const webSearch = body.webSearch === true;
   const maxSearches = Math.min(Math.max(Math.floor(Number(body.maxSearches)) || 5, 1), 10);
-  const useSchema = !!body.schema && typeof body.schema === 'object' && !webSearch;
+  const webFetch = body.webFetch === true;
+  const maxFetches = Math.min(Math.max(Math.floor(Number(body.maxFetches)) || 4, 1), 8);
+  const useSchema = !!body.schema && typeof body.schema === 'object' && !webSearch && !webFetch;
+  const tools: any[] = [
+    ...(webSearch ? [{ type: 'web_search_20260209', name: 'web_search', max_uses: maxSearches }] : []),
+    // opens pages named in the prompt directly, for sites the search index barely covers
+    ...(webFetch ? [{ type: 'web_fetch_20260209', name: 'web_fetch', max_uses: maxFetches, max_content_tokens: 20000 }] : []),
+  ];
 
   const client = new Anthropic();
   const messages: Anthropic.MessageParam[] = [...body.messages];
@@ -470,7 +479,7 @@ export async function POST(request: Request): Promise<Response> {
           effort: tier.effort,
           ...(useSchema ? { format: { type: 'json_schema', schema: body.schema } } : {}),
         },
-        ...(webSearch ? { tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: maxSearches }] } : {}),
+        ...(tools.length ? { tools } : {}),
       } as Anthropic.MessageStreamParams);
       final = await stream.finalMessage();
       inputTokens += final.usage.input_tokens;
@@ -478,6 +487,7 @@ export async function POST(request: Request): Promise<Response> {
       collectSearchUrls(final.content as any[]).forEach(u => sources.add(u));
       for (const b of final.content as any[]) {
         if (b.type === 'web_search_tool_result' && b.content?.type === 'web_search_tool_result_error') searchErrors.add(String(b.content.error_code));
+        if (b.type === 'web_fetch_tool_result' && b.content?.type === 'web_fetch_tool_result_error') searchErrors.add(`fetch:${String(b.content.error_code)}`);
       }
       if (final.stop_reason !== 'pause_turn') break;
       messages.push({ role: 'assistant', content: final.content });
