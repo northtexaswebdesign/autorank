@@ -1,5 +1,6 @@
-
 import React from 'react';
+
+// Part of the app's single icon family: 24px grid, 1.9px stroke, round caps and joins (see NavIcons.tsx).
 
 export const PlusIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg
@@ -9,12 +10,12 @@ export const PlusIcon: React.FC<{ className?: string }> = ({ className }) => (
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2"
+    strokeWidth="1.9"
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
+    aria-hidden="true"
   >
-    <line x1="12" y1="5" x2="12" y2="19" />
-    <line x1="5" y1="12" x2="19" y2="12" />
+    <path d="M12 5v14" /><path d="M5 12h14" />
   </svg>
 );

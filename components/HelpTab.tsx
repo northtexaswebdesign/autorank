@@ -1,10 +1,12 @@
 import React from 'react';
 import { KeywordIcon } from './icons/KeywordIcon.tsx';
 import { CalendarIcon } from './icons/CalendarIcon.tsx';
-import { SparklesIcon } from './icons/SparklesIcon.tsx';
 import { LinkIcon } from './icons/LinkIcon.tsx';
 import { SettingsIcon } from './icons/SettingsIcon.tsx';
 import { BrainCircuitIcon } from './icons/BrainCircuitIcon.tsx';
+import { LogoIcon } from './icons/LogoIcon.tsx';
+import { LightbulbIcon } from './icons/LightbulbIcon.tsx';
+import { RewriteIcon } from './icons/RewriteIcon.tsx';
 
 interface HelpSectionProps {
     icon: React.ReactNode;
@@ -33,13 +35,13 @@ export const HelpTab: React.FC = () => {
         <p className="mt-1 text-stone-600 mb-8">A complete guide to getting the most out of Autorank AI.</p>
         <div className="space-y-6">
             
-            <HelpSection icon={<BrainCircuitIcon className="w-5 h-5" />} title="Welcome to Autorank AI: Your Automated GEO Content Platform">
+            <HelpSection icon={<LogoIcon className="w-5 h-5" />} title="Welcome to Autorank AI: Your Automated GEO Content Platform">
                 <p>
                     This guide will walk you through setting up and using Autorank AI to generate a strategic content plan and automate your content marketing.
                 </p>
             </HelpSection>
 
-            <HelpSection icon={<BrainCircuitIcon className="w-5 h-5" />} title="Understanding the Power of Autorank AI: More Than Just a Writer">
+            <HelpSection icon={<LightbulbIcon className="w-5 h-5" />} title="Understanding the Power of Autorank AI: More Than Just a Writer">
                 <p>
                     Autorank AI isn't just another AI content generator; it's a strategic <strong>Generative Engine Optimization (GEO)</strong> platform. Its core power comes from its direct, live integration with <strong>Google Search</strong> for every critical task.
                 </p>
@@ -92,7 +94,7 @@ export const HelpTab: React.FC = () => {
                 </ul>
             </HelpSection>
 
-            <HelpSection icon={<SparklesIcon className="w-5 h-5" />} title="5. The Article Editor: Partnering with the AI">
+            <HelpSection icon={<RewriteIcon className="w-5 h-5" />} title="5. The Article Editor: Partnering with the AI">
                 <p>
                     You can access the editor by generating a new article or clicking on any existing post in the calendar or "Past Articles" tab.
                 </p>

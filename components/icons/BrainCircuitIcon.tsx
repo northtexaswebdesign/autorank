@@ -1,5 +1,7 @@
 import React from 'react';
 
+// Part of the app's single icon family: 24px grid, 1.9px stroke, round caps and joins (see NavIcons.tsx).
+
 export const BrainCircuitIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -8,16 +10,12 @@ export const BrainCircuitIcon: React.FC<{ className?: string }> = ({ className }
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2"
+    strokeWidth="1.9"
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
+    aria-hidden="true"
   >
-    <path d="M12 2a2.5 2.5 0 0 1 2.5 2.5v.75a.5.5 0 0 0 .5.5h.75a2.5 2.5 0 0 1 2.5 2.5v.75a.5.5 0 0 0 .5.5h.75a2.5 2.5 0 0 1 2.5 2.5v2a2.5 2.5 0 0 1-2.5 2.5h-.75a.5.5 0 0 0-.5.5v.75a2.5 2.5 0 0 1-2.5 2.5h-.75a.5.5 0 0 0-.5.5v.75a2.5 2.5 0 0 1-2.5 2.5h-2a2.5 2.5 0 0 1-2.5-2.5v-.75a.5.5 0 0 0-.5-.5h-.75a2.5 2.5 0 0 1-2.5-2.5v-.75a.5.5 0 0 0-.5-.5h-.75A2.5 2.5 0 0 1 2 14.25v-2a2.5 2.5 0 0 1 2.5-2.5h.75a.5.5 0 0 0 .5-.5v-.75A2.5 2.5 0 0 1 8.25 6h.75a.5.5 0 0 0 .5-.5V4.75A2.5 2.5 0 0 1 12 2Z" />
-    <path d="M12 12h.01" />
-    <path d="M16 9h.01" />
-    <path d="M8 9h.01" />
-    <path d="M16 15h.01" />
-    <path d="M8 15h.01" />
+    <path d="M10 3.5l1.6 4.4L16 9.5l-4.4 1.6L10 15.5l-1.6-4.4L4 9.5l4.4-1.6z" /><path d="M18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17l2.2-.8z" />
   </svg>
 );

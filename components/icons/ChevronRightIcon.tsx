@@ -1,19 +1,21 @@
-
 import React from 'react';
 
+// Part of the app's single icon family: 24px grid, 1.9px stroke, round caps and joins (see NavIcons.tsx).
+
 export const ChevronRightIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    className={className}
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
     width="24"
     height="24"
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.9"
+    strokeLinecap="round"
     strokeLinejoin="round"
->
-    <polyline points="9 18 15 12 9 6" />
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M9 6l6 6-6 6" />
   </svg>
 );

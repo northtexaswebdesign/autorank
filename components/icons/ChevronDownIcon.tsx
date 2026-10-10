@@ -1,5 +1,6 @@
-
 import React from 'react';
+
+// Part of the app's single icon family: 24px grid, 1.9px stroke, round caps and joins (see NavIcons.tsx).
 
 export const ChevronDownIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg
@@ -9,11 +10,12 @@ export const ChevronDownIcon: React.FC<{ className?: string }> = ({ className })
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2"
+    strokeWidth="1.9"
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
+    aria-hidden="true"
   >
-    <polyline points="6 9 12 15 18 9" />
+    <path d="M6 9l6 6 6-6" />
   </svg>
 );

@@ -1,13 +1,21 @@
-
 import React from 'react';
 
+// Part of the app's single icon family: 24px grid, 1.9px stroke, round caps and joins (see NavIcons.tsx).
+
 export const GrowthIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} width="24" height="24" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" fill="none" strokeLinecap="round" strokeLinejoin="round">
-       <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
-       <path d="M16.5 15h-13a.5 .5 0 0 0 0 1h13a.5 .5 0 0 0 0 -1z"></path>
-       <path d="M17 15.5a2.5 2.5 0 0 0 0 -5a2.5 2.5 0 0 0 -2.5 -2.5a2.5 2.5 0 0 0 -2.5 2.5a2.5 2.5 0 0 0 0 5"></path>
-       <path d="M17 10.5a2.5 2.5 0 0 1 0 -5a2.5 2.5 0 0 1 2.5 -2.5a2.5 2.5 0 0 1 2.5 2.5a2.5 2.5 0 0 1 0 5"></path>
-       <path d="M12 8a2.5 2.5 0 0 0 0 5a2.5 2.5 0 0 0 2.5 2.5a2.5 2.5 0 0 0 2.5 -2.5a2.5 2.5 0 0 0 0 -5"></path>
-       <path d="M7 10.5a2.5 2.5 0 0 0 0 -5a2.5 2.5 0 0 0 -2.5 -2.5a2.5 2.5 0 0 0 -2.5 2.5a2.5 2.5 0 0 0 0 5"></path>
-    </svg>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.9"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M4 17l5-5 4 4 7-8" /><path d="M15 8h5v5" />
+  </svg>
 );
