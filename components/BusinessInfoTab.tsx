@@ -106,7 +106,7 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
         // 2. Now run analysis with the updated business object
         await analyzeCompetitors((progress) => {
             setAnalysisProgress(progress);
-        });
+        }, updatedBusiness);
         setIsAnalysisComplete(true);
     } catch(e) {
         alert(`Analysis failed: ${e instanceof Error ? e.message : 'Unknown error'}`);

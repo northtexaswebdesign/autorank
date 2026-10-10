@@ -139,3 +139,9 @@ test('flags citations older than the recency limit, but not laws or standards', 
 test('flags a Sources list at the end', () => {
     assert.ok(lintArticle('<h1>T</h1><p>x</p><h2>Sources</h2><ul><li>a</li></ul>', { keyword: 'x' }).issues.some(i => i.code === 'sources-list'));
 });
+
+test('fromYYYYMMDD keeps the local calendar day', async () => {
+  const { fromYYYYMMDD, toYYYYMMDD } = await import('../utils/dateUtils.ts');
+  assert.equal(toYYYYMMDD(fromYYYYMMDD('2026-10-12')), '2026-10-12');
+  assert.equal(fromYYYYMMDD('2026-10-12', 14, 30).getHours(), 14);
+});

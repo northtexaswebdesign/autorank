@@ -13,7 +13,7 @@ import { ChevronDownIcon } from './icons/ChevronDownIcon.tsx';
 import { CopyIcon } from './icons/CopyIcon.tsx';
 import { DownloadIcon } from './icons/DownloadIcon.tsx';
 import { RefreshIcon } from './icons/RefreshIcon.tsx';
-import { toYYYYMMDD } from '../utils/dateUtils.ts';
+import { toYYYYMMDD, fromYYYYMMDD } from '../utils/dateUtils.ts';
 import { uploadImageFromBase64 } from '../utils/imageStorage.ts';
 import { ArticleRenderer } from './ArticleRenderer.tsx';
 import { GeoScoreCircularProgress } from './GeoScoreCircularProgress.tsx';
@@ -119,7 +119,8 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
                 handleUpdatePost({ slug: finalValue });
             }
         } else if (fieldName === 'publishDate') {
-            const isoDate = new Date(value).toISOString();
+            const old = post.publishDate ? new Date(post.publishDate) : null;
+            const isoDate = fromYYYYMMDD(value, old ? old.getHours() : 9, old ? old.getMinutes() : 0).toISOString();
             if (post.publishDate !== isoDate) {
                 handleUpdatePost({ publishDate: isoDate });
             }
@@ -248,7 +249,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
         } catch (e) {
             console.error("Generation process failed:", e);
             alert((e as any)?.message || "Failed to generate article. Please try again.");
-            await handleUpdatePost({ status: 'scheduled' });
+            await handleUpdatePost({ status: 'scheduled', publishAttempts: 0 } as any);
         } finally {
             generationInFlight.current = false;
             setIsGeneratingText(false);
@@ -297,7 +298,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
                 slug: localSlug
             };
             const result = await publishToWordPress(cmsIntegration, { ...postToPublish, articleContent: currentContent }, selectedBusiness);
-            await handleUpdatePost({ publishedUrl: result.url, published_url: result.url, slug: result.slug, status: 'published', metaTitle: localMetaTitle, meta_title: localMetaTitle, metaDescription: localMetaDescription, meta_description: localMetaDescription });
+            await handleUpdatePost({ publishedUrl: result.url, published_url: result.url, slug: result.slug, wpPostId: result.wpPostId, status: 'published', metaTitle: localMetaTitle, meta_title: localMetaTitle, metaDescription: localMetaDescription, meta_description: localMetaDescription } as any);
             logActivity(`Published to WP: ${post.keyword}`, 'success');
         } catch (error: any) {
             alert(`Publishing failed: ${error.message || 'Unknown error'}`);
@@ -365,17 +366,34 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
     const featureImageSrc = post.images?.featureImage?.url || (post.images?.featureImage?.base64 ? `data:image/jpeg;base64,${post.images.featureImage.base64}` : null);
     const allSuggestions = useMemo(() => [...(post.aiFeedback || []), ...getMetricBasedSuggestions(metrics, post)], [post.aiFeedback, metrics, post]);
 
+    // generating in another tab, or a run that was interrupted (tab closed mid-way): the status stays "generating"
+    const orphanedGeneration = (post.status === 'generating-text' || post.status === 'brief-generating') && !isGeneratingText && !isLoadingEditingPost;
+    if (orphanedGeneration) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-slate-50">
+                <h2 className="text-2xl font-bold text-slate-800">This article is still marked as generating</h2>
+                <p className="text-slate-500 mt-2 max-w-lg">It may be running in another tab, or the run was interrupted (for example the page was closed). If nothing is running, reset it and generate again.</p>
+                <div className="mt-6 flex gap-3">
+                    <button onClick={onBack} className="rounded-lg border border-slate-300 px-5 py-2.5 font-semibold text-slate-700 hover:bg-slate-100">Back</button>
+                    <button onClick={() => handleUpdatePost({ status: 'draft' })} className="rounded-lg bg-orange-500 px-5 py-2.5 font-semibold text-white hover:bg-orange-600">Reset and try again</button>
+                </div>
+            </div>
+        );
+    }
+
     if (post.status === 'generating-text' || post.status === 'brief-generating' || isLoadingEditingPost) {
         return (
             <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-slate-50">
                 <SparklesIcon className="w-12 h-12 text-orange-500 mb-4 animate-spin" />
                 <h2 className="text-2xl font-bold text-slate-800">{isLoadingEditingPost ? 'Opening Article...' : 'Generating Content...'}</h2>
                 <p className="text-slate-500 mt-2">{generationProgress?.text || 'Connecting to brain...'}</p>
+                {isLoadingEditingPost && <button onClick={onBack} className="mt-6 rounded-lg border border-slate-300 px-5 py-2 font-semibold text-slate-700 hover:bg-slate-100">Back</button>}
             </div>
         );
     }
-    
-    if (!currentContent && post.status === 'scheduled') {
+
+    // not written yet (a scheduled post, or a draft created from the planner): offer to generate it
+    if (!currentContent && (post.status === 'scheduled' || post.status === 'draft')) {
         return (
             <div className="flex flex-col items-center justify-center h-full p-6 bg-slate-50">
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center max-w-2xl">

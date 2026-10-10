@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Keyword, ScheduledPost } from '../types.ts';
-import { getDaysInMonth, getMonthYearString, getStartDayOfMonth, isSameDay, getPostsForDate, toYYYYMMDD } from '../utils/dateUtils.ts';
+import { getDaysInMonth, getMonthYearString, getStartDayOfMonth, isSameDay, getPostsForDate, toYYYYMMDD, fromYYYYMMDD } from '../utils/dateUtils.ts';
 import { useApp } from '../context/AppContext.tsx';
 import { TrashIcon } from './icons/TrashIcon.tsx';
 import { ChartBarIcon } from './icons/ChartBarIcon.tsx';
@@ -219,7 +219,9 @@ export const CalendarTab: React.FC = () => {
     const runAutofill = async (fill: () => Promise<void>) => {
         if (isAutofilling) return;
         setIsAutofilling(true);
-        try { await fill(); } finally { setIsAutofilling(false); }
+        try { await fill(); }
+        catch (e: any) { alert(e?.message || 'Could not schedule the posts. Please try again.'); }
+        finally { setIsAutofilling(false); }
     };
 
     const handleAutofill = async () => {
@@ -264,17 +266,16 @@ export const CalendarTab: React.FC = () => {
             return;
         }
         
-        // Convert the 'YYYY-MM-DD' string to a local Date object, then to a UTC ISO string.
-        // new Date('YYYY-MM-DD') correctly creates a date at midnight in the user's local timezone.
-        const newPublishDate = new Date(targetDateStr).toISOString();
-
+        // the target day in the user's timezone, keeping the post's time of day
         const postToMove = scheduledPosts.find(p => p.id === postId);
+        const oldTime = postToMove ? new Date(postToMove.publishDate) : null;
+        const newPublishDate = fromYYYYMMDD(targetDateStr, oldTime ? oldTime.getHours() : 9, oldTime ? oldTime.getMinutes() : 0).toISOString();
 
         if (!postToMove || postToMove.publishDate === newPublishDate) {
             return;
         }
 
-        const existingPostOnTarget = scheduledPosts.find(p => isSameDay(new Date(p.publishDate), new Date(targetDateStr)));
+        const existingPostOnTarget = scheduledPosts.find(p => p.id !== postId && isSameDay(new Date(p.publishDate), fromYYYYMMDD(targetDateStr)));
 
         if (existingPostOnTarget) {
             const originalDate = postToMove.publishDate;

@@ -1,10 +1,16 @@
-import { ScheduledPost } from '../types.ts';
+import type { ScheduledPost } from '../types.ts';
 
 export const toYYYYMMDD = (date: Date): string => {
   const year = date.getFullYear();
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const day = date.getDate().toString().padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+/** A 'YYYY-MM-DD' day as a local date (new Date('YYYY-MM-DD') would be UTC midnight, the previous day in the US). */
+export const fromYYYYMMDD = (day: string, hours = 9, minutes = 0): Date => {
+  const [y, m, d] = day.split('-').map(Number);
+  return new Date(y, m - 1, d, hours, minutes);
 };
 
 export const getDaysInMonth = (date: Date): Date[] => {
