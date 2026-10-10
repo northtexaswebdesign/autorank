@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { needsSourcePass, sourceStats, stripFences, isNonContentUrl, lintArticle, extractFaq, buildJsonLd, finalizeForPublish, collectSearchUrls, verifyLinks, isSafePublicUrl, keywordBudget, normalizeUrl } from '../supabase/functions/_shared/articleQuality.ts';
+import { needsSourcePass, sourceStats, stripFences, isNonContentUrl, lintArticle, extractFaq, buildJsonLd, finalizeForPublish, collectSearchUrls, verifyLinks, isSafePublicUrl, keywordBudget, normalizeUrl, dropTitleH1, researchBriefBlock } from '../supabase/functions/_shared/articleQuality.ts';
 
 const kw = 'heavy duty wheelchair drink holder';
 const para = (n: number) => '<p>' + 'word '.repeat(n) + '</p>';
@@ -109,4 +109,14 @@ test('a linked CTA and linked sources pass', () => {
   const html = '<h1>T</h1><p>See <a href="https://shop.com/cane-holders/">SnapIt cane holders</a>. Check out our catalog at <a href="https://shop.com/shop/">the shop</a>.</p><h2>Sources</h2><ul><li><a href="https://fda.gov/x">FDA</a>, 2024</li></ul>';
   const codes = lintArticle(html, { keyword: kw, ownUrl: 'https://shop.com' }).issues.map(i => i.code);
   for (const c of ['unlinked-source', 'unlinked-cta', 'no-internal-links']) assert.ok(!codes.includes(c), c);
+});
+
+test('dropTitleH1 removes the leading title H1 and demotes any other H1', () => {
+    const out = dropTitleH1('<h1>Title</h1><p class="article-updated">x</p><p>a</p><h1 class="y">Extra</h1>');
+    assert.equal(out, '<p class="article-updated">x</p><p>a</p><h2 class="y">Extra</h2>');
+});
+
+test('researchBriefBlock is empty without research', () => {
+    assert.equal(researchBriefBlock(''), '');
+    assert.match(researchBriefBlock('GAPS: x'), /RESEARCH BRIEF[\s\S]*GAPS: x/);
 });

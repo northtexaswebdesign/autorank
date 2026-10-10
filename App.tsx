@@ -134,6 +134,9 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
         loadFullArticle();
     }, [editingPostId]);
 
+    /** Every keyword the business already targets (keyword lists and articles), so research never repeats one. */
+    const targetedKeywords = () => [...new Set([...suggestedKeywords, ...queuedKeywords].map(k => k.keyword).concat(scheduledPosts.map(p => p.keyword)).filter(Boolean))];
+
     const contextValue: AppContextType = {
         selectedBusiness, 
         updateBusiness: async (info) => {
@@ -271,7 +274,7 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
         },
         generateAndStoreKeywords: async (language) => {
             if (!selectedBusiness) return;
-            const kws = await generateKeywords(selectedBusiness, language);
+            const kws = await generateKeywords(selectedBusiness, language, targetedKeywords());
             if (kws.length > 0) {
                 const toInsert = kws.map(k => camelToSnake({ ...k, businessId: selectedBusiness.id }));
                 const { data } = await supabase.from('keywords').insert(toInsert).select();
@@ -357,7 +360,7 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
         },
         suggestContentCluster: async (targetKeyword: string) => {
             if (!selectedBusiness) return null;
-            return suggestContentClusterService(targetKeyword, selectedBusiness);
+            return suggestContentClusterService(targetKeyword, selectedBusiness, targetedKeywords().filter(k => k !== targetKeyword));
         },
         unschedulePost: async (id) => {
             const post = scheduledPosts.find(p => p.id === id);

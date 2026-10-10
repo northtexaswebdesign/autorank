@@ -64,6 +64,34 @@ export const TRUST_RULES = `TRUST AND HONESTY (strict):
     - Never write meta-commentary about the article or its format (for example "no diagram is needed", "as an AI", "in this article we will"). Do not add a "last updated" line or schema markup; those are added automatically. 
     - CLOSING CALL TO ACTION: if you end with one, it must name the business and link to a real, relevant page on its site that you found (a product, category or contact page). If you found no such page, leave the call to action out. Never write "check out our catalog" or "message us" without a link.`;
 
+export const FOCUS_RULES = `TOPIC FOCUS:
+    - Stay on what the person searching this keyword wants. Mention the business's own niche only where it genuinely fits, in a sentence or two. Never add whole sections, FAQ questions or audience groups just to bring in the business's other lines of work.
+    - Prefer sources from the last 3 years. Cite older ones only when they are the primary record (a law, a standard, an official notice), and still say the year.
+    - Where first-hand knowledge from the business would make the article stronger (a real photo, a fitting tip, a customer situation), leave an HTML comment in that spot: <!-- EDITOR: add a real photo or first-hand note here: what to show -->. Use 1 or 2 at most. Never invent experiences, customers or results.`;
+
+/** Searches for the gap-research step (cheap model), and for the writer when it already has the brief. */
+export const RESEARCH_SEARCHES = 3;
+export const ARTICLE_SEARCHES_WITH_BRIEF = 6;
+
+/** Prompt for the gap-research step: study the top results and write a private brief for the writer. */
+export const buildResearchPrompt = (keyword: string, businessName: string, businessDescription: string): string => `You are an SEO researcher. Search for "${keyword}" and study the top 5-8 organic results (skip ads; a forum or Reddit thread in the results is a useful signal of what people still ask). Do not write the article. Write a private brief for the writer, plain text, under 450 words, with these parts:
+INTENT AND FORMAT: what the searcher wants and the format that ranks (guide, list, comparison, how-to), plus a typical length.
+MUST COVER: subtopics that most top results cover (short list).
+GAPS: what the top results miss or get wrong: unanswered questions, vague advice with no specifics, outdated facts or numbers, missing steps, examples, comparisons, tables, costs, safety points or edge cases. Be specific; this is the most important part.
+ANGLE: one or two ways our article can add something new (information gain), staying on what the searcher wants.
+SOURCES: up to 5 credible pages you found (government, university, standards bodies, manufacturers, well-known publications) as "URL - the fact it supports (year)". Only URLs exactly as they appeared in your search results.
+Context: the article is published by ${businessName} (${businessDescription}). Use that only to judge relevance, not to steer the topic.`;
+
+/** The research brief as the writer sees it. Empty when research failed. */
+export const researchBriefBlock = (research: string): string => research ? `RESEARCH BRIEF (private, from a study of the current top results; never mention it in the article):
+${research}
+
+Use the brief: cover everything under MUST COVER, make the GAPS and ANGLE the parts where this article clearly beats the current results, and match the format under INTENT AND FORMAT. URLs listed under SOURCES came from search results and may be cited; verify or add others with your own searches.` : '';
+
+/** WordPress themes print the post title as the H1, so the body's own H1 (a copy of the title) is dropped and any other becomes an H2. */
+export const dropTitleH1 = (html: string): string =>
+    html.replace(/^\s*<h1[^>]*>[\s\S]*?<\/h1>\s*/i, '').replace(/<h1([^>]*)>([\s\S]*?)<\/h1>/gi, '<h2$1>$2</h2>').trim();
+
 export const STRUCTURE_RULES = `STRUCTURE FOR SEARCH AND AI ANSWERS:
     - Open with a 40-60 word direct answer to the main question, then the summary section. Each section should open with a self-contained sentence that answers its heading, so it can be quoted on its own.
     - Use descriptive headings (many as questions), short paragraphs, and lists or tables where they make comparisons or steps clearer.

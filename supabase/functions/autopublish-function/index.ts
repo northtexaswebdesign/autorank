@@ -12,7 +12,7 @@
 // photo is used when PEXELS_API_KEY is set, otherwise the post publishes without an image.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Anthropic from 'npm:@anthropic-ai/sdk';
-import { SOURCE_RULES, TRUST_RULES, STRUCTURE_RULES, INTERNAL_LINK_RULES, ARTICLE_SEARCHES, keywordRules, buildRepairPrompt, buildSourcePassPrompt, needsSourcePass, sourceStats, stripFences, collectSearchUrls, verifyLinks, lintArticle, finalizeForPublish } from '../_shared/articleQuality.ts';
+import { SOURCE_RULES, TRUST_RULES, STRUCTURE_RULES, INTERNAL_LINK_RULES, ARTICLE_SEARCHES, keywordRules, buildRepairPrompt, buildSourcePassPrompt, needsSourcePass, sourceStats, stripFences, collectSearchUrls, verifyLinks, lintArticle, finalizeForPublish, FOCUS_RULES, RESEARCH_SEARCHES, ARTICLE_SEARCHES_WITH_BRIEF, buildResearchPrompt, researchBriefBlock, dropTitleH1 } from '../_shared/articleQuality.ts';
 
 const Deno = (globalThis as any).Deno;
 
@@ -64,17 +64,17 @@ const askJson = async (model: string, prompt: string, schema: Record<string, unk
 
 // Runs one prompt with web search; resumes when the turn pauses mid-search. Returns the text written after the last search step
 // (drops "let me search..." narration) and every URL the search returned.
-const askWithSearch = async (prompt: string, maxTokens: number): Promise<{ text: string; urls: string[] }> => {
+const askWithSearch = async (prompt: string, maxTokens: number, opts: { model?: string; searches?: number; effort?: 'low' | 'medium' } = {}): Promise<{ text: string; urls: string[] }> => {
     const messages: any[] = [{ role: 'user', content: prompt }];
     let message: Anthropic.Message | null = null;
     const urls = new Set<string>();
     for (let i = 0; i <= 4; i++) {
         const stream = getClient().messages.stream({
-            model: MODEL_ARTICLE,
+            model: opts.model ?? MODEL_ARTICLE,
             max_tokens: maxTokens,
             messages,
-            output_config: { effort: 'medium' },
-            tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: ARTICLE_SEARCHES }],
+            output_config: { effort: opts.effort ?? 'medium' },
+            tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: opts.searches ?? ARTICLE_SEARCHES }],
         } as any);
         message = await stream.finalMessage();
         collectSearchUrls(message.content as any[]).forEach(u => urls.add(u));
@@ -91,7 +91,22 @@ const askWithSearch = async (prompt: string, maxTokens: number): Promise<{ text:
     return { text, urls: [...urls] };
 };
 
+/**
+ * Gap research before writing: the light model reads the current top results and returns a short private
+ * brief (what ranks, what it misses, credible sources). Never blocks publishing: on failure, no brief.
+ */
+const researchContentGaps = async (keyword: string, business: BusinessInfo): Promise<string> => {
+    try {
+        const { text } = await askWithSearch(buildResearchPrompt(keyword, business.name, business.description), 2500, { model: MODEL_LIGHT, searches: RESEARCH_SEARCHES, effort: 'low' });
+        return text.trim().length > 200 ? text.trim() : '';
+    } catch (e: any) {
+        console.error('Gap research failed, writing without a brief:', e.message);
+        return '';
+    }
+};
+
 const generateArticleText = async (keyword: string, business: BusinessInfo): Promise<{ html: string; feedback: string[] }> => {
+    const research = await researchContentGaps(keyword, business);
     const languageInstruction = business.language && business.language !== 'English'
         ? `\n**CRITICAL LANGUAGE REQUIREMENT:** The entire article MUST be written in ${business.language}.\n` : '';
     const year = new Date().getUTCFullYear();
@@ -99,13 +114,14 @@ const generateArticleText = async (keyword: string, business: BusinessInfo): Pro
     const prompt = `You are an expert-level SEO content writer specializing in GEO (Generative-Engine-Optimization) content.
 ${languageInstruction}
 **Topic:** "${keyword}"
+${research ? `\n${researchBriefBlock(research)}\n` : ''}
 **Primary Goal: E-E-A-T & User Intent**
 - **Current Year Reference:** Use "${year}". Do not use past years.
 - **E-E-A-T:** Demonstrate Experience, Expertise, Authoritativeness, and Trustworthiness. Be factual and objective. Do not invent statistics or sources.
 - **Answer Intent:** Solve the user's problem completely.
 **Article Length Requirement:** 1500-2300 words.
 **Content Structure:**
-- **Direct Answer First:** Immediately after the H1, include a <div class="key-takeaways"><h3>Key Takeaways</h3><ul>...</ul></div>.
+- **Direct Answer First:** Open with one or two sentences that directly answer the topic, then include a <div class="key-takeaways"><h3>Key Takeaways</h3><ul>...</ul></div>.
 - **Question-Based Headings:** Use <h2> headings phrased as questions.
 - **Structured Data:** Use lists and tables where helpful.
 - **Logical Flow:** Clean H1 -> H2 -> H3 structure, exactly one <h1>.
@@ -114,6 +130,7 @@ ${INTERNAL_LINK_RULES(business.url)}
 ${keywordRules(keyword, 1900)}
 ${SOURCE_RULES}
 ${STRUCTURE_RULES}
+${FOCUS_RULES}
 ${TRUST_RULES}
 - Include a dedicated FAQ section near the end (<h2>Frequently Asked Questions</h2>, each question as an <h3> followed by a short answer paragraph), then the Sources section.
 **Formatting and Style:**
@@ -122,7 +139,7 @@ ${TRUST_RULES}
 **Business Integration:** Mention ${business.name} 2-3 times where it adds value. Informational tone.
 Output only the HTML of the article.`;
 
-    const { text: articleText, urls: found } = await askWithSearch(prompt, 12000);
+    const { text: articleText, urls: found } = await askWithSearch(prompt, 12000, { searches: research ? ARTICLE_SEARCHES_WITH_BRIEF : ARTICLE_SEARCHES });
     const searchUrls = new Set<string>(found);
     let html = stripFences(articleText);
     if (html.length < 200) throw new Error('Article generation returned an empty or too-short response.');
@@ -300,7 +317,7 @@ const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost, busi
             featureImage = { url: media.url, prompt: photo.alt };
             const imgTag = `<p><img src="${media.url}" alt="${photo.alt.replace(/"/g, '&quot;')}" style="max-width:100%;height:auto;border-radius:8px" /></p>`;
             if (/\[IMAGE_1\]/.test(content)) content = content.replace(/<p>\s*\[IMAGE_1\]\s*<\/p>|\[IMAGE_1\]/, imgTag);
-            else if (/<\/h1>/i.test(content)) content = content.replace(/<\/h1>/i, (m) => m + imgTag);
+            else if (/<\/p>/i.test(content)) content = content.replace(/<\/p>/i, (m) => m + imgTag);
             else content = imgTag + content;
         }
     } catch (photoError: any) {
@@ -311,6 +328,7 @@ const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost, busi
         headline: post.metaTitle || post.keyword, description: post.metaDescription, keyword: post.keyword,
         businessName: business.name, businessUrl: business.url, imageUrl: featureImage?.url, language: business.language,
     });
+    content = dropTitleH1(content); // the theme prints the title as the H1
 
     const response = await fetch(`${baseApiUrl}/posts`, {
         method: 'POST',
