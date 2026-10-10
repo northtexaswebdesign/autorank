@@ -113,8 +113,10 @@ const reserveArticle = async (db: SupabaseClient, userId: string): Promise<{ ok:
  * counted per user per UTC day and capped relative to the articles charged that day. The browser chooses which
  * kind of call it sends, so without this cap a user could run unlimited expensive calls for free.
  */
-const FREE_SMART_PER_DAY = 6;
-const SMART_PER_ARTICLE = 4;
+// One article or one rewrite makes up to 4 smart calls (write/rewrite, source pass, repair pass, GEO score),
+// so these allow about 4 rewrites a day plus about 3 per article written that day.
+const FREE_SMART_PER_DAY = 16;
+const SMART_PER_ARTICLE = 12;
 const FREE_SEARCH_PER_DAY = 40;
 const SEARCH_PER_ARTICLE = 4;
 
