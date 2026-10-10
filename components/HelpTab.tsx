@@ -179,8 +179,8 @@ export const HelpTab: React.FC = () => {
         <Section id="plan" icon={<NavUserIcon />} title="Your plan and credits"
           lead={<>Open your account from the bottom of the sidebar to see your plan and what's left.</>}>
           <Points>
-            <Point title="Free trial.">Includes 3 articles.</Point>
-            <Point title="Standard plan.">30 articles a month. Each article written uses 1 credit, whether you click Generate or auto-publish writes it.</Point>
+            <Point title="Free trial.">5 days and 3 articles. You add a card to start, but nothing is charged during the trial. Afterwards the Standard plan starts automatically unless you cancel first in Account settings → Manage Your Subscription.</Point>
+            <Point title="Standard plan.">$97 a month for 30 articles. Each article written uses 1 credit, whether you click Generate or auto-publish writes it.</Point>
             <Point title="Free actions.">Publishing, updating live articles, GEO scoring, rewrites and new covers don't use credits.</Point>
           </Points>
         </Section>

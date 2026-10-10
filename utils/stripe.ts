@@ -1,4 +1,11 @@
 
+// Free trial: card on file, $0 today, 5 days, then the $97/month plan unless cancelled (subscription trial).
+// VITE_STRIPE_TRIAL_URL in Vercel overrides it.
+export const getStripeTrialUrl = (userId: string, email: string) => {
+    const baseUrl = (import.meta as any).env?.VITE_STRIPE_TRIAL_URL || "https://buy.stripe.com/14AcN62dG8Qm7RGbDtdfG0g";
+    return `${baseUrl}?client_reference_id=${userId}&prefilled_email=${encodeURIComponent(email)}`;
+};
+
 export const getStripeCheckoutUrl = (userId: string, email: string) => {
     // Payment Link for the Standard plan ($97/month, price_1UP01ZIUenQOhKtNuC89Gxac). VITE_STRIPE_CHECKOUT_URL in
     // Vercel overrides it; keep the two in sync (the old $199 link 9B6cN67y08… is deactivated).

@@ -145,6 +145,7 @@ export interface UserProfile {
   subscriptionEndDate?: string;
   trialEndDate?: string;
   creditsRemaining?: number;
+  stripeCustomerId?: string | null;
   email?: string;
   role?: string;
 }
@@ -213,4 +214,7 @@ export interface AppContextType {
     isLocked: boolean;
     isTrialExpired: boolean;
     isSubscriptionExpired: boolean;
+    /** a new trial that must add a card (Stripe, $0 today) before using the app */
+    needsCard: boolean;
+    refreshProfile: () => Promise<void>;
 }
