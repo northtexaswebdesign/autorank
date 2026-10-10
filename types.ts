@@ -110,7 +110,7 @@ export interface CmsIntegration {
   applicationPassword?: string;
 }
 
-export type AppTab = 'dashboard' | 'planner' | 'intelligence' | 'calendar' | 'settings' | 'integrations' | 'past-articles' | 'log' | 'account-settings' | 'help';
+export type AppTab = 'dashboard' | 'planner' | 'intelligence' | 'calendar' | 'settings' | 'integrations' | 'past-articles' | 'log' | 'account-settings' | 'help' | 'admin';
 
 export interface FAQItem {
   question: string;
@@ -143,6 +143,8 @@ export interface UserProfile {
   subscriptionEndDate?: string;
   trialEndDate?: string;
   creditsRemaining?: number;
+  email?: string;
+  role?: string;
 }
 
 export interface AppStateCache {

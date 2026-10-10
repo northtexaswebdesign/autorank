@@ -21,6 +21,7 @@ import { HelpTab } from './components/HelpTab.tsx';
 import { snakeToCamel, camelToSnake } from './utils/caseConverter.ts';
 import { AccountSettingsTab } from './components/AccountSettingsTab.tsx';
 import { DashboardTab } from './components/DashboardTab.tsx';
+import { AdminUsersTab, isOwnerEmail } from './components/AdminUsersTab.tsx';
 import { HamburgerIcon } from './components/icons/HamburgerIcon.tsx';
 import { SparklesIcon } from './components/icons/SparklesIcon.tsx';
 
@@ -416,6 +417,8 @@ const AppInner: React.FC = () => {
     }
 
     if (!selectedBusiness) return <OnboardingModal onComplete={createBusiness} />;
+    // the Admin tab is shown only to the owner; the server checks the signed-in email again on every call
+    const isOwner = isOwnerEmail(userProfile?.email);
     
     const renderTab = () => {
         switch (activeTab) {
@@ -429,6 +432,7 @@ const AppInner: React.FC = () => {
             case 'log': return <ActivityLogTab />;
             case 'account-settings': return <AccountSettingsTab />;
             case 'help': return <HelpTab />;
+            case 'admin': return isOwner ? <AdminUsersTab /> : <DashboardTab />;
             default: return <DashboardTab />;
         }
     };
@@ -437,7 +441,7 @@ const AppInner: React.FC = () => {
         <div className="flex h-screen bg-slate-50 overflow-hidden">
             <Sidebar 
                 activeTab={activeTab} setActiveTab={setActiveTab} isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen}
-                onLogout={() => supabase.auth.signOut()} setEditingPost={setEditingPost} userEmail={userProfile?.fullName || ''}
+                onLogout={() => supabase.auth.signOut()} setEditingPost={setEditingPost} userEmail={userProfile?.fullName || ''} showAdmin={isOwner}
             />
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden ml-0 md:ml-64 transition-all duration-300">
                 <header className="md:hidden bg-white border-b border-slate-200 p-4 flex items-center justify-between flex-shrink-0">

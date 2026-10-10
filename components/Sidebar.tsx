@@ -13,6 +13,7 @@ import { BrainCircuitIcon } from './icons/BrainCircuitIcon.tsx';
 import { HelpCircleIcon } from './icons/HelpCircleIcon.tsx';
 import { UserIcon } from './icons/UserIcon.tsx';
 import { DashboardIcon } from './icons/DashboardIcon.tsx';
+import { ShieldIcon } from './icons/ShieldIcon.tsx';
 
 interface SidebarProps {
   activeTab: AppTab;
@@ -22,6 +23,7 @@ interface SidebarProps {
   onLogout: () => void;
   setEditingPost: (post: ScheduledPost | null) => void;
   userEmail: string;
+  showAdmin?: boolean;
 }
 
 const NavItem: React.FC<{
@@ -44,7 +46,7 @@ const NavItem: React.FC<{
   </button>
 ));
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setIsOpen, onLogout, setEditingPost, userEmail }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setIsOpen, onLogout, setEditingPost, userEmail, showAdmin }) => {
   const handleNavClick = (tab: AppTab) => {
     setEditingPost(null); // Close the article editor on navigation.
     setActiveTab(tab);
@@ -114,6 +116,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpe
         />
       </nav>
       <div className="mt-auto">
+        {showAdmin && (
+          <NavItem
+            icon={<ShieldIcon />}
+            label="Admin: Users"
+            isActive={activeTab === 'admin'}
+            onClick={() => handleNavClick('admin')}
+          />
+        )}
         <NavItem
             icon={<UserIcon />}
             label="Account Settings"
