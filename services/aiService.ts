@@ -2,6 +2,7 @@ import { BusinessInfo, Keyword, ContentCluster, CompetitorAnalysis, CmsIntegrati
 import { uploadImageFromBase64 } from '../utils/imageStorage.ts';
 
 import { callClaude, callClaudeDetailed, callCover, verifyArticleLinks, reserveCompetitorAnalysis, releaseCompetitorAnalysis } from './claudeClient.ts';
+import { findExistingWpPost, slugFromUrl } from '../supabase/functions/_shared/wordpress.ts';
 import { SOURCE_RULES, TRUST_RULES, STRUCTURE_RULES, INTERNAL_LINK_RULES, ARTICLE_SEARCHES, keywordRules, buildRepairPrompt, buildSourcePassPrompt, needsSourcePass, sourceStats, stripFences, lintArticle, finalizeForPublish, FOCUS_RULES, RESEARCH_SEARCHES, ARTICLE_SEARCHES_WITH_BRIEF, buildResearchPrompt, researchBriefBlock, dropTitleH1, stripSourcesSection, type LintIssue } from '../supabase/functions/_shared/articleQuality.ts';
 
 // Articles get one branded cover (1080x1080 JPEG under 200 KB, made by /api/cover) as the featured/first image.
@@ -744,9 +745,18 @@ export const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPos
         }
     };
 
+    // publishing again (an update, or a retry) updates the post it already became instead of creating slug-2
+    const apiBase = `${cms.url.replace(/\/$/, '')}/wp-json/wp/v2`;
+    const publishedUrl = (post as any).published_url || post.publishedUrl;
+    const existingId = await findExistingWpPost(apiBase, `Basic ${auth}`, {
+        wpPostId: (post as any).wp_post_id ?? post.wpPostId,
+        slug: slugFromUrl(publishedUrl) || post.slug,
+        lookUpSlug: !!publishedUrl,
+    });
+
     let res;
     try {
-        res = await fetch(`${cms.url}/wp-json/wp/v2/posts`, {
+        res = await fetch(existingId ? `${apiBase}/posts/${existingId}` : `${apiBase}/posts`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -778,7 +788,7 @@ export const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPos
         throw new Error(`WordPress publishing failed: ${errText}`);
     }
     const data = await res.json();
-    return { url: data.link, slug: data.slug };
+    return { url: data.link, slug: data.slug, wpPostId: typeof data.id === 'number' ? data.id : existingId };
 };
 
 export const generateMetaData = async (content: string, keyword: string, business: BusinessInfo) => {

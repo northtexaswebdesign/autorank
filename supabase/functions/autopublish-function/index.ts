@@ -13,12 +13,14 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Anthropic from 'npm:@anthropic-ai/sdk';
 import { SOURCE_RULES, TRUST_RULES, STRUCTURE_RULES, INTERNAL_LINK_RULES, ARTICLE_SEARCHES, keywordRules, buildRepairPrompt, buildSourcePassPrompt, needsSourcePass, sourceStats, stripFences, collectSearchUrls, verifyLinks, lintArticle, finalizeForPublish, FOCUS_RULES, RESEARCH_SEARCHES, ARTICLE_SEARCHES_WITH_BRIEF, buildResearchPrompt, researchBriefBlock, dropTitleH1 } from '../_shared/articleQuality.ts';
+import { findExistingWpPost, slugFromUrl } from '../_shared/wordpress.ts';
 
 const Deno = (globalThis as any).Deno;
 
 const MODEL_ARTICLE = Deno.env.get('CLAUDE_MODEL_SMART') || 'claude-sonnet-5-5';
 const MODEL_LIGHT = Deno.env.get('CLAUDE_MODEL_FAST') || 'claude-haiku-5-5';
 const MAX_POSTS_PER_RUN = 10; // keeps a single run inside the function time limit and bounds spend
+const MAX_PUBLISH_ATTEMPTS = 3; // after this many failed runs in a row a post goes back to draft instead of retrying forever
 
 // --- camelCase <-> snake_case ---
 const toCamel = (s: string): string => s.replace(/([-_][a-z])/ig, ($1) => $1.toUpperCase().replace('-', '').replace('_', ''));
@@ -41,7 +43,7 @@ const camelToSnake = <T>(obj: any): T => processKeys<T>(obj, toSnake);
 interface BusinessInfo { id: string; url: string; name: string; description: string; audience: string; language?: string; brandStyle?: Record<string, unknown> | null; }
 interface ScheduledPost {
     id: string; businessId: string; keyword: string; publishDate: string; status: string; articleContent?: string;
-    publishedUrl?: string; geoScore?: number; aiFeedback?: string[]; metaTitle?: string; metaDescription?: string; slug?: string;
+    publishedUrl?: string; wpPostId?: number | null; publishAttempts?: number; geoScore?: number; aiFeedback?: string[]; metaTitle?: string; metaDescription?: string; slug?: string;
 }
 interface CmsIntegration { id: string; businessId: string; platform: 'wordpress'; url: string; username: string; applicationPassword?: string; }
 interface UserProfile { id: string; planStatus: 'trial' | 'paid' | 'expired'; creditsRemaining?: number; }
@@ -331,7 +333,7 @@ const uploadMedia = async (baseApiUrl: string, credentials: string, bytes: Uint8
     return { id: data.id, url: data.source_url };
 };
 
-const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost, business: BusinessInfo): Promise<{ link: string; featureImage?: { url: string; prompt: string } }> => {
+const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost, business: BusinessInfo): Promise<{ link: string; wpPostId: number | null; featureImage?: { url: string; prompt: string } }> => {
     if (!cms.url || !cms.username || !cms.applicationPassword) throw new Error('WordPress integration details are incomplete.');
     if (!post.articleContent) throw new Error('Article content is empty at the final stage before publishing.');
 
@@ -364,7 +366,13 @@ const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost, busi
     });
     content = dropTitleH1(content); // the theme prints the title as the H1
 
-    const response = await fetch(`${baseApiUrl}/posts`, {
+    // a retry, or an article published before, updates the post it already became instead of creating slug-2
+    const existingId = await findExistingWpPost(baseApiUrl, `Basic ${credentials}`, {
+        wpPostId: post.wpPostId,
+        slug: slugFromUrl(post.publishedUrl) || slug,
+        lookUpSlug: !!post.publishedUrl || (post.publishAttempts ?? 0) > 0,
+    });
+    const response = await fetch(existingId ? `${baseApiUrl}/posts/${existingId}` : `${baseApiUrl}/posts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Basic ${credentials}` },
         body: JSON.stringify({
@@ -379,7 +387,7 @@ const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost, busi
     const data = await safeParseJson(response, 'WordPress Posts API');
     if (!response.ok) throw new Error(`WordPress API Error: ${data?.message || JSON.stringify(data)}`);
     if (!data.link) throw new Error('Post created, but no URL was returned.');
-    return { link: data.link, featureImage };
+    return { link: data.link, wpPostId: typeof data.id === 'number' ? data.id : existingId, featureImage };
 };
 
 // --- Main ---
@@ -479,14 +487,20 @@ Deno.serve(async (req: Request) => {
                         post.articleContent = content;
                     }
 
-                    const { link: publishedUrl, featureImage } = await publishToWordPress(cms, post, business);
-                    const { error: pubErr } = await supabaseAdmin.from('posts').update({ status: 'published', published_url: publishedUrl, ...(featureImage ? { images: { featureImage } } : {}) }).eq('id', post.id);
+                    const { link: publishedUrl, wpPostId, featureImage } = await publishToWordPress(cms, post, business);
+                    const { error: pubErr } = await supabaseAdmin.from('posts').update({ status: 'published', published_url: publishedUrl, wp_post_id: wpPostId, publish_attempts: 0, ...(featureImage ? { images: { featureImage } } : {}) }).eq('id', post.id);
                     if (pubErr) throw new Error(`Failed to update post status after publishing: ${pubErr.message}`);
                     await log(business.id, 'success', `Successfully published article: "${post.keyword}"`);
 
                 } catch (postError: any) {
-                    await log(business.id, 'error', `Failed to publish "${postRaw.keyword}": ${postError.message}`);
-                    await supabaseAdmin.from('posts').update({ status: 'scheduled' }).eq('id', postRaw.id);
+                    const attempts = (postRaw.publish_attempts ?? 0) + 1;
+                    if (attempts >= MAX_PUBLISH_ATTEMPTS) {
+                        await log(business.id, 'error', `Failed to publish "${postRaw.keyword}" ${attempts} times (last error: ${postError.message}). Moved it back to draft; fix the problem, then schedule it again.`);
+                        await supabaseAdmin.from('posts').update({ status: 'draft', publish_attempts: attempts }).eq('id', postRaw.id);
+                    } else {
+                        await log(business.id, 'error', `Failed to publish "${postRaw.keyword}" (attempt ${attempts} of ${MAX_PUBLISH_ATTEMPTS}): ${postError.message}`);
+                        await supabaseAdmin.from('posts').update({ status: 'scheduled', publish_attempts: attempts }).eq('id', postRaw.id);
+                    }
                 }
             }
         }

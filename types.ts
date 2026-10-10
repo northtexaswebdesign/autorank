@@ -83,6 +83,8 @@ export interface ScheduledPost {
   contentUrl?: string;
   content_url?: string;
   publishedUrl?: string;
+  wpPostId?: number | null;
+  publishAttempts?: number;
   published_url?: string;
   geoScore?: number;
   geo_score?: number;
@@ -175,7 +177,7 @@ export interface AppContextType {
     updateBusiness: (info: BusinessInfo) => Promise<void>;
     createBusiness: (info: Omit<BusinessInfo, 'id'>) => Promise<BusinessInfo | null>;
     cachePlanData: (data: PersonalizedPlanData) => Promise<void>;
-    analyzeCompetitors: (onProgress: (progress: { value: number; text: string }) => void) => Promise<void>;
+    analyzeCompetitors: (onProgress: (progress: { value: number; text: string }) => void, business?: BusinessInfo) => Promise<void>;
     suggestedKeywords: Keyword[];
     queuedKeywords: Keyword[];
     addKeyword: (keyword: Omit<Keyword, 'id'>) => Promise<void>;

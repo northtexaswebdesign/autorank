@@ -22,6 +22,7 @@ import { snakeToCamel, camelToSnake } from './utils/caseConverter.ts';
 import { AccountSettingsTab } from './components/AccountSettingsTab.tsx';
 import { DashboardTab } from './components/DashboardTab.tsx';
 import { AdminUsersTab, isOwnerEmail } from './components/AdminUsersTab.tsx';
+import { toYYYYMMDD } from './utils/dateUtils.ts';
 import { HamburgerIcon } from './components/icons/HamburgerIcon.tsx';
 import { SparklesIcon } from './components/icons/SparklesIcon.tsx';
 
@@ -92,6 +93,7 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
             return;
         }
 
+        let stale = false; // a newer article was opened before this one finished loading
         const loadFullArticle = async () => {
             const cached = sessionCache.get<ScheduledPost>(`post-${editingPostId}`);
             if (cached && (cached.articleContent || (cached as any).article_content || cached.contentUrl || cached.content_url)) {
@@ -107,6 +109,8 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
                     .eq('id', editingPostId)
                     .single();
 
+                if (stale) return;
+                if (error || !data) throw new Error(error?.message || 'Article not found.');
                 if (data) {
                     // Senior Note: We merge the camelCase data while keeping the original object available for legacy checks
                     const converted = snakeToCamel<ScheduledPost>(data);
@@ -124,15 +128,21 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
                         }
                     }
 
+                    if (stale) return;
                     sessionCache.set(`post-${editingPostId}`, merged);
                     setEditingPost(merged);
                 }
+            } catch (e: any) {
+                if (stale) return;
+                alert(`Could not open this article: ${e?.message || 'unknown error'}`);
+                setEditingPostId(null);
             } finally {
-                setIsLoadingEditingPost(false);
+                if (!stale) setIsLoadingEditingPost(false);
             }
         };
 
         loadFullArticle();
+        return () => { stale = true; };
     }, [editingPostId]);
 
     /** Every keyword the business already targets (keyword lists and articles), so research never repeats one. */
@@ -266,11 +276,13 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
             })).select().single();
             if (data) setActivityLogs(prev => [snakeToCamel<ActivityLog>(data), ...prev]);
         },
-        analyzeCompetitors: async (onProgress) => {
-            if (!selectedBusiness) return;
-            const analysis = await analyzeCompetitorsService(selectedBusiness, onProgress); // throws if the monthly limit is used or every step failed
+        analyzeCompetitors: async (onProgress, business) => {
+            // `business` is the version the caller just saved; selectedBusiness in this closure can still be the old one
+            const target = business || selectedBusiness;
+            if (!target) return;
+            const analysis = await analyzeCompetitorsService(target, onProgress); // throws if the monthly limit is used or every step failed
             if (analysis) {
-                await contextValue.updateBusiness({ ...selectedBusiness, competitorAnalysis: analysis, competitorAnalyzedAt: new Date().toISOString() });
+                await contextValue.updateBusiness({ ...target, competitorAnalysis: analysis, competitorAnalyzedAt: new Date().toISOString() });
             }
         },
         generateAndStoreKeywords: async (language) => {
@@ -307,37 +319,35 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
         },
         schedulePostsFromContentPlan: async () => {
             if (!selectedBusiness || queuedKeywords.length === 0) return;
-            const existingDates = new Set(scheduledPosts.map(p => new Date(p.publishDate).toISOString().split('T')[0]));
-            let currentDate = new Date();
-            currentDate.setDate(currentDate.getDate() + 1);
-            
+            // one post per free day in the user's timezone, starting tomorrow at 9:00 local
+            const existingDays = new Set(scheduledPosts.map(p => toYYYYMMDD(new Date(p.publishDate))));
+            const day = new Date();
+            day.setHours(9, 0, 0, 0);
+            day.setDate(day.getDate() + 1);
             const posts = queuedKeywords.map((kw) => {
-                while (existingDates.has(currentDate.toISOString().split('T')[0])) {
-                    currentDate.setDate(currentDate.getDate() + 1);
-                }
-                const d = new Date(currentDate);
-                existingDates.add(d.toISOString().split('T')[0]);
-                return { keyword: kw.keyword, publishDate: d.toISOString(), status: 'scheduled' as const };
+                while (existingDays.has(toYYYYMMDD(day))) day.setDate(day.getDate() + 1);
+                existingDays.add(toYYYYMMDD(day));
+                return { keyword: kw.keyword, publishDate: new Date(day).toISOString(), status: 'scheduled' as const };
             });
-            await contextValue.addScheduledPosts(posts);
+            const created = await contextValue.addScheduledPosts(posts);
+            if (!created) throw new Error('Could not schedule the posts. Your keywords were kept; please try again.');
             const ids = queuedKeywords.map(k => k.id!).filter(Boolean);
             await contextValue.deleteKeywords(ids);
         },
         schedulePostsFromAllKeywords: async () => {
             if (!selectedBusiness || suggestedKeywords.length === 0) return;
-            const existingDates = new Set(scheduledPosts.map(p => new Date(p.publishDate).toISOString().split('T')[0]));
-            let currentDate = new Date();
-            currentDate.setDate(currentDate.getDate() + 1);
-            
+            // one post per free day in the user's timezone, starting tomorrow at 9:00 local
+            const existingDays = new Set(scheduledPosts.map(p => toYYYYMMDD(new Date(p.publishDate))));
+            const day = new Date();
+            day.setHours(9, 0, 0, 0);
+            day.setDate(day.getDate() + 1);
             const posts = suggestedKeywords.map((kw) => {
-                while (existingDates.has(currentDate.toISOString().split('T')[0])) {
-                    currentDate.setDate(currentDate.getDate() + 1);
-                }
-                const d = new Date(currentDate);
-                existingDates.add(d.toISOString().split('T')[0]);
-                return { keyword: kw.keyword, publishDate: d.toISOString(), status: 'scheduled' as const };
+                while (existingDays.has(toYYYYMMDD(day))) day.setDate(day.getDate() + 1);
+                existingDays.add(toYYYYMMDD(day));
+                return { keyword: kw.keyword, publishDate: new Date(day).toISOString(), status: 'scheduled' as const };
             });
-            await contextValue.addScheduledPosts(posts);
+            const created = await contextValue.addScheduledPosts(posts);
+            if (!created) throw new Error('Could not schedule the posts. Your keywords were kept; please try again.');
             const ids = suggestedKeywords.map(k => k.id!).filter(Boolean);
             await contextValue.deleteKeywords(ids);
         },
