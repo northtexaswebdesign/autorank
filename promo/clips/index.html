@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Autorank clip harness</title>
+  <script>
+    // Virtual clock: the clip timeline drives time, so every render is the same.
+    (function () {
+      var RealDate = Date;
+      var BASE = new RealDate('2026-10-10T10:00:00').getTime();
+      window.__vt = 0;
+      function FakeDate() {
+        var a = Array.prototype.slice.call(arguments);
+        if (!(this instanceof FakeDate)) return new RealDate(BASE + window.__vt * 1000).toString();
+        return a.length ? new (Function.prototype.bind.apply(RealDate, [null].concat(a)))() : new RealDate(BASE + window.__vt * 1000);
+      }
+      FakeDate.prototype = RealDate.prototype;
+      FakeDate.now = function () { return BASE + window.__vt * 1000; };
+      FakeDate.parse = RealDate.parse; FakeDate.UTC = RealDate.UTC;
+      window.Date = FakeDate;
+      window.alert = function () {};
+      window.confirm = function () { return true; };
+    })();
+  </script>
+  <link rel="stylesheet" href="./tw.css" />
+  <link rel="stylesheet" href="./app-base.css" />
+  <style>
+    @font-face { font-family: 'Geist'; src: url(../fonts/geist-sans-latin-400-normal.woff2); font-weight: 400; }
+    @font-face { font-family: 'Geist'; src: url(../fonts/geist-sans-latin-500-normal.woff2); font-weight: 500; }
+    @font-face { font-family: 'Geist'; src: url(../fonts/geist-sans-latin-600-normal.woff2); font-weight: 600; }
+    @font-face { font-family: 'Geist'; src: url(../fonts/geist-sans-latin-700-normal.woff2); font-weight: 700 800; }
+    @font-face { font-family: 'Instrument Serif'; src: url(../fonts/instrument-serif-latin-400-normal.woff2); font-style: normal; }
+    @font-face { font-family: 'Instrument Serif'; src: url(../fonts/instrument-serif-latin-400-italic.woff2); font-style: italic; }
+    html, body { margin: 0; overflow: hidden; background: #F4F3EF; }
+    body { font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; }
+    ::-webkit-scrollbar { width: 0 !important; height: 0 !important; }
+    #cursor { position: fixed; left: 0; top: 0; z-index: 9999; pointer-events: none; width: 30px; height: 30px; transform-origin: 2px 2px; }
+    #ripple { position: fixed; z-index: 9998; pointer-events: none; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; border: 2px solid rgba(17,18,20,.55); opacity: 0; }
+  </style>
+</head>
+<body class="text-stone-800 antialiased">
+  <div id="root"></div>
+  <div id="ripple"></div>
+  <svg id="cursor" viewBox="0 0 30 30"><path d="M3 2.5v21.2l5.6-5.3 3.6 8.3 3.7-1.6-3.6-8.1h7.7z" fill="#111214" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>
+  <script type="module" src="./main.tsx"></script>
+</body>
+</html>

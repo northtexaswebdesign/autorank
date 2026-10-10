@@ -1,0 +1,399 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Autorank Promo</title>
+<style>
+@font-face{font-family:Geist;src:url(fonts/geist-sans-latin-400-normal.woff2);font-weight:400}
+@font-face{font-family:Geist;src:url(fonts/geist-sans-latin-500-normal.woff2);font-weight:500}
+@font-face{font-family:Geist;src:url(fonts/geist-sans-latin-600-normal.woff2);font-weight:600}
+@font-face{font-family:Geist;src:url(fonts/geist-sans-latin-700-normal.woff2);font-weight:700}
+@font-face{font-family:Serif;src:url(fonts/instrument-serif-latin-400-normal.woff2);font-style:normal}
+@font-face{font-family:Serif;src:url(fonts/instrument-serif-latin-400-italic.woff2);font-style:italic}
+@font-face{font-family:Mono;src:url(fonts/geist-mono-latin-500-normal.woff2)}
+:root{--ink:#111214;--canvas:#F4F3EF;--paper:#FBFAF7;--line:#E7E4DC;--muted:#8C887F;--accent:#EA580C;--accent2:#FB923C}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1920px;height:1080px;overflow:hidden;background:var(--ink)}
+body{font-family:Geist,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+#stage{position:absolute;inset:0;overflow:hidden;background:var(--ink)}
+.abs{position:absolute}
+.scene{position:absolute;inset:0;will-change:transform,opacity}
+.serif{font-family:Serif,serif;font-weight:400}
+.mono{font-family:Mono,monospace}
+.word{display:inline-block;white-space:pre}
+.chip{position:absolute;padding:18px 30px;border-radius:999px;border:1.5px solid #34353B;background:#1B1C20;color:#E9E6DE;font-size:34px;font-weight:500;display:flex;align-items:center;gap:14px}
+.chip i{width:14px;height:14px;border-radius:50%;background:var(--accent);display:block}
+.card{position:absolute;background:#fff;border-radius:32px;box-shadow:0 1px 2px rgba(28,27,25,.06),0 30px 80px -20px rgba(28,27,25,.25),0 0 0 1px rgba(28,27,25,.05)}
+.steplab{font-family:Mono;font-size:28px;color:var(--accent);letter-spacing:.08em}
+.big{font-family:Serif;font-size:150px;line-height:.95;letter-spacing:-.01em}
+.sub{font-size:34px;color:#57534E;line-height:1.35;max-width:600px;font-weight:400}
+.skel{position:absolute;border-radius:10px;background:#EFEDE8}
+.pill{position:absolute;padding:16px 26px;border-radius:999px;background:#fff;font-size:27px;font-weight:500;white-space:nowrap;box-shadow:0 1px 2px rgba(28,27,25,.08),0 0 0 1px rgba(28,27,25,.07),0 14px 30px -14px rgba(28,27,25,.25);display:flex;gap:14px;align-items:center}
+.pill .mono{font-size:20px;color:var(--muted)}
+.qc{position:absolute;padding:12px 20px;border-radius:999px;background:#F7F6F3;border:1.5px solid var(--line);font-size:22px;font-weight:500;display:flex;gap:10px;align-items:center;white-space:nowrap}
+.qc b{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px}
+#grain{position:absolute;inset:-100px;pointer-events:none;opacity:.07;mix-blend-mode:overlay}
+</style></head>
+<body><div id="stage">
+  <div id="bgLight" class="abs" style="inset:0;background:var(--canvas)"></div>
+  <div id="glow" class="abs" style="width:1400px;height:1400px;border-radius:50%;background:radial-gradient(circle,rgba(234,88,12,.16),rgba(234,88,12,0) 60%);left:260px;top:-160px"></div>
+
+  <!-- A: hook -->
+  <div id="sA" class="scene">
+    <div id="l1" class="abs" style="left:0;right:0;top:440px;text-align:center;font-size:104px;font-weight:600;letter-spacing:-.035em;color:#F4F3EF">
+      <span class="word">Your </span><span class="word">customers </span><span class="word">stopped </span><span class="word" id="srch" style="position:relative">searching.<span id="strike" class="abs" style="left:-6px;top:56%;height:10px;background:var(--accent);border-radius:6px;width:0"></span></span>
+    </div>
+    <div id="l2" class="abs" style="left:0;right:0;top:360px;text-align:center;color:#F4F3EF;white-space:nowrap">
+      <span id="l2a" style="display:inline-block;font-size:190px;font-weight:600;letter-spacing:-.045em;margin-right:46px">They ask</span><span id="l2b" class="serif" style="display:inline-block;font-style:italic;font-size:250px;color:var(--accent);letter-spacing:-.01em">AI.</span>
+    </div>
+    <div class="chip" id="c0" style="left:250px;top:200px"><i></i>ChatGPT</div>
+    <div class="chip" id="c1" style="left:1420px;top:250px"><i></i>Perplexity</div>
+    <div class="chip" id="c2" style="left:330px;top:790px"><i></i>AI Overviews</div>
+    <div class="chip" id="c3" style="left:1380px;top:800px"><i></i>Claude</div>
+  </div>
+
+  <div id="w1" class="abs" style="border-radius:50%;background:var(--accent)"></div>
+  <div id="w2" class="abs" style="border-radius:50%;background:var(--canvas)"></div>
+  <!-- B: logo -->
+  <div id="sB" class="scene">
+    <div id="logoGrp" class="abs" style="left:0;right:0;top:330px;height:260px">
+      <svg id="mark" class="abs" viewBox="0 0 40 40" width="240" height="240" style="left:840px;top:10px">
+        <rect width="40" height="40" rx="10" fill="#111214"/>
+        <path id="markA" d="M11 30L20 11l9 19" fill="none" stroke="#fff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle id="markDot" cx="20" cy="24.5" r="2.6" fill="#EA580C"/>
+      </svg>
+      <div id="wordWrap" class="abs" style="left:900px;top:0;height:260px;overflow:hidden;width:900px">
+        <div id="wordmark" style="font-size:200px;font-weight:600;letter-spacing:-.055em;line-height:250px;white-space:nowrap"></div>
+      </div>
+    </div>
+    <div id="tag" class="abs serif" style="left:0;right:0;top:640px;text-align:center;font-size:80px;color:#44403C"></div>
+  </div>
+
+  <!-- header -->
+  <div id="hdr" class="abs" style="left:80px;top:60px;display:flex;align-items:center;gap:16px">
+    <svg viewBox="0 0 40 40" width="52" height="52"><rect width="40" height="40" rx="10" fill="#111214"/><path d="M11 30L20 11l9 19" fill="none" stroke="#fff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="20" cy="24.5" r="2.6" fill="#EA580C"/></svg>
+    <span style="font-size:34px;font-weight:600;letter-spacing:-.04em">autorank</span>
+  </div>
+  <div id="prog" class="abs" style="right:80px;top:72px;display:flex;gap:12px">
+    <div class="abs" style="right:0;top:0"></div>
+  </div>
+
+  <!-- C: analyze -->
+  <div id="sC" class="scene">
+    <div class="abs" style="left:140px;top:330px">
+      <div class="steplab" id="cLab">01 — ANALYZE</div>
+      <div class="big" id="cBig" style="margin-top:18px">Reads your<br><i>business.</i></div>
+      <div class="sub" id="cSub" style="margin-top:34px">Your site, your market and every competitor ranking above you.</div>
+    </div>
+    <div class="card" id="cCard" style="left:930px;top:200px;width:860px;height:700px">
+      <div class="abs" style="left:40px;top:40px;right:40px;height:92px;border-radius:20px;background:#F7F6F3;border:1.5px solid var(--line);display:flex;align-items:center;padding:0 28px;gap:18px">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#8C887F" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>
+        <span id="url" style="font-size:36px;font-weight:500"></span><span id="caret" style="width:3px;height:40px;background:var(--ink);display:inline-block;margin-left:-14px"></span>
+        <div id="goBtn" style="margin-left:auto;background:var(--ink);color:#fff;font-size:26px;font-weight:600;padding:16px 30px;border-radius:14px">Analyze</div>
+      </div>
+      <div id="prev" class="abs" style="left:40px;top:172px;width:370px;height:488px;border-radius:20px;border:1.5px solid var(--line);overflow:hidden;background:#FBFAF7">
+        <div class="skel" style="left:24px;top:24px;width:120px;height:20px"></div>
+        <div class="skel" style="left:24px;top:70px;width:322px;height:150px;background:#E9E6DE"></div>
+        <div class="skel" style="left:24px;top:244px;width:280px;height:22px"></div>
+        <div class="skel" style="left:24px;top:282px;width:300px;height:16px"></div>
+        <div class="skel" style="left:24px;top:310px;width:250px;height:16px"></div>
+        <div class="skel" style="left:24px;top:350px;width:150px;height:110px"></div>
+        <div class="skel" style="left:196px;top:350px;width:150px;height:110px"></div>
+        <div id="scanTint" class="abs" style="left:0;right:0;top:0;height:0;background:linear-gradient(180deg,rgba(234,88,12,0),rgba(234,88,12,.12))"></div>
+        <div id="scan" class="abs" style="left:0;right:0;height:4px;background:var(--accent);box-shadow:0 0 30px 8px rgba(234,88,12,.5);top:-10px"></div>
+      </div>
+      <div class="abs" style="left:450px;top:172px;width:370px;height:488px">
+        <svg id="ring" width="250" height="250" class="abs" style="left:60px;top:0">
+          <circle cx="125" cy="125" r="108" stroke="#EFEDE8" stroke-width="22" fill="none"/>
+          <circle id="ringFg" cx="125" cy="125" r="108" stroke="#EA580C" stroke-width="22" fill="none" stroke-linecap="round" transform="rotate(-90 125 125)" stroke-dasharray="678.6" stroke-dashoffset="678.6"/>
+        </svg>
+        <div id="score" class="abs" style="left:60px;top:68px;width:250px;text-align:center;font-size:96px;font-weight:600;letter-spacing:-.04em">0</div>
+        <div class="abs mono" style="left:60px;top:178px;width:250px;text-align:center;font-size:20px;color:var(--muted);letter-spacing:.1em">GEO SCORE</div>
+        <div id="metrics"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- D: plan -->
+  <div id="sD" class="scene">
+    <div class="abs" style="left:140px;top:330px">
+      <div class="steplab" id="dLab">02 — PLAN</div>
+      <div class="big" id="dBig" style="margin-top:18px">Maps every<br><i>question.</i></div>
+      <div class="sub" id="dSub" style="margin-top:34px">Pillar and cluster keywords your competitors missed.</div>
+    </div>
+    <svg id="lines" class="abs" width="1920" height="1080" style="left:0;top:0"></svg>
+    <div id="pillar" class="abs" style="left:1385px;top:560px;transform:translate(-50%,-50%);background:var(--ink);color:#fff;border-radius:28px;padding:30px 40px;text-align:center;box-shadow:0 30px 60px -20px rgba(17,18,20,.5)">
+      <div class="mono" style="font-size:20px;color:var(--accent2);letter-spacing:.12em">PILLAR</div>
+      <div class="serif" style="font-size:54px;line-height:1.05;margin-top:6px;white-space:nowrap">Roof replacement</div>
+    </div>
+    <div id="pills"></div>
+  </div>
+
+  <!-- E: write & publish -->
+  <div id="sE" class="scene">
+    <div class="abs" style="left:140px;top:330px">
+      <div class="steplab" id="eLab">03 — WRITE &amp; PUBLISH</div>
+      <div class="big" id="eBig" style="margin-top:18px">Ships while<br><i>you sleep.</i></div>
+      <div class="sub" id="eSub" style="margin-top:34px">Sourced, answer-first articles. A new one every day.</div>
+    </div>
+    <div class="card" id="eCard" style="left:900px;top:170px;width:900px;height:560px;overflow:visible">
+      <div id="cover" class="abs" style="left:36px;top:36px;width:300px;height:300px;border-radius:20px;background:var(--ink);overflow:hidden">
+        <div class="abs" style="width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(234,88,12,.55),rgba(234,88,12,0) 65%);right:-170px;bottom:-190px"></div>
+        <div id="coverT" class="abs serif" style="left:26px;right:26px;bottom:26px;color:#F4F3EF;font-size:44px;line-height:1.02">How long does a roof really last?</div>
+        <div class="abs mono" style="left:26px;top:24px;color:#8C887F;font-size:16px;letter-spacing:.1em">YOURBUSINESS.COM</div>
+      </div>
+      <div class="abs" style="left:372px;top:40px;right:36px">
+        <div class="mono" style="font-size:18px;color:var(--muted);letter-spacing:.1em">ARTICLE · 2,140 WORDS</div>
+        <div id="artT" class="serif" style="font-size:52px;line-height:1.02;margin-top:12px;height:110px"></div>
+      </div>
+      <div id="body"></div>
+      <div id="qcs"></div>
+      <div id="stamp" class="abs" style="right:-40px;top:-46px;border:5px solid var(--accent);color:var(--accent);background:#fff;border-radius:20px;padding:14px 30px;font-size:44px;font-weight:700;letter-spacing:.02em;display:flex;gap:14px;align-items:center;box-shadow:0 20px 40px -16px rgba(234,88,12,.5)">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#EA580C" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Published
+      </div>
+    </div>
+    <div class="card" id="cal" style="left:900px;top:770px;width:900px;height:150px;border-radius:26px">
+      <div id="days"></div>
+    </div>
+  </div>
+
+  <!-- F: cited -->
+  <div id="sF" class="scene">
+    <div id="fHead" class="abs" style="left:0;right:0;top:110px;text-align:center"><span class="big" style="font-size:120px">And AI <i style="color:var(--accent)">cites you.</i></span></div>
+    <div id="q" class="abs" style="right:420px;top:330px;background:var(--ink);color:#fff;font-size:40px;font-weight:500;padding:26px 40px;border-radius:36px 36px 8px 36px">Who's the best roofer near me?</div>
+    <div class="card" id="ans" style="left:420px;top:460px;width:1080px;height:440px;border-radius:36px">
+      <div class="abs" style="left:48px;top:44px;display:flex;align-items:center;gap:14px">
+        <svg width="40" height="40" viewBox="0 0 24 24"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z" fill="#EA580C"/></svg>
+        <span class="mono" style="font-size:22px;color:var(--muted);letter-spacing:.12em">AI ANSWER</span>
+      </div>
+      <div id="ansT" class="abs" style="left:48px;right:48px;top:104px;font-size:42px;line-height:1.36;font-weight:400;color:#292524"></div>
+      <div id="cite" class="abs" style="left:48px;top:330px;display:flex;align-items:center;gap:14px;padding:14px 26px 14px 14px;border-radius:999px;background:#FFF4ED;border:2px solid var(--accent)">
+        <span style="width:44px;height:44px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:24px">1</span>
+        <span style="font-size:30px;font-weight:600;color:#9A3412">yourbusiness.com</span>
+      </div>
+      <div id="citeRing" class="abs" style="left:48px;top:330px;width:330px;height:76px;border-radius:999px;border:3px solid var(--accent)"></div>
+    </div>
+  </div>
+
+  <!-- wipes -->
+  <div id="w3" class="abs" style="border-radius:50%;background:var(--accent)"></div>
+  <div id="w4" class="abs" style="border-radius:50%;background:var(--ink)"></div>
+
+  <!-- G: end card -->
+  <div id="sG" class="scene">
+    <div class="abs" style="width:1600px;height:1600px;border-radius:50%;background:radial-gradient(circle,rgba(234,88,12,.22),rgba(234,88,12,0) 60%);left:160px;top:-260px"></div>
+    <div id="gLogo" class="abs" style="left:0;right:0;top:300px;display:flex;justify-content:center;align-items:center;gap:40px">
+      <svg viewBox="0 0 40 40" width="190" height="190"><rect width="40" height="40" rx="10" fill="#F4F3EF"/><path id="gA" d="M11 30L20 11l9 19" fill="none" stroke="#111214" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/><circle id="gDot" cx="20" cy="24.5" r="2.6" fill="#EA580C"/></svg>
+      <span style="font-size:180px;font-weight:600;letter-spacing:-.055em;color:#F4F3EF;line-height:1">autorank</span>
+    </div>
+    <div id="gTag" class="abs" style="left:0;right:0;top:560px;text-align:center;color:#D6D3CD;font-size:66px"><span class="serif">Get found — and cited — by </span><span class="serif" style="font-style:italic;color:var(--accent2)">AI search.</span></div>
+    <div id="gCta" class="abs" style="left:50%;top:730px;transform:translateX(-50%);background:var(--accent);color:#fff;font-size:38px;font-weight:600;padding:26px 54px;border-radius:999px;white-space:nowrap;box-shadow:0 20px 50px -14px rgba(234,88,12,.7)">Start your 5-day free trial  →</div>
+    <div id="gSmall" class="abs mono" style="left:0;right:0;top:860px;text-align:center;color:#8C887F;font-size:26px;letter-spacing:.08em">3 FREE ARTICLES · AUTORANK-AI.COM</div>
+  </div>
+
+  <svg id="grain" width="2120" height="1280"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(#n)"/></svg>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+const seg=(t,a,b)=>clamp((t-a)/(b-a));
+const lerp=(a,b,p)=>a+(b-a)*p;
+const eo=p=>1-Math.pow(1-p,3);
+const eo5=p=>1-Math.pow(1-p,5);
+const eio=p=>p<.5?4*p*p*p:1-Math.pow(-2*p+2,3)/2;
+const ei=p=>p*p*p;
+const back=(p,s=1.7)=>{const c=s+1;return 1+c*Math.pow(p-1,3)+s*Math.pow(p-1,2)};
+const spring=p=>p>=1?1:1-Math.exp(-6*p)*Math.cos(p*Math.PI*3.2);
+function st(el,o){for(const k in o)el.style[k]=o[k]}
+function vis(el,on){el.style.display=on?'':'none'}
+
+// build dynamic content
+const wm='autorank';$('wordmark').innerHTML=[...wm].map(c=>`<span class="word">${c}</span>`).join('');
+const tagWords='Grow your organic traffic on autopilot.'.split(' ');
+$('tag').innerHTML=tagWords.map(w=>`<span class="word">${w==='autopilot.'?'<i style="color:#EA580C">autopilot.</i>':w} </span>`).join('');
+const metrics=[['Competitors analyzed','12',.9],['Keyword gaps found','48',.72],['AI visibility','High',.84]];
+$('metrics').innerHTML=metrics.map((m,i)=>`<div class="abs" style="left:0;right:0;top:${290+i*68}px"><div style="display:flex;justify-content:space-between;font-size:24px;font-weight:500"><span style="color:#57534E">${m[0]}</span><span class="mv" data-v="${m[1]}">${m[1]}</span></div><div style="margin-top:10px;height:10px;border-radius:6px;background:#EFEDE8;overflow:hidden"><div class="mb" style="height:100%;width:0;background:${i==2?'#EA580C':'#111214'};border-radius:6px"></div></div></div>`).join('');
+const kws=[['roof replacement cost','2.4k'],['metal vs shingle roof','1.9k'],['signs you need a new roof','3.1k'],['storm damage insurance claim','1.2k'],['how long does a roof last','5.6k'],['roof repair or replace?','880']];
+const cx=1385,cy=560;
+const off=[[-250,-205],[230,-245],[0,-345],[-235,215],[245,240],[10,345]];const pos=off.map(o=>[cx+o[0],cy+o[1],Math.atan2(o[1],o[0])]);
+$('pills').innerHTML=kws.map((k,i)=>`<div class="pill" id="p${i}">${k[0]}<span class="mono">${k[1]}</span></div>`).join('');
+$('lines').innerHTML=pos.map((p,i)=>`<line id="ln${i}" x1="${cx}" y1="${cy}" x2="${p[0]}" y2="${p[1]}" stroke="#CFCAC0" stroke-width="3" stroke-dasharray="8 10"/>`).join('');
+const bodyW=[470,440,480,300,460,410];
+$('body').innerHTML=bodyW.map((w,i)=>`<div class="abs bl" style="left:372px;top:${178+i*30}px;height:14px;border-radius:8px;background:${i==3?'#F0EEE9':'#E9E6DE'};width:0"></div>`).join('');
+const qcs=['Answer-first','Sources verified','FAQ + schema','Keyword budget'];
+const qx=[36,272,536,750];
+$('qcs').innerHTML=qcs.map((q,i)=>`<div class="qc" id="q${i}" style="left:${[36,250,510][i%3]+(i==3?0:0)}px;top:${i<3?380:460}px"><b>✓</b>${q}</div>`).join('');
+const dn=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+$('days').innerHTML=dn.map((d,i)=>`<div class="abs" style="left:${40+i*120}px;top:26px;width:100px;text-align:center"><div class="mono" style="font-size:18px;color:#8C887F;letter-spacing:.08em">${d.toUpperCase()}</div><div class="dd" style="margin:14px auto 0;width:56px;height:56px;border-radius:16px;border:2px dashed #CFCAC0;display:flex;align-items:center;justify-content:center"><div class="di" style="width:56px;height:56px;border-radius:16px;background:#111214;transform:scale(0);display:flex;align-items:center;justify-content:center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div></div></div>`).join('');
+const ansWords='Top-rated near you is Your Business — known for transparent pricing and fast storm-damage repairs.'.split(' ');
+$('ansT').innerHTML=ansWords.map(w=>`<span class="word">${(w==='Your'||w==='Business')?'<b style="font-weight:600;color:#111214;background:linear-gradient(transparent 62%,rgba(234,88,12,.25) 62%)">'+w+'</b>':w} </span>`).join('');
+const markA=$('markA'),gA=$('gA');const Alen=markA.getTotalLength();
+[markA,gA].forEach(p=>{p.style.strokeDasharray=Alen;});
+
+function wipe(el,t,a,b,x,y){const p=eio(seg(t,a,b));const r=p*2300;st(el,{left:(x-r)+'px',top:(y-r)+'px',width:2*r+'px',height:2*r+'px',display:(p>0&&p<1)||(p>=1&&t<b+0.0001)?'':'none'});return p}
+function blurIn(el,p,dy=50,sc=null){st(el,{opacity:p,transform:`translateY(${(1-p)*dy}px)`+(sc!=null?` scale(${sc})`:''),filter:`blur(${(1-p)*10}px)`})}
+
+window.renderAt=function(t){
+  // ---------- backgrounds
+  const light=t>=2.62&&t<13.62;
+  vis($('bgLight'),light);
+  vis($('glow'),light); st($('glow'),{transform:`translate(${Math.sin(t*.7)*80}px,${Math.cos(t*.5)*60}px)`});
+  $('grain').style.transform=`translate(${(Math.floor(t*24)*37)%100-50}px,${(Math.floor(t*24)*53)%100-50}px)`;
+
+  // ---------- A
+  const onA=t<2.9; vis($('sA'),onA);
+  if(onA){
+    const ws=$('l1').querySelectorAll('.word');
+    ws.forEach((w,i)=>{const p=eo(seg(t,.12+i*.13,.12+i*.13+.5));blurIn(w,p,70)});
+    $('strike').style.width=(eio(seg(t,.85,1.1))*104)+'%';
+    const out=eio(seg(t,1.18,1.42));
+    st($('l1'),{opacity:1-out,transform:`translateY(${-out*120}px) scale(${1-out*.15})`,filter:`blur(${out*14}px)`});
+    const pa=eo5(seg(t,1.25,1.65)),pb=back(seg(t,1.34,1.72),1.4);
+    st($('l2a'),{opacity:pa,transform:`translateX(${(1-pa)*-120}px)`,filter:`blur(${(1-pa)*12}px)`});
+    st($('l2b'),{opacity:clamp(seg(t,1.34,1.5)),transform:`scale(${lerp(2.2,1,pb)}) rotate(${(1-pb)*-8}deg)`,transformOrigin:'40% 60%'});
+    const zoom=eio(seg(t,2.1,2.7));
+    st($('l2'),{opacity:t>1.2?1:0,transform:`scale(${1+(t-1.3)*.03+zoom*.5})`});
+    for(let i=0;i<4;i++){const c=$('c'+i);const p=back(seg(t,1.62+i*.12,1.98+i*.12),2.2);
+      const fl=Math.sin(t*2.4+i*1.7)*10;
+      st(c,{opacity:clamp(p*3)*(1-zoom),transform:`translate(${(i%2?1:-1)*zoom*300}px,${fl+(i<2?-1:1)*zoom*200}px) scale(${p})`});}
+  }
+  const ax=1305,ay=520;
+  wipe($('w1'),t,2.25,2.7,ax,ay);
+  wipe($('w2'),t,2.36,2.82,ax,ay);
+
+  // ---------- B
+  const onB=t>=2.4&&t<4.75; vis($('sB'),onB);
+  if(onB){
+    const ms=spring(seg(t,2.55,3.35));
+    const slide=eio(seg(t,3.2,3.6));
+    st($('mark'),{transform:`translateX(${-slide*420}px) scale(${ms}) rotate(${(1-ms)*-25}deg)`});
+    markA.style.strokeDashoffset=Alen*(1-eio(seg(t,2.75,3.1)));
+    const dp=back(seg(t,3.06,3.3),3);$('markDot').setAttribute('r',2.6*dp);
+    st($('wordWrap'),{transform:`translateX(${-slide*420+0}px)`,left:'1140px'});
+    $('wordmark').querySelectorAll('.word').forEach((w,i)=>{const p=eo5(seg(t,3.3+i*.04,3.75+i*.04));st(w,{transform:`translateY(${(1-p)*260}px)`})});
+    $('tag').querySelectorAll('.word').forEach((w,i)=>{const p=eo(seg(t,3.62+i*.07,4.1+i*.07));blurIn(w,p,40)});
+    const ex=eio(seg(t,4.38,4.72));
+    st($('sB'),{opacity:1-ex,transform:`scale(${1+(t-2.6)*.025-ex*.08})`,filter:`blur(${ex*12}px)`});
+  }
+
+  // ---------- header + progress
+  const hp=eo(seg(t,4.45,4.85))*(1-eo(seg(t,11.9,12.15)));
+  st($('hdr'),{opacity:hp,transform:`translateY(${(1-hp)*-30}px)`});vis($('hdr'),hp>0);
+
+  // step title helper
+  function title(pref,t0,t1){
+    const lab=$(pref+'Lab'),big=$(pref+'Big'),sub=$(pref+'Sub');
+    const ex=eio(seg(t,t1-.28,t1));
+    const p1=eo5(seg(t,t0,t0+.45)),p2=eo5(seg(t,t0+.08,t0+.6)),p3=eo(seg(t,t0+.22,t0+.75));
+    st(lab,{opacity:p1*(1-ex),transform:`translateX(${(1-p1)*-60}px)`});
+    st(big,{opacity:p2*(1-ex),transform:`translateY(${(1-p2)*80-ex*60}px)`,filter:`blur(${((1-p2)+ex)*10}px)`});
+    st(sub,{opacity:p3*(1-ex),transform:`translateY(${(1-p3)*40-ex*40}px)`});
+    return ex;
+  }
+
+  // ---------- C (4.5-7.05)
+  const onC=t>=4.45&&t<7.1; vis($('sC'),onC);
+  if(onC){
+    const ex=title('c',4.5,7.05);
+    const cp=eo5(seg(t,4.55,5.05));
+    st($('cCard'),{opacity:clamp(cp*2)*(1-ex),transform:`translateY(${(1-cp)*160-ex*0}px) translateX(${ex*-200}px) rotate(${(1-cp)*4}deg) scale(${.96+cp*.04})`});
+    const u='yourbusiness.com';const n=Math.floor(clamp(seg(t,4.78,5.32))*u.length);
+    $('url').textContent=u.slice(0,n);
+    $('caret').style.opacity=(t<5.45&&Math.floor(t*4)%2==0)||(t>4.78&&t<5.32)?1:0;
+    const press=seg(t,5.36,5.5);$('goBtn').style.transform=`scale(${1-Math.sin(press*Math.PI)*.1})`;
+    $('goBtn').style.background=t>5.43?'#EA580C':'#111214';
+    const sc=eio(seg(t,5.45,5.98));
+    $('scan').style.top=(sc*488-2)+'px';$('scan').style.opacity=sc>0&&sc<1?1:0;
+    $('scanTint').style.height=(sc*488)+'px';$('scanTint').style.opacity=1-seg(t,6.0,6.4)*.6;
+    const rp=eo(seg(t,5.65,6.6));
+    $('ringFg').setAttribute('stroke-dashoffset',678.6*(1-rp*.94));
+    $('score').textContent=Math.round(rp*94);
+    const pop=back(seg(t,6.58,6.8),3);
+    $('score').style.transform=`scale(${t>6.58?1+(1-pop)*.25+ (pop-1)*0:1})`;
+    $('score').style.color=t>6.58?'#EA580C':'#111214';
+    document.querySelectorAll('#sC .mb').forEach((b,i)=>{b.style.width=(eo(seg(t,5.85+i*.14,6.5+i*.14))*metrics[i][2]*100)+'%'});
+    document.querySelectorAll('#sC .mv').forEach((b,i)=>{const p=seg(t,5.85+i*.14,6.5+i*.14);const v=metrics[i][1];b.textContent=isNaN(+v)?(p>.5?v:'…'):Math.round(eo(p)*+v)});
+  }
+
+  // ---------- D (7.0-9.55)
+  const onD=t>=6.95&&t<9.6; vis($('sD'),onD);
+  if(onD){
+    const ex=title('d',7.0,9.55);
+    const pp=back(seg(t,7.1,7.5),1.8);
+    st($('pillar'),{opacity:clamp(pp*2)*(1-ex),transform:`translate(-50%,-50%) scale(${pp*(1-ex*.3)})`});
+    const orbit=(t-7)*.06;
+    for(let i=0;i<kws.length;i++){
+      const a0=7.3+i*.14,p=back(seg(t,a0,a0+.42),1.6),pl=$('p'+i);
+      const tx=pos[i][0]+Math.sin(t*1.3+i*2)*10,ty=pos[i][1]+Math.cos(t*1.1+i*1.3)*8;
+      const fx=cx+Math.cos(pos[i][2])*1300,fy=cy+Math.sin(pos[i][2])*900;
+      const x=lerp(fx,tx,eo5(seg(t,a0,a0+.42))),y=lerp(fy,ty,eo5(seg(t,a0,a0+.42)));
+      const exs=eio(seg(t,9.25+i*.02,9.55));
+      st(pl,{left:x+'px',top:y+'px',transform:`translate(-50%,-50%) scale(${(.6+.4*clamp(p,0,1.2))*(1-exs)}) rotate(${(1-clamp(p))*(i%2?20:-20)}deg)`,opacity:clamp(seg(t,a0,a0+.15))*(1-exs)});
+      const ln=$('ln'+i);const lp=eo(seg(t,a0+.3,a0+.65))*(1-exs);
+      ln.setAttribute('x2',lerp(cx,tx,lp));ln.setAttribute('y2',lerp(cy,ty,lp));
+      ln.setAttribute('stroke-dashoffset',-t*40);ln.style.opacity=lp>0?1:0;
+      ln.setAttribute('stroke',i==4&&t>8.7?'#EA580C':'#CFCAC0');
+    }
+    // highlight the keyword we will write about
+    const hi=eo(seg(t,8.7,8.95));const p4=$('p4');
+    if(hi>0){p4.style.background=`rgb(${lerp(255,234,hi)},${lerp(255,88,hi)},${lerp(255,12,hi)})`;p4.style.color=hi>.5?'#fff':'';p4.querySelector('.mono').style.color=hi>.5?'#FED7AA':'';}
+    else{p4.style.background='#fff';p4.style.color='';p4.querySelector('.mono').style.color='';}
+  }
+
+  // ---------- E (9.5-12.05)
+  const onE=t>=9.45&&t<12.1; vis($('sE'),onE);
+  if(onE){
+    const ex=title('e',9.5,12.05);
+    const cp=eo5(seg(t,9.55,10.05));
+    st($('eCard'),{opacity:clamp(cp*2)*(1-ex),transform:`translateY(${(1-cp)*180}px) rotate(${(1-cp)*-3}deg)`});
+    const cvp=back(seg(t,9.75,10.15),1.5);
+    st($('cover'),{transform:`scale(${cvp})`,opacity:clamp(cvp*2)});
+    const title2='How long does a roof really last?';const n=Math.floor(eo(seg(t,9.95,10.5))*title2.length);
+    $('artT').textContent=title2.slice(0,n);
+    document.querySelectorAll('#sE .bl').forEach((b,i)=>{b.style.width=eo5(seg(t,10.15+i*.06,10.55+i*.06))*bodyW[i]/1+'px'; b.style.maxWidth=bodyW[i]+'px'});
+    for(let i=0;i<4;i++){const p=back(seg(t,10.5+i*.12,10.8+i*.12),2.4);st($('q'+i),{transform:`scale(${p})`,opacity:clamp(p*3)})}
+    const calp=eo5(seg(t,10.3,10.7));
+    st($('cal'),{opacity:clamp(calp*2)*(1-ex),transform:`translateY(${(1-calp)*120}px)`});
+    document.querySelectorAll('#sE .di').forEach((d,i)=>{const p=back(seg(t,10.7+i*.075,10.92+i*.075),2.6);d.style.transform=`scale(${p})`;d.style.background=i==6?'#EA580C':'#111214'});
+    const sp=seg(t,11.32,11.52);const s=sp<=0?0:lerp(2.4,1,eo5(sp));
+    st($('stamp'),{opacity:sp>0?clamp(sp*3):0,transform:`rotate(${-8+(1-eo(sp))*-14}deg) scale(${s})`});
+    // camera shake on stamp
+    const sh=t>11.45&&t<11.65?Math.sin((t-11.45)*90)*(1-seg(t,11.45,11.65))*8:0;
+    $('sE').style.transform=`translate(${sh}px,${sh*.6}px)`;
+  }
+
+  // ---------- F (12.0-13.6)
+  const onF=t>=11.95&&t<13.75; vis($('sF'),onF);
+  if(onF){
+    const hp2=eo5(seg(t,12.0,12.45));
+    st($('fHead'),{opacity:hp2,transform:`translateY(${(1-hp2)*70}px)`,filter:`blur(${(1-hp2)*10}px)`});
+    const qp=back(seg(t,12.12,12.45),1.8);
+    st($('q'),{opacity:clamp(qp*2),transform:`scale(${qp})`,transformOrigin:'100% 100%'});
+    const ap=eo5(seg(t,12.3,12.7));
+    st($('ans'),{opacity:clamp(ap*2),transform:`translateY(${(1-ap)*120}px)`});
+    $('ansT').querySelectorAll('.word').forEach((w,i)=>{const p=eo(seg(t,12.45+i*.035,12.7+i*.035));st(w,{opacity:p,filter:`blur(${(1-p)*6}px)`})});
+    const cp=back(seg(t,12.95,13.2),2.6);
+    st($('cite'),{transform:`scale(${cp})`,opacity:clamp(cp*3),transformOrigin:'0 50%'});
+    const rr=seg(t,13.05,13.55);
+    st($('citeRing'),{opacity:rr>0?(1-rr):0,transform:`scale(${1+eo(rr)*.35},${1+eo(rr)*1.1})`,transformOrigin:'50% 50%'});
+    const cam=eio(seg(t,12,13.7));
+    $('sF').style.transform=`scale(${1+cam*.04})`;
+  }
+  // wipe to end card from citation chip
+  wipe($('w3'),t,13.32,13.68,640,828);
+  wipe($('w4'),t,13.42,13.8,640,828);
+
+  // ---------- G (13.5-15)
+  const onG=t>=13.55; vis($('sG'),onG);
+  if(onG){
+    const lp=spring(seg(t,13.6,14.4));
+    st($('gLogo'),{transform:`scale(${.7+.3*lp})`,opacity:clamp(seg(t,13.6,13.8))});
+    gA.style.strokeDashoffset=Alen*(1-eio(seg(t,13.62,13.95)));
+    $('gDot').setAttribute('r',2.6*back(seg(t,13.9,14.1),3));
+    const tp=eo5(seg(t,13.95,14.4));blurIn($('gTag'),tp,40);
+    const cp=back(seg(t,14.15,14.5),2);
+    st($('gCta'),{opacity:clamp(cp*2),transform:`translateX(-50%) scale(${cp})`});
+    const sp=eo5(seg(t,14.35,14.7));blurIn($('gSmall'),sp,24);
+    st($('sG'),{transform:`scale(${1+(t-13.6)*.02})`});
+  }
+};
+const cr=$('cite').getBoundingClientRect();st($('citeRing'),{width:cr.width+'px',height:cr.height+'px'});
+window.renderAt(0);
+</script></body></html>

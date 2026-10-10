@@ -1,8 +1,15 @@
 
+// Free trial: card on file, $0 today, 5 days, then the $97/month plan unless cancelled (subscription trial).
+// VITE_STRIPE_TRIAL_URL in Vercel overrides it.
+export const getStripeTrialUrl = (userId: string, email: string) => {
+    const baseUrl = (import.meta as any).env?.VITE_STRIPE_TRIAL_URL || "https://buy.stripe.com/14AcN62dG8Qm7RGbDtdfG0g";
+    return `${baseUrl}?client_reference_id=${userId}&prefilled_email=${encodeURIComponent(email)}`;
+};
+
 export const getStripeCheckoutUrl = (userId: string, email: string) => {
-    // Payment Link for the monthly plan. Set VITE_STRIPE_CHECKOUT_URL in Vercel to the production link;
-    // the fallback below is the link the app has used so far (marked in the past as a $1 test link: check its price).
-    const baseUrl = (import.meta as any).env?.VITE_STRIPE_CHECKOUT_URL || "https://buy.stripe.com/9B6cN67y08Qmc7W4b1dfG0e";
+    // Payment Link for the Standard plan ($97/month, price_1UP01ZIUenQOhKtNuC89Gxac). VITE_STRIPE_CHECKOUT_URL in
+    // Vercel overrides it; keep the two in sync (the old $199 link 9B6cN67y08… is deactivated).
+    const baseUrl = (import.meta as any).env?.VITE_STRIPE_CHECKOUT_URL || "https://buy.stripe.com/6oU7sMf0sfeK9ZO9vldfG0f";
     
     // client_reference_id: passed to Stripe and returned in the webhook (crucial for identifying the user)
     // prefilled_email: purely for user convenience on the checkout page

@@ -46,7 +46,11 @@ interface ScheduledPost {
     publishedUrl?: string; wpPostId?: number | null; publishAttempts?: number; geoScore?: number; aiFeedback?: string[]; metaTitle?: string; metaDescription?: string; slug?: string;
 }
 interface CmsIntegration { id: string; businessId: string; platform: 'wordpress'; url: string; username: string; applicationPassword?: string; }
-interface UserProfile { id: string; planStatus: 'trial' | 'paid' | 'expired'; creditsRemaining?: number; }
+interface UserProfile { id: string; planStatus: 'trial' | 'paid' | 'expired'; creditsRemaining?: number; trialEndDate?: string | null; stripeCustomerId?: string | null; }
+// trial rules, same as utils/plan.ts: a new trial needs a card first; a card trial gets a day of grace past its end
+const trialEnded = (p: { planStatus?: string; trialEndDate?: string | null; stripeCustomerId?: string | null }) =>
+    p.planStatus === 'trial' && !!p.trialEndDate &&
+    (!p.stripeCustomerId || new Date(p.trialEndDate).getTime() + (p.stripeCustomerId ? 86_400_000 : 0) < Date.now());
 
 // --- Billing: one article = one credit (paid) or one of the free trial articles, charged when the article is
 // written. Articles written in the app were already charged there, so publishing them costs nothing here. ---
@@ -55,8 +59,9 @@ const TRIAL_ARTICLE_LIMIT = 3;
 /** Takes one article from the user's plan (compare-and-swap, so parallel runs cannot overdraw). Returns a refund. */
 const reserveArticle = async (db: any, userId: string): Promise<{ ok: true; refund: () => Promise<void> } | { ok: false; reason: string }> => {
     for (let attempt = 0; attempt < 4; attempt++) {
-        const { data: p } = await db.from('profiles').select('plan_status, credits_remaining, trial_articles_created').eq('id', userId).maybeSingle();
+        const { data: p } = await db.from('profiles').select('plan_status, credits_remaining, trial_articles_created, trial_end_date, stripe_customer_id').eq('id', userId).maybeSingle();
         if (!p) return { ok: false, reason: 'Could not read the user profile.' };
+        if (trialEnded({ planStatus: p.plan_status, trialEndDate: p.trial_end_date, stripeCustomerId: p.stripe_customer_id })) return { ok: false, reason: 'Free trial ended.' };
         const paid = p.plan_status === 'paid';
         if (p.plan_status !== 'paid' && p.plan_status !== 'trial') return { ok: false, reason: 'Subscription expired.' };
         if (paid && (p.credits_remaining ?? 0) < 1) return { ok: false, reason: 'No credits remaining.' };
@@ -419,7 +424,7 @@ Deno.serve(async (req: Request) => {
             if (processed >= MAX_POSTS_PER_RUN) break;
             const business = snakeToCamel<BusinessInfo>(businessRaw);
 
-            const profileResult = await supabaseAdmin.from('profiles').select('id, plan_status, credits_remaining').eq('id', businessRaw.user_id).single();
+            const profileResult = await supabaseAdmin.from('profiles').select('id, plan_status, credits_remaining, trial_end_date, stripe_customer_id').eq('id', businessRaw.user_id).single();
             if (profileResult.error || !profileResult.data) {
                 await log(business.id, 'error', 'Could not fetch user profile for business. Skipping publishing.');
                 continue;
@@ -446,6 +451,10 @@ Deno.serve(async (req: Request) => {
                 try {
                     if (profile.planStatus === 'expired') {
                         await log(business.id, 'error', `Subscription expired. Skipping "${post.keyword}".`);
+                        continue;
+                    }
+                    if (trialEnded(profile)) {
+                        await log(business.id, 'error', `Free trial ended or no card added yet. Skipping "${post.keyword}".`);
                         continue;
                     }
                     processed++;
