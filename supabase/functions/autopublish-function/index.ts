@@ -5,13 +5,14 @@
 // Deploy with verify_jwt = false and call it with header:  x-cron-secret: <CRON_SECRET>
 // Optional JSON body {"business_id": "...", "post_id": "..."} runs just that business/post (manual testing).
 //
-// Articles are written with web search so outside links point to real, credible sources; dead links are removed before publishing.
+// Articles are written with web search so outside links point to real, credible sources; links are checked against the search results and dead links are removed before publishing; a lint pass and one repair edit catch keyword stuffing and unsourced figures.
 // Images: each article gets a branded 1080x1080 cover from the web app's /api/cover (brand style saved on the
 // business, else read from its website, else a look chosen for the topic). Optional secret: APP_URL (defaults to
 // https://autorank-umber.vercel.app); the web app needs the same CRON_SECRET. If the cover fails, a Pexels stock
 // photo is used when PEXELS_API_KEY is set, otherwise the post publishes without an image.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Anthropic from 'npm:@anthropic-ai/sdk';
+import { SOURCE_RULES, TRUST_RULES, STRUCTURE_RULES, INTERNAL_LINK_RULES, ARTICLE_SEARCHES, keywordRules, buildRepairPrompt, buildSourcePassPrompt, needsSourcePass, sourceStats, stripFences, collectSearchUrls, verifyLinks, lintArticle, finalizeForPublish, FOCUS_RULES, RESEARCH_SEARCHES, ARTICLE_SEARCHES_WITH_BRIEF, buildResearchPrompt, researchBriefBlock, dropTitleH1 } from '../_shared/articleQuality.ts';
 
 const Deno = (globalThis as any).Deno;
 
@@ -61,31 +62,33 @@ const askJson = async (model: string, prompt: string, schema: Record<string, unk
     return JSON.parse(textOf(m));
 };
 
-/** Runs a prompt with web search, resuming paused turns; returns the text written after the last search step. */
-const runWithSearch = async (model: string, prompt: string, maxTokens: number, maxSearches: number, effort: 'low' | 'medium'): Promise<{ text: string; message: Anthropic.Message }> => {
+// Runs one prompt with web search; resumes when the turn pauses mid-search. Returns the text written after the last search step
+// (drops "let me search..." narration) and every URL the search returned.
+const askWithSearch = async (prompt: string, maxTokens: number, opts: { model?: string; searches?: number; effort?: 'low' | 'medium' } = {}): Promise<{ text: string; urls: string[] }> => {
     const messages: any[] = [{ role: 'user', content: prompt }];
     let message: Anthropic.Message | null = null;
+    const urls = new Set<string>();
     for (let i = 0; i <= 4; i++) {
         const stream = getClient().messages.stream({
-            model,
+            model: opts.model ?? MODEL_ARTICLE,
             max_tokens: maxTokens,
             messages,
-            output_config: { effort },
-            tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: maxSearches }],
+            output_config: { effort: opts.effort ?? 'medium' },
+            tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: opts.searches ?? ARTICLE_SEARCHES }],
         } as any);
         message = await stream.finalMessage();
+        collectSearchUrls(message.content as any[]).forEach(u => urls.add(u));
         if (message.stop_reason !== 'pause_turn') break;
         messages.push({ role: 'assistant', content: message.content });
     }
     if (!message) throw new Error('No response from model.');
-    // keep only the text written after the last search step (drops "let me search..." narration)
+    if (message.stop_reason === 'refusal') throw new Error('Article generation was declined by the model.');
     let text = '';
     for (const block of message.content as any[]) {
         if (block.type === 'text') text += block.text;
         else if (block.type !== 'thinking' && block.type !== 'redacted_thinking') text = '';
     }
-    console.log(JSON.stringify({ step: 'search-call', model, in: message.usage.input_tokens, out: message.usage.output_tokens }));
-    return { text: text.trim(), message };
+    return { text, urls: [...urls] };
 };
 
 /**
@@ -94,21 +97,15 @@ const runWithSearch = async (model: string, prompt: string, maxTokens: number, m
  */
 const researchContentGaps = async (keyword: string, business: BusinessInfo): Promise<string> => {
     try {
-        const { text } = await runWithSearch(MODEL_LIGHT, `You are an SEO researcher. Search for "${keyword}" and study the top 5-8 organic results (skip ads; a forum or Reddit thread in the results is a useful signal of what people still ask). Do not write the article. Write a private brief for the writer, plain text, under 450 words, with these parts:
-INTENT AND FORMAT: what the searcher wants and the format that ranks (guide, list, comparison, how-to), plus a typical length.
-MUST COVER: subtopics that most top results cover (short list).
-GAPS: what the top results miss or get wrong: unanswered questions, vague advice with no specifics, outdated facts or numbers, missing steps, examples, comparisons, tables, costs, safety points or edge cases. Be specific; this is the most important part.
-ANGLE: one or two ways our article can add something new (information gain), staying on what the searcher wants.
-SOURCES: up to 5 credible pages you found (government, university, standards bodies, manufacturers, well-known publications) as "URL - the fact it supports (year)". Only URLs exactly as they appeared in your search results.
-Context: the article is published by ${business.name} (${business.description}). Use that only to judge relevance, not to steer the topic.`, 2500, 3, 'low');
-        return text.length > 200 ? text : '';
+        const { text } = await askWithSearch(buildResearchPrompt(keyword, business.name, business.description), 2500, { model: MODEL_LIGHT, searches: RESEARCH_SEARCHES, effort: 'low' });
+        return text.trim().length > 200 ? text.trim() : '';
     } catch (e: any) {
         console.error('Gap research failed, writing without a brief:', e.message);
         return '';
     }
 };
 
-const generateArticleText = async (keyword: string, business: BusinessInfo): Promise<string> => {
+const generateArticleText = async (keyword: string, business: BusinessInfo): Promise<{ html: string; feedback: string[] }> => {
     const research = await researchContentGaps(keyword, business);
     const languageInstruction = business.language && business.language !== 'English'
         ? `\n**CRITICAL LANGUAGE REQUIREMENT:** The entire article MUST be written in ${business.language}.\n` : '';
@@ -117,10 +114,7 @@ const generateArticleText = async (keyword: string, business: BusinessInfo): Pro
     const prompt = `You are an expert-level SEO content writer specializing in GEO (Generative-Engine-Optimization) content.
 ${languageInstruction}
 **Topic:** "${keyword}"
-${research ? `\nRESEARCH BRIEF (private, from a study of the current top results; never mention it in the article):
-${research}
-
-Use the brief: cover everything under MUST COVER, make the GAPS and ANGLE the parts where this article clearly beats the current results, and match the format under INTENT AND FORMAT. URLs listed under SOURCES came from search results and may be cited; verify or add others with your own searches.\n` : ''}
+${research ? `\n${researchBriefBlock(research)}\n` : ''}
 **Primary Goal: E-E-A-T & User Intent**
 - **Current Year Reference:** Use "${year}". Do not use past years.
 - **E-E-A-T:** Demonstrate Experience, Expertise, Authoritativeness, and Trustworthiness. Be factual and objective. Do not invent statistics or sources.
@@ -130,49 +124,58 @@ Use the brief: cover everything under MUST COVER, make the GAPS and ANGLE the pa
 - **Direct Answer First:** Open with one or two sentences that directly answer the topic, then include a <div class="key-takeaways"><h3>Key Takeaways</h3><ul>...</ul></div>.
 - **Question-Based Headings:** Use <h2> headings phrased as questions.
 - **Structured Data:** Use lists and tables where helpful.
-- **Logical Flow:** Clean H2 -> H3 structure. Do NOT include an <h1>: the CMS prints the title as the H1.
+- **Logical Flow:** Clean H1 -> H2 -> H3 structure, exactly one <h1>.
 **SEO & Linking Requirements:**
-- Use the exact phrase "${keyword}" 3-6 times; elsewhere use natural variations. Never force it into a sentence.
-- Include 2-4 internal links to existing pages on ${business.url} that you found with your search tool (e.g. "site:${business.url} topic"): at least one product, service or category page and one related article if they exist. Never guess a URL; descriptive anchor text only. End with a specific call to action linking to the most relevant of those pages.
-- **Topic Focus:** Stay on what the searcher wants. Mention the business's niche only where it genuinely fits, in a sentence or two; never add sections or FAQ questions just to bring it in.
-- **Experience:** Where a real photo or first-hand note from the business would help, leave <!-- EDITOR: add a real photo or first-hand note here: what to show --> (1-2 max). Never invent experiences or results.
-- Prefer sources from the last 3 years; older ones only when they are the primary record (law, standard, official notice).
-- CREDIBLE SOURCES (strict): every statistic, number, study result, legal or regulatory claim must be backed by a source you found with your search tool, linked inline as <a href=\"URL\" target=\"_blank\" rel=\"noopener\">descriptive anchor text</a>. Use only URLs exactly as they appear in your search results; never guess or reconstruct a URL. Name the source and year in the sentence. Prefer government (.gov), universities (.edu), peer-reviewed research, official standards and industry bodies, and well-known publications or data providers. Avoid competitors, content farms, anonymous blogs, forums and social posts. Use 4 to 8 different outside sources. If you cannot find a credible source for a claim, remove it or state it as general guidance without numbers. Never invent statistics, quotes, studies or URLs. After the last section add <h2>Sources</h2> and a <ul> listing each linked source (publisher, title, year).
+${INTERNAL_LINK_RULES(business.url)}
+${keywordRules(keyword, 1900)}
+${SOURCE_RULES}
+${STRUCTURE_RULES}
+${FOCUS_RULES}
+${TRUST_RULES}
+- Include a dedicated FAQ section near the end (<h2>Frequently Asked Questions</h2>, each question as an <h3> followed by a short answer paragraph), then the Sources section.
 **Formatting and Style:**
-- Output clean HTML only (<h2>, <h3>, <p>, <a>, <ul>, <li>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <strong>). No <html>, <head>, <body>, no markdown, no code fences, no images or image placeholders.
-- Do not invent an author name or byline. Short paragraphs, no fluff.
+- Output clean HTML only (<h1>, <h2>, <h3>, <p>, <a>, <ul>, <li>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <strong>). No <html>, <head>, <body>, no markdown, no code fences, no images or image placeholders.
+- Short paragraphs, no fluff.
 **Business Integration:** Mention ${business.name} 2-3 times where it adds value. Informational tone.
 Output only the HTML of the article.`;
 
-    // Web search finds real sources; with a research brief the writer needs fewer searches of its own.
-    const { text, message } = await runWithSearch(MODEL_ARTICLE, prompt, 12000, research ? 3 : 5, 'medium');
-    if (message.stop_reason === 'refusal') throw new Error('Article generation was declined by the model.');
+    const { text: articleText, urls: found } = await askWithSearch(prompt, 12000, { searches: research ? ARTICLE_SEARCHES_WITH_BRIEF : ARTICLE_SEARCHES });
+    const searchUrls = new Set<string>(found);
+    let html = stripFences(articleText);
+    if (html.length < 200) throw new Error('Article generation returned an empty or too-short response.');
 
-    let html = text.trim().replace(/^```(?:html)?\s*/i, '').replace(/\s*```$/, '').trim();
-    if (html.length < 200) throw new Error(`Article generation returned an empty or too-short response (stop_reason: ${message.stop_reason}).`);
-    return await dropDeadLinks(html, business.url);
-};
+    // 1. drop links the search never returned, blocked hosts and dead pages; 2. lint; 3. one targeted repair if there are errors
+    let checked = (await verifyLinks(html, { ownUrl: business.url, searchUrls: [...searchUrls] })).html;
 
-// Removes outside links that no longer load (404/410 or unreachable) and keeps their text, so a published
-// article never points readers at a dead page. Sites that block bots (403/429/999) are left alone.
-const dropDeadLinks = async (html: string, ownUrl: string): Promise<string> => {
-    let ownHost = '';
-    try { ownHost = new URL(ownUrl.startsWith('http') ? ownUrl : `https://${ownUrl}`).hostname.replace(/^www\./, ''); } catch { /* no own host */ }
-    const urls = [...new Set([...html.matchAll(/<a\s[^>]*href=["'](https?:\/\/[^"']+)["']/gi)].map(m => m[1]))].slice(0, 20);
-    const dead = new Set<string>();
-    await Promise.all(urls.map(async (u) => {
+    // Too few outside sources (or the model said it had none): a dedicated pass that searches for them.
+    if (needsSourcePass(checked, business.url)) {
         try {
-            const host = new URL(u).hostname.replace(/^www\./, '');
-            if (!host.includes('.') || /^[\d.]+$/.test(host) || host === ownHost) return;
-            const res = await fetch(u, { redirect: 'follow', signal: AbortSignal.timeout(7000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AutorankLinkCheck/1.0)' } });
-            if (res.status === 404 || res.status === 410) dead.add(u);
-            await res.body?.cancel();
-        } catch (e: any) {
-            if (e?.name !== 'TimeoutError') dead.add(u); // DNS failure or refused; a slow site is kept
-        }
-    }));
-    if (!dead.size) return html;
-    return html.replace(/<a\s[^>]*href=["'](https?:\/\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (m, href, inner) => (dead.has(href) ? inner : m));
+            const pass = await askWithSearch(buildSourcePassPrompt(checked, keyword), 12000);
+            const candidate = stripFences(pass.text);
+            if (candidate.length > checked.length * 0.7 && /<h[12]/i.test(candidate)) {
+                pass.urls.forEach(u => searchUrls.add(u));
+                const verified = (await verifyLinks(candidate, { ownUrl: business.url, searchUrls: [...searchUrls] })).html;
+                if (sourceStats(verified, business.url).publishers >= sourceStats(checked, business.url).publishers) checked = verified;
+            }
+        } catch (e: any) { console.error('Source pass failed, keeping the article as written:', e.message); }
+    }
+    let { issues } = lintArticle(checked, { keyword, ownUrl: business.url, imagesAllowed: false });
+    const errors = issues.filter(i => i.severity === 'error');
+    if (errors.length) {
+        try {
+            const repair = await getClient().messages.create({
+                model: MODEL_ARTICLE, max_tokens: 12000,
+                messages: [{ role: 'user', content: buildRepairPrompt(checked, errors) }],
+                output_config: { effort: 'low' },
+            } as any);
+            const fixed = stripFences(textOf(repair));
+            if (fixed.length > checked.length * 0.7 && /<h[12]/i.test(fixed)) {
+                checked = (await verifyLinks(fixed, { ownUrl: business.url, searchUrls: [...searchUrls] })).html;
+                issues = lintArticle(checked, { keyword, ownUrl: business.url, imagesAllowed: false }).issues;
+            }
+        } catch (e: any) { console.error('Repair pass failed, keeping the article as written:', e.message); }
+    }
+    return { html: checked, feedback: issues.map(i => `${i.severity === 'error' ? 'Fix' : 'Improve'}: ${i.message}`) };
 };
 
 const analyzeArticleForGEO = async (articleContent: string, keyword: string) =>
@@ -321,8 +324,11 @@ const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost, busi
         console.error('Photo step failed, publishing without image:', photoError.message);
     }
     content = content.replace(/<p>\s*\[IMAGE_\d+\]\s*<\/p>/g, '').replace(/\[IMAGE_\d+\]/g, '');
-    // The theme prints the title as the H1: drop a leading body H1 and demote any other.
-    content = content.replace(/^\s*<h1[^>]*>[\s\S]*?<\/h1>\s*/i, '').replace(/<h1([^>]*)>([\s\S]*?)<\/h1>/gi, '<h2$1>$2</h2>').trim();
+    content = finalizeForPublish(content, {
+        headline: post.metaTitle || post.keyword, description: post.metaDescription, keyword: post.keyword,
+        businessName: business.name, businessUrl: business.url, imageUrl: featureImage?.url, language: business.language,
+    });
+    content = dropTitleH1(content); // the theme prints the title as the H1
 
     const response = await fetch(`${baseApiUrl}/posts`, {
         method: 'POST',
@@ -412,14 +418,15 @@ Deno.serve(async (req: Request) => {
 
                     if (!content || !content.trim()) {
                         await log(business.id, 'success', `Content not found for "${post.keyword}". Generating new article...`);
-                        const articleContent = await generateArticleText(post.keyword, business);
+                        const generated = await generateArticleText(post.keyword, business);
+                        const articleContent = generated.html;
                         const [analysis, meta] = await Promise.all([
                             analyzeArticleForGEO(articleContent, post.keyword),
                             generateMetaData(articleContent, post.keyword, business),
                         ]);
                         const updates = {
                             articleContent, status: 'draft',
-                            geoScore: analysis.geoScore, aiFeedback: analysis.aiFeedback,
+                            geoScore: analysis.geoScore, aiFeedback: [...generated.feedback, ...(analysis.aiFeedback || [])],
                             metaTitle: meta.metaTitle, metaDescription: meta.metaDescription,
                         };
                         const { error: updateError } = await supabaseAdmin.from('posts').update(camelToSnake(updates)).eq('id', post.id);

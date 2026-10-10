@@ -8,8 +8,8 @@ export interface ClaudeRequest {
     messages: { role: 'user' | 'assistant'; content: any }[];
     maxTokens?: number;
     webSearch?: boolean;
-    /** max web searches for this call (1-5, default 5) */
-    searches?: number;
+    /** searches allowed in this one request when webSearch is on (server default 5, max 10) */
+    maxSearches?: number;
     /** 'article' = a new article; uses one credit / free trial article */
     kind?: 'article';
     schema?: Record<string, unknown>;
@@ -34,6 +34,18 @@ const post = async (payload: unknown): Promise<any> => {
 /** Calls the /api/claude serverless function (which holds the Anthropic key). Returns the model's text. */
 export const callClaude = async (req: ClaudeRequest): Promise<string> => (await post(req)).text as string;
 
+/** Like callClaude, but also returns every URL the web search found (used to drop links the model made up). */
+export const callClaudeDetailed = async (req: ClaudeRequest): Promise<{ text: string; sources: string[]; searchErrors: string[] }> => {
+    const data = await post(req);
+    return { text: data.text as string, sources: Array.isArray(data.sources) ? data.sources : [], searchErrors: Array.isArray(data.searchErrors) ? data.searchErrors : [] };
+};
+
+export interface LinkCheck { html: string; removed: { url: string; reason: string }[]; kept: string[]; }
+
+/** Server-side check of the outside links in article HTML: removes links not found by search, blocked hosts and dead pages. */
+export const verifyArticleLinks = async (html: string, ownUrl: string, searchUrls: string[]): Promise<LinkCheck> =>
+    post({ action: 'verify-links', html, ownUrl, searchUrls });
+
 export interface CoverImage { base64: string; alt: string; width: number; height: number; bytes: number; layout: string; brandStyle?: Record<string, unknown> | null; }
 
 /** Designs a branded 1080x1080 cover (JPEG under 200 KB). `variant` > 0 gives a different layout. */
@@ -56,3 +68,12 @@ export interface StockPhoto { base64: string; alt: string; width: number; height
 /** Fetches a relevant stock photo (JPEG, under 200 KB) via the server. `variant` > 0 returns a different photo. */
 export const callStockPhoto = async (keyword: string, businessName: string, variant = 0): Promise<StockPhoto> =>
     post({ action: 'photo', keyword, businessName, variant });
+
+/** Reserves this business's one AI competitive analysis for the month. Throws (with the next available date) if it is used up. */
+export const reserveCompetitorAnalysis = async (businessId: string): Promise<{ previous: string | null }> =>
+    post({ action: 'competitor-quota', op: 'reserve', businessId });
+
+/** Gives the monthly analysis back (used when every research step failed). Best effort. */
+export const releaseCompetitorAnalysis = async (businessId: string, previous: string | null): Promise<void> => {
+    try { await post({ action: 'competitor-quota', op: 'release', businessId, previous }); } catch { /* best effort */ }
+};

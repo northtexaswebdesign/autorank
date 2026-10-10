@@ -140,7 +140,9 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
     const contextValue: AppContextType = {
         selectedBusiness, 
         updateBusiness: async (info) => {
-            await supabase.from('businesses').update(camelToSnake(info)).eq('id', info.id);
+            // competitorAnalyzedAt is server-managed (monthly limit); never written from the browser
+            const { competitorAnalyzedAt: _serverManaged, ...editable } = info;
+            await supabase.from('businesses').update(camelToSnake(editable)).eq('id', info.id);
             setSelectedBusiness(info);
         },
         createBusiness: async (info) => {
@@ -265,9 +267,9 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
         },
         analyzeCompetitors: async (onProgress) => {
             if (!selectedBusiness) return;
-            const analysis = await analyzeCompetitorsService(selectedBusiness, onProgress);
+            const analysis = await analyzeCompetitorsService(selectedBusiness, onProgress); // throws if the monthly limit is used or every step failed
             if (analysis) {
-                await contextValue.updateBusiness({ ...selectedBusiness, competitorAnalysis: analysis });
+                await contextValue.updateBusiness({ ...selectedBusiness, competitorAnalysis: analysis, competitorAnalyzedAt: new Date().toISOString() });
             }
         },
         generateAndStoreKeywords: async (language) => {

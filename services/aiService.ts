@@ -1,7 +1,8 @@
 import { BusinessInfo, Keyword, ContentCluster, CompetitorAnalysis, CmsIntegration, ScheduledPost, PostImages, GeneratedImage, ContentBrief, KeywordOpportunity } from "../types.ts";
 import { uploadImageFromBase64 } from '../utils/imageStorage.ts';
 
-import { callClaude, callCover } from './claudeClient.ts';
+import { callClaude, callClaudeDetailed, callCover, verifyArticleLinks, reserveCompetitorAnalysis, releaseCompetitorAnalysis } from './claudeClient.ts';
+import { SOURCE_RULES, TRUST_RULES, STRUCTURE_RULES, INTERNAL_LINK_RULES, ARTICLE_SEARCHES, keywordRules, buildRepairPrompt, buildSourcePassPrompt, needsSourcePass, sourceStats, stripFences, lintArticle, finalizeForPublish, FOCUS_RULES, RESEARCH_SEARCHES, ARTICLE_SEARCHES_WITH_BRIEF, buildResearchPrompt, researchBriefBlock, dropTitleH1, type LintIssue } from '../supabase/functions/_shared/articleQuality.ts';
 
 // Articles get one branded cover (1080x1080 JPEG under 200 KB, made by /api/cover) as the featured/first image.
 // It uses the business's brand style, else colours read from its website, else a look Claude picks for the topic.
@@ -218,7 +219,7 @@ List 45 candidate keywords in ${language}. Cover every main product or service l
             const step2 = await callClaude({
                 tier: 'fast',
                 webSearch: true,
-                searches: 5,
+                maxSearches: 5,
                 maxTokens: 4000,
                 messages: [{ role: 'user', content: `You are an SEO strategist vetting keyword candidates in ${language} for this business:
 ${context}
@@ -263,7 +264,7 @@ export const suggestContentCluster = async (targetKeyword: string, business: Bus
         const responseText = await callClaude({
             tier: 'fast',
             webSearch: true,
-            searches: 2,
+            maxSearches: 2,
             maxTokens: 2500,
             messages: [{ role: 'user', content: `You are an SEO strategist building a topic cluster around "${targetKeyword}".
 ${keywordContext(business, existing)}
@@ -293,92 +294,133 @@ Reply with ONLY this JSON, no other text: {"pillar":"...","clusters":["...","...
     }
 };
 
+const MAX_COMPETITORS = 6;
+
+/** Researches one competitor with its own search budget. Never throws; an unverified result says so. */
+const researchCompetitor = async (business: BusinessInfo, url: string): Promise<CompetitorAnalysis['analysis'][number]> => {
+    const unverified = (why: string) => ({ url, strengths: [], weaknesses: [], contentStrategySummary: `Could not research this competitor (${why}). Try again, or check the site directly.` });
+    const request = () => callClaudeDetailed({
+        tier: 'smart',
+        webSearch: true,
+        maxSearches: 6,
+        maxTokens: 3000,
+        messages: [{ role: 'user', content: `Research one competitor of ${business.name} (${business.description}): ${url}
+
+Use web search to look at what this site actually publishes: its blog or resources, topics covered, content formats, how often it posts, how it presents products or services, and how well it appears to target search and AI answers. Use at most 5 searches. Base every point on what you found; if something could not be verified, say so rather than guessing.
+
+Return ONLY a JSON object (no markdown fences, no commentary):
+{ "url": "${url}", "strengths": ["3-4 specific points"], "weaknesses": ["3-4 specific gaps ${business.name} could exploit"], "contentStrategySummary": "2-3 sentences on their content strategy" }` }],
+    });
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            const { text, searchErrors } = await request();
+            if (searchErrors.length && attempt === 0 && searchErrors.some(e => /too_many_requests|max_uses|unavailable/.test(e))) continue; // search was throttled; one retry
+            const data = JSON.parse(cleanAIResponse(text || '{}'));
+            if (!Array.isArray(data.strengths) || !data.contentStrategySummary) throw new Error('incomplete');
+            return { url, strengths: data.strengths, weaknesses: Array.isArray(data.weaknesses) ? data.weaknesses : [], contentStrategySummary: data.contentStrategySummary };
+        } catch (e: any) {
+            if (attempt === 1) { console.error(`Competitor research failed for ${url}:`, e?.message); return unverified('the research step failed'); }
+        }
+    }
+    return unverified('web search was unavailable');
+};
+
+/**
+ * AI competitive analysis. Limited to 1 per business per calendar month (enforced by /api/claude).
+ * Throws when the limit is used up or when every research step failed (the run is then given back), so the
+ * caller never overwrites an existing report with an error message.
+ */
 export const analyzeCompetitors = async (
     business: BusinessInfo, 
     onProgress: (progress: { value: number; text: string }) => void
 ): Promise<CompetitorAnalysis> => {
-    onProgress({ value: 10, text: "Scanning competitor domains..." });
-    const competitors = business.competitors.join(', ');
+    const competitors = (business.competitors || []).map(c => c.trim()).filter(Boolean).slice(0, MAX_COMPETITORS);
+    if (!competitors.length) throw new Error('Add at least one competitor URL in Business Info, then run the analysis again.');
+
+    onProgress({ value: 5, text: "Checking this month's analysis limit..." });
+    const { previous } = await reserveCompetitorAnalysis(business.id); // throws with the next available date if used
 
     try {
-        const responseText = await callClaude({
-            tier: 'smart',
-            webSearch: true,
-            maxTokens: 6000,
-            messages: [{ role: 'user', content: `Perform a competitive analysis for ${business.name} against these competitors: ${competitors}.
-            Use web search to research their actual content strategies.
+        onProgress({ value: 10, text: "Scanning competitor domains..." });
+        // One request per competitor so each gets its own search budget (a single shared budget ran out after ~2 sites).
+        let done = 0;
+        const analysis = await Promise.all(competitors.map(async (url) => {
+            const result = await researchCompetitor(business, url);
+            onProgress({ value: 10 + Math.round((++done / competitors.length) * 70), text: `Researched ${done} of ${competitors.length} competitors...` });
+            return result;
+        }));
 
-            Return ONLY a JSON object (no markdown fences, no commentary) shaped exactly like:
-            {
-                "analysis": [{ "url": "competitor url", "strengths": ["..."], "weaknesses": ["..."], "contentStrategySummary": "..." }],
-                "strategicRecommendations": ["..."]
-            }` }]
-        });
+        const researched = analysis.filter(a => a.strengths.length > 0);
+        if (!researched.length) throw new Error('Competitor research failed for every site, so no report was made. This did not use up your monthly analysis; please try again in a minute.');
+
+        onProgress({ value: 85, text: "Building strategic recommendations..." });
+        let strategicRecommendations: string[] = [];
+        try {
+            const text = await callClaude({
+                tier: 'smart',
+                maxTokens: 1500,
+                messages: [{ role: 'user', content: `${business.name} (${business.description}) targets ${business.audience}. Here is research on its competitors:\n${JSON.stringify(researched)}\n\nGive 4-6 specific, actionable content-strategy recommendations that exploit these competitors' gaps. Use only what the research says.` }],
+                schema: { type: 'object', properties: { recommendations: { type: 'array', items: { type: 'string' } } }, required: ['recommendations'], additionalProperties: false },
+            });
+            strategicRecommendations = JSON.parse(cleanAIResponse(text)).recommendations || [];
+        } catch (e) { console.error('Competitor recommendations failed:', e); }
+        if (!strategicRecommendations.length) strategicRecommendations = ['Recommendations could not be generated this time; the competitor findings above are still valid.'];
 
         onProgress({ value: 100, text: "Analysis complete" });
-
-        try {
-            const data = JSON.parse(cleanAIResponse(responseText || '{}'));
-            return {
-                ...data,
-                analyzedAt: new Date().toISOString()
-            };
-        } catch (parseError) {
-            console.error("Failed to parse competitor analysis JSON:", parseError);
-            return {
-                analysis: [],
-                strategicRecommendations: ["Competitor analysis could not be parsed. Please try again."],
-                analyzedAt: new Date().toISOString()
-            };
-        }
-    } catch (apiError) {
-        console.error("Competitor analysis API call failed:", apiError);
+        return { analysis, strategicRecommendations, analyzedAt: new Date().toISOString() };
+    } catch (e) {
+        await releaseCompetitorAnalysis(business.id, previous);
         onProgress({ value: 100, text: "Analysis failed" });
-        return {
-            analysis: [],
-            strategicRecommendations: ["Competitor analysis failed due to a temporary API error. Please try again."],
-            analyzedAt: new Date().toISOString()
-        };
+        throw e;
     }
 };
 
 /**
- * Source rules shared by new articles and rewrites. The model has a web search tool, so every outside claim
- * must come from a page it actually found; links are copied from the search results, never guessed.
+ * Quality pass run on every generated or rewritten article:
+ *  1. drop outside links the web search never returned, blocked hosts and dead pages (server side);
+ *  2. lint (keyword stuffing, leaked text, unsourced figures, missing summary/FAQ/sources, meta lengths);
+ *  3. if there are errors, one targeted repair edit (no new facts or links), then lint again.
+ * Remaining findings come back as feedback lines for the editor panel. Never throws: on failure the article is returned as is.
  */
-const SOURCE_RULES = `CREDIBLE SOURCES (strict):
-    - Every statistic, number, study result, legal or regulatory claim, and "experts say" claim MUST be backed by a source you found with your search tool, linked inline as <a href="URL" target="_blank" rel="noopener">descriptive anchor text</a>. Use only URLs exactly as they appear in your search results. Never guess, shorten or reconstruct a URL.
-    - Name the source and year in the sentence, for example: According to the U.S. Bureau of Labor Statistics (2025), ...
-    - Prefer: government (.gov), universities (.edu), peer-reviewed research, official standards and industry bodies, major trade associations, and well-known publications or data providers (for example Google Search Central, Pew Research, Census Bureau, BLS, Nielsen Norman Group, Harvard Business Review).
-    - Avoid: competitors, content farms, anonymous blogs, press-release sites, forums and social posts.
-    - Use 4 to 8 different outside sources in total.
-    - If you cannot find a credible source for a claim, remove the claim or rewrite it as general guidance without numbers. Never invent statistics, quotes, studies, or URLs.
-    - After the FAQ section, add <h2>Sources</h2> followed by a <ul> listing each source you linked: publisher, title, year, with the link.`;
+const polishArticle = async (html: string, keyword: string, business: BusinessInfo, searchUrls: string[], meta: { metaTitle?: string; metaDescription?: string }) => {
+    const lintOpts = { keyword, ownUrl: business.url, imagesAllowed: !(business.skipImageGeneration || !IMAGES_ENABLED) ? undefined : false, ...meta };
+    let content = html;
+    let urls = [...searchUrls];
+    const notes: string[] = [];
+    const verify = async (candidate: string) => {
+        const checked = await verifyArticleLinks(candidate, business.url, urls);
+        if (checked.removed.length) notes.push(`${checked.removed.length} link(s) were removed because they were not found by search, were unreachable, or were not a credible page.`);
+        return checked.html;
+    };
+    try { content = await verify(content); } catch (e) { console.error('Link verification failed, keeping links as written:', e); }
 
-/**
- * Writing rules shared by new articles and rewrites: stay on the searcher's topic, keep keyword use natural,
- * leave room for first-hand experience, and produce body HTML that fits a CMS which prints the title as the H1.
- */
-const WRITING_RULES = `TOPIC FOCUS AND STYLE:
-    - Stay on what the person searching this keyword wants. Mention the business's own niche only where it genuinely fits the topic, in a sentence or two. Never add whole sections, FAQ questions or audience groups just to bring in the business's other lines of work.
-    - Use the exact keyword 3 to 6 times (title-like H2, first paragraph, summary, a heading or two). Elsewhere use natural variations and synonyms. Never force it into a sentence.
-    - Prefer sources from the last 3 years. Cite older sources only when they are the primary record (a law, a standard, an official notice), and still say the year.
-    - Where first-hand knowledge from the business would make the article stronger (a real photo, a fitting tip, a customer situation), leave an HTML comment in that spot: <!-- EDITOR: add a real photo or first-hand note here: what to show -->. Use 1 or 2 of these at most. Never invent experiences, customers or results.
-    - End with a specific call to action that links to the most relevant product, service or category page found for the internal links, not a generic "contact us".
-    - Do NOT include an <h1>. The CMS prints the title as the H1, so the article body starts with the opening paragraph and uses <h2> and <h3> only.`;
+    // Too few outside sources (or the model said it had none): a dedicated pass that searches for them.
+    if (needsSourcePass(content, business.url)) {
+        try {
+            const { text, sources } = await callClaudeDetailed({ tier: 'smart', webSearch: true, maxSearches: ARTICLE_SEARCHES, maxTokens: 16000, messages: [{ role: 'user', content: buildSourcePassPrompt(content, keyword) }] });
+            const candidate = stripFences(text);
+            if (candidate.length > content.length * 0.7 && /<h[12]/i.test(candidate)) {
+                urls = [...new Set([...urls, ...sources])];
+                const before = sourceStats(content, business.url).publishers;
+                const verified = await verify(candidate);
+                if (sourceStats(verified, business.url).publishers >= before) content = verified;
+            }
+        } catch (e) { console.error('Source pass failed, keeping the article as written:', e); }
+    }
 
-/** Internal links: point readers to the pages that convert (products, services, categories) plus related posts. */
-const internalLinkRules = (business: BusinessInfo) => `INTERNAL LINKING: You MUST include 2-4 internal links to existing pages on ${business.url}. Find them with your search tool (e.g. "site:${business.url} [related topic]")${business.sitemapUrl ? ` or the sitemap at ${business.sitemapUrl}` : ''}. Aim for at least one product, service or category page and at least one related article. Use only URLs you actually found, never guess one, and use descriptive anchor text (not "click here"). Never link only to the homepage.`;
-
-/**
- * Last cleanup before an article goes to WordPress. The theme prints the post title as the H1, so any H1
- * in the body becomes an H2 (the first one, usually a copy of the title, is dropped), and editor
- * comments stay invisible on the page.
- */
-export const prepareArticleHtml = (html: string): string => {
-    let out = html.replace(/^\s*<h1[^>]*>[\s\S]*?<\/h1>\s*/i, '');
-    out = out.replace(/<h1([^>]*)>([\s\S]*?)<\/h1>/gi, '<h2$1>$2</h2>');
-    return out.trim();
+    let { issues } = lintArticle(content, lintOpts);
+    const errors = issues.filter(i => i.severity === 'error');
+    if (errors.length) {
+        try {
+            const fixed = stripFences(await callClaude({ tier: 'smart', maxTokens: 16000, messages: [{ role: 'user', content: buildRepairPrompt(content, errors) }] }));
+            if (fixed.length > content.length * 0.7 && /<h[12]/i.test(fixed)) {
+                // the repair must not introduce links; re-check against the same search results
+                content = await verify(fixed).catch(() => fixed);
+                issues = lintArticle(content, lintOpts).issues;
+            }
+        } catch (e) { console.error('Repair pass failed, keeping the article as written:', e); }
+    }
+    return { content, feedback: [...issues.map((i: LintIssue) => `${i.severity === 'error' ? 'Fix' : 'Improve'}: ${i.message}`), ...notes] };
 };
 
 /** Alt text for an image tag: never a file name, quotes escaped. */
@@ -397,15 +439,9 @@ const researchContentGaps = async (keyword: string, business: BusinessInfo): Pro
         const text = await callClaude({
             tier: 'fast',
             webSearch: true,
-            searches: 3,
+            maxSearches: RESEARCH_SEARCHES,
             maxTokens: 2500,
-            messages: [{ role: 'user', content: `You are an SEO researcher. Search for "${keyword}" and study the top 5-8 organic results (skip ads; a forum or Reddit thread in the results is a useful signal of what people still ask). Do not write the article. Write a private brief for the writer, plain text, under 450 words, with these parts:
-INTENT AND FORMAT: what the searcher wants and the format that ranks (guide, list, comparison, how-to), plus a typical length.
-MUST COVER: subtopics that most top results cover (short list).
-GAPS: what the top results miss or get wrong: unanswered questions, vague advice with no specifics, outdated facts or numbers, missing steps, examples, comparisons, tables, costs, safety points or edge cases. Be specific; this is the most important part.
-ANGLE: one or two ways our article can add something new (information gain), staying on what the searcher wants.
-SOURCES: up to 5 credible pages you found (government, university, standards bodies, manufacturers, well-known publications) as "URL - the fact it supports (year)". Only URLs exactly as they appeared in your search results.
-Context: the article is published by ${business.name} (${business.description}). Use that only to judge relevance, not to steer the topic.` }]
+            messages: [{ role: 'user', content: buildResearchPrompt(keyword, business.name, business.description) }]
         });
         return text.trim().length > 200 ? text.trim() : '';
     } catch (e) {
@@ -431,10 +467,7 @@ export const generateFullArticle = async (
 
     const prompt = `You are tasked with writing the absolute best, most comprehensive SEO article on the internet for the keyword: "${keyword}".
     
-    ${research ? `RESEARCH BRIEF (private, from a study of the current top results; never mention it in the article):
-${research}
-
-Use the brief: cover everything under MUST COVER, make the GAPS and ANGLE the parts where this article clearly beats the current results, and match the format under INTENT AND FORMAT. URLs listed under SOURCES came from search results and may be cited; verify or add others with your own searches.` : `First, use your search capabilities to analyze the top-ranking articles for this keyword and identify their gaps, missing information, and areas where they lack depth or clarity. Then write a superior article that covers what they cover PLUS fills those gaps.`}
+    ${research ? researchBriefBlock(research) : `First, use at most 3 searches to analyze the top-ranking articles for this keyword. Identify what they cover, but more importantly, identify their gaps, missing information, and areas where they lack depth or clarity. Then write a superior article that covers what they cover PLUS fills those gaps.`}
     
     CRITICAL REQUIREMENTS:
     1. Add a well-formatted, clearly written summary at the very beginning of the article, optimized for generative AI engines to quickly extract the main points. Do NOT use the term "TL;DR" or "TL DR". Use a professional heading like "Executive Summary" or "Key Takeaways".
@@ -442,9 +475,16 @@ Use the brief: cover everything under MUST COVER, make the GAPS and ANGLE the pa
     3. The article MUST be between 1500 and 2000 words in length. This is a strict requirement for comprehensive coverage.
     4. ${SOURCE_RULES}
     ${imageInstruction}
-    6. ${internalLinkRules(business)}
-    7. ${WRITING_RULES}
+    6. ${INTERNAL_LINK_RULES(business.url, business.sitemapUrl)}
     
+    ${keywordRules(keyword)}
+
+    ${STRUCTURE_RULES}
+
+    ${FOCUS_RULES}
+
+    ${TRUST_RULES}
+
     Business Context: ${business.name} (${business.description})
     Target Audience: ${business.audience}
     ${instructions ? `Additional Instructions: ${instructions}` : ''}
@@ -458,11 +498,11 @@ Use the brief: cover everything under MUST COVER, make the GAPS and ANGLE the pa
         "slug": "url-friendly-slug"
     }`;
 
-    const responseText = await callClaude({
+    const { text: responseText, sources: searchUrls } = await callClaudeDetailed({
         tier: 'smart',
         kind: 'article',
         webSearch: true,
-        searches: research ? 3 : 5,
+        maxSearches: research ? ARTICLE_SEARCHES_WITH_BRIEF : ARTICLE_SEARCHES,
         maxTokens: 16000,
         system: "You are an expert SEO content writer specialized in GEO (Generative Engine Optimization). Write in-depth, helpful content.",
         messages: [{ role: 'user', content: prompt + "\n\nRespond with ONLY the JSON object. No markdown fences, no text before or after it." }]
@@ -474,12 +514,13 @@ Use the brief: cover everything under MUST COVER, make the GAPS and ANGLE the pa
     
     const content = parsedData.articleContent || '';
     if (!content.trim()) throw new Error('The AI returned an empty article. Please try again.');
-    const analysis = await analyzeArticleForGEO(content, keyword);
+    const polished = await polishArticle(content, keyword, business, searchUrls, parsedData);
+    const analysis = await analyzeArticleForGEO(polished.content, keyword);
 
     return { 
-        articleContent: content, 
+        articleContent: polished.content, 
         geoScore: analysis.geoScore, 
-        aiFeedback: analysis.aiFeedback, 
+        aiFeedback: [...polished.feedback, ...(analysis.aiFeedback || [])], 
         metaTitle: parsedData.metaTitle, 
         metaDescription: parsedData.metaDescription, 
         slug: parsedData.slug 
@@ -532,9 +573,10 @@ export const rewriteArticle = async (content: string, keyword: string, feedback:
         ? "5. STRICTLY NO IMAGES: Do NOT include any <img> tags, markdown images, image placeholders, base64 images, or data URIs in the HTML. The content must be 100% text only."
         : "5. IMAGES: You MUST include exactly one image placeholder in the format <p>[IMAGE_1]</p> near the beginning of the article. Do NOT include any actual <img> tags, markdown images, base64 images, or external image URLs.";
 
-    const responseText = await callClaude({
+    const { text: responseText, sources: searchUrls } = await callClaudeDetailed({
         tier: 'smart',
         webSearch: true,
+        maxSearches: ARTICLE_SEARCHES,
         maxTokens: 16000,
         messages: [{ role: 'user', content: `Rewrite this article for "${keyword}" for ${business.name} based on this feedback: ${feedback.join('. ')}.
         Current content: ${content}
@@ -545,9 +587,16 @@ export const rewriteArticle = async (content: string, keyword: string, feedback:
         3. The article MUST be between 1500 and 2000 words in length. This is a strict requirement for comprehensive coverage.
         4. ${SOURCE_RULES}
         ${imageInstruction}
-        6. ${internalLinkRules(business)}
-    7. ${WRITING_RULES}
-        
+        6. ${INTERNAL_LINK_RULES(business.url, business.sitemapUrl)}
+
+        ${keywordRules(keyword)}
+
+        ${STRUCTURE_RULES}
+
+        ${FOCUS_RULES}
+
+        ${TRUST_RULES}
+
         Return a JSON object with the following structure:
         {
             "articleContent": "The HTML content of the rewritten article. ${(business.skipImageGeneration || !IMAGES_ENABLED) ? 'Do NOT include any images.' : 'Must include <p>[IMAGE_1]</p>.'} Must include an AI-optimized summary at the beginning and an FAQ section at the end.",
@@ -560,8 +609,12 @@ export const rewriteArticle = async (content: string, keyword: string, feedback:
     });
 
     const parsed = parseArticleResponse(responseText || '{}', keyword, business.name);
+    const polished = parsed.articleContent
+        ? await polishArticle(parsed.articleContent, keyword, business, searchUrls, parsed)
+        : { content, feedback: [] as string[] };
     return {
-        articleContent: parsed.articleContent || content,
+        articleContent: polished.content,
+        qualityFeedback: polished.feedback,
         metaTitle: parsed.metaTitle,
         metaDescription: parsed.metaDescription,
         slug: parsed.slug
@@ -626,7 +679,7 @@ const uploadImageToWP = async (auth: string, cmsUrl: string, image: GeneratedIma
     }
 };
 
-export const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost) => {
+export const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost, business?: BusinessInfo) => {
     const auth = btoa(`${cms.username}:${cms.applicationPassword}`);
     let finalContent = (post as any).article_content || post.articleContent || '';
     
@@ -634,10 +687,12 @@ export const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPos
 
     // 1. Process Featured Image and [IMAGE_1] placeholder
     let featuredMediaId = 0;
+    let featuredImageUrl: string | undefined;
     if (post.images?.featureImage) {
         const wpImg = await uploadImageToWP(auth, cms.url, post.images.featureImage, 'featured-image.jpg');
         if (wpImg) {
             featuredMediaId = wpImg.id;
+            featuredImageUrl = wpImg.url;
             // Build the real HTML tag for the content
             const imgTag = `<img src="${wpImg.url}" alt="${altAttr(post.images.featureImage.prompt, post.keyword)}" class="wp-post-image" style="width:100%; height:auto; border-radius:8px; margin-bottom:2rem;" />`;
             // Replace placeholder in body
@@ -661,10 +716,18 @@ export const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPos
 
     // Final cleanup: If any stray placeholders exist (e.g. AI skipped them or they weren't generated), remove them so they don't show to users
     finalContent = finalContent.replace(/\[IMAGE_\d+\]/g, '');
-    finalContent = prepareArticleHtml(finalContent);
 
     const metaTitle = post.meta_title ?? post.metaTitle ?? post.keyword;
     const metaDesc = post.meta_description ?? post.metaDescription ?? '';
+
+    // Visible "Last updated" line + Article/FAQPage JSON-LD (WordPress keeps the script for users allowed unfiltered HTML)
+    if (business) {
+        finalContent = finalizeForPublish(finalContent, {
+            headline: metaTitle, description: metaDesc, keyword: post.keyword, businessName: business.name,
+            businessUrl: business.url, imageUrl: featuredImageUrl, language: business.language,
+        });
+    }
+    finalContent = dropTitleH1(finalContent);
 
     const wpPost = {
         title: metaTitle,

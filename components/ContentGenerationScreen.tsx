@@ -267,7 +267,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
                 articleContent: rewrittenData.articleContent, 
                 contentUrl: contentUrl || undefined,
                 geoScore: analysis.geoScore, 
-                aiFeedback: analysis.aiFeedback,
+                aiFeedback: [...(rewrittenData.qualityFeedback || []), ...(analysis.aiFeedback || [])],
                 metaTitle: rewrittenData.metaTitle,
                 metaDescription: rewrittenData.metaDescription,
                 slug: rewrittenData.slug
@@ -292,7 +292,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
                 meta_description: localMetaDescription,
                 slug: localSlug
             };
-            const result = await publishToWordPress(cmsIntegration, { ...postToPublish, articleContent: currentContent });
+            const result = await publishToWordPress(cmsIntegration, { ...postToPublish, articleContent: currentContent }, selectedBusiness);
             await handleUpdatePost({ publishedUrl: result.url, published_url: result.url, slug: result.slug, status: 'published', metaTitle: localMetaTitle, meta_title: localMetaTitle, metaDescription: localMetaDescription, meta_description: localMetaDescription });
             logActivity(`Published to WP: ${post.keyword}`, 'success');
         } catch (error: any) {

@@ -25,6 +25,7 @@ export interface BusinessInfo {
   sitemapUrl?: string;
   planData?: PersonalizedPlanData;
   competitorAnalysis?: CompetitorAnalysis | null;
+  competitorAnalyzedAt?: string | null; // set by the server when an analysis starts; 1 per month per business
 }
 
 export enum KeywordOpportunity {

@@ -1,5 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
 
 /**
  * Server-side proxy to the Claude API. The browser never sees ANTHROPIC_API_KEY.
@@ -11,9 +13,12 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
  *   messages   [{ role: 'user' | 'assistant', content: string | blocks[] }]
  *   maxTokens  optional, capped at MAX_TOKENS_CAP
  *   webSearch  optional, enables Claude's web search tool
- *   searches   optional, max web searches for this call (1-5, default 5)
+ *   maxSearches optional, searches allowed per request when webSearch is on (default 5, max 10)
  *   kind       'article' marks a new-article generation: it uses 1 credit (paid) or 1 of the free trial articles
  *   action     'photo' returns a stock photo (JPEG under 200KB) instead of text; see handlePhoto
+ *              'competitor-quota' reserves / releases the monthly competitor analysis; see handleCompetitorQuota
+ *              'verify-links' checks the outside links in an article's HTML; see handleVerifyLinks
+ * Responses also carry `sources`: every URL the web search returned, so callers can drop links the model made up.
  *   schema     optional JSON schema; response is then guaranteed to match it
  *              (ignored when webSearch is on - citations can't be combined with it)
  */
@@ -219,6 +224,140 @@ Give: (1) "query": a 2-4 word search query for a stock photo site that finds a r
   }
 };
 
+// ---------------- link verification ----------------
+// Self-contained copy of the checks in supabase/functions/_shared/articleQuality.ts (relative imports break in this function).
+const BLOCKED_HOSTS = /(^|\.)(reddit|quora|facebook|instagram|twitter|x|tiktok|pinterest|linkedin|medium|tumblr|blogspot|wordpress|wixsite|youtube|youtu)\.(com|be|net)$/i;
+const isNonContentUrl = (raw: string): boolean => {
+  try {
+    const u = new URL(raw);
+    return /\.(xml|json|txt|rss|atom)$/i.test(u.pathname) || /\/(sitemap[^/]*|feed|rss|wp-json|wp-admin|wp-content)(\/|$)/i.test(u.pathname) || u.searchParams.has('s');
+  } catch { return false; }
+};
+const normUrl = (raw: string): string => {
+  try {
+    const u = new URL(raw.trim());
+    u.hash = '';
+    for (const k of [...u.searchParams.keys()]) if (/^(utm_|fbclid|gclid)/i.test(k)) u.searchParams.delete(k);
+    return `${u.hostname.toLowerCase().replace(/^www\./, '')}${u.pathname.replace(/\/+$/, '')}${u.search}`;
+  } catch { return raw.trim().toLowerCase(); }
+};
+const hostOf = (raw: string): string => { try { return new URL(raw).hostname.toLowerCase().replace(/^www\./, ''); } catch { return ''; } };
+
+const isPrivateIp = (ip: string): boolean => {
+  if (isIP(ip) === 6) {
+    const l = ip.toLowerCase();
+    return l === '::1' || l === '::' || l.startsWith('fc') || l.startsWith('fd') || l.startsWith('fe80') || (l.startsWith('::ffff:') && isPrivateIp(l.slice(7)));
+  }
+  const [a, b] = ip.split('.').map(Number);
+  return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
+};
+
+/** Collects every URL the web search returned (tool results and text citations). */
+const collectSearchUrls = (blocks: any[]): string[] => {
+  const urls = new Set<string>();
+  const walk = (node: any, inResult: boolean) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(n => walk(n, inResult)); return; }
+    const isResult = inResult || (typeof node.type === 'string' && /tool_result$/.test(node.type));
+    if (typeof node.url === 'string' && (isResult || /^web_search_result/.test(node.type || ''))) urls.add(node.url);
+    if (Array.isArray(node.citations)) node.citations.forEach((c: any) => typeof c?.url === 'string' && urls.add(c.url));
+    for (const v of Object.values(node)) if (v && typeof v === 'object') walk(v, isResult);
+  };
+  walk(blocks, false);
+  return [...urls];
+};
+
+/** 'ok' | 'dead' (404/410/unreachable) | 'unsafe' (private or odd address). Bot-blocking statuses count as ok. */
+const checkLink = async (rawUrl: string, hops = 3): Promise<'ok' | 'dead' | 'unsafe'> => {
+  let url: URL;
+  try { url = new URL(rawUrl); } catch { return 'unsafe'; }
+  if (!/^https?:$/.test(url.protocol) || url.username || url.password || (url.port && url.port !== '80' && url.port !== '443')) return 'unsafe';
+  const records = isIP(url.hostname) ? [{ address: url.hostname }] : await lookup(url.hostname, { all: true }).catch(() => []);
+  if (!records.length) return 'dead';
+  if (records.some(r => isPrivateIp(r.address))) return 'unsafe';
+  try {
+    const res = await fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(7000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AutorankLinkCheck/1.0)' } });
+    await res.body?.cancel();
+    if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+      return hops > 0 ? checkLink(new URL(res.headers.get('location')!, url).toString(), hops - 1) : 'ok';
+    }
+    return res.status === 404 || res.status === 410 ? 'dead' : 'ok';
+  } catch (e: any) {
+    return e?.name === 'TimeoutError' ? 'ok' : 'dead';
+  }
+};
+
+const handleVerifyLinks = async (body: any, userId: string, db: SupabaseClient): Promise<Response> => {
+  const decision = decide(await loadProfile(db, userId), false);
+  if (!decision.ok) return json(402, { error: decision.message });
+  const html = typeof body.html === 'string' ? body.html : '';
+  if (!html) return json(400, { error: 'html is required.' });
+  const ownHost = hostOf(/^https?:/.test(String(body.ownUrl || '')) ? body.ownUrl : body.ownUrl ? `https://${body.ownUrl}` : '');
+  const allowed = new Set((Array.isArray(body.searchUrls) ? body.searchUrls : []).filter((u: unknown) => typeof u === 'string').slice(0, 500).map(normUrl));
+  const urls = [...new Set([...html.matchAll(/<a\s[^>]*href=["'](https?:\/\/[^"']+)["']/gi)].map(m => m[1]))].slice(0, 30);
+
+  const bad = new Map<string, string>();
+  const live: string[] = [];
+  for (const u of urls) {
+    const host = hostOf(u);
+    if (BLOCKED_HOSTS.test(host)) bad.set(u, 'blocked-host');
+    else if (isNonContentUrl(u)) bad.set(u, 'not-a-content-page');
+    else if (host !== ownHost && allowed.size > 0 && !allowed.has(normUrl(u))) bad.set(u, 'not-in-search-results');
+    else live.push(u);
+  }
+  await Promise.all(live.map(async u => { const r = await checkLink(u); if (r !== 'ok') bad.set(u, r); }));
+
+  const cleaned = bad.size
+    ? html.replace(/<a\s[^>]*href=["'](https?:\/\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (m, href, inner) => (bad.has(href) ? inner : m))
+    : html;
+  return json(200, { html: cleaned, removed: [...bad].map(([url, reason]) => ({ url, reason })), kept: urls.filter(u => !bad.has(u)) });
+};
+
+// ---------------- competitor analysis quota ----------------
+// 1 AI competitive analysis per business per calendar month (UTC). `businesses.competitor_analyzed_at` is stamped here with the
+// service role (a trigger stops signed-in users from editing it). Reserve before researching; release if every step failed.
+const COMPETITOR_ANALYSES_PER_MONTH = 1;
+const monthStart = (d = new Date()) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
+const nextMonthStart = (d = new Date()) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
+const RELEASE_WINDOW_MS = 30 * 60_000;
+
+const handleCompetitorQuota = async (body: any, userId: string, db: SupabaseClient): Promise<Response> => {
+  const businessId = String(body.businessId || '');
+  if (!/^[0-9a-f-]{36}$/i.test(businessId)) return json(400, { error: 'businessId is required.' });
+  if (body.op !== 'reserve' && body.op !== 'release') return json(400, { error: 'op must be reserve or release.' });
+
+  const { data: row, error: readError } = await db.from('businesses').select('id, user_id, competitor_analyzed_at').eq('id', businessId).maybeSingle();
+  if (readError) { console.error('quota read failed', readError.message); return json(500, { error: 'The monthly limit could not be checked. Please try again later.' }); }
+  if (!row || row.user_id !== userId) return json(404, { error: 'Business not found.' });
+
+  if (body.op === 'release') {
+    // Give the run back only if the stamp is the fresh one made for this attempt.
+    const previous = typeof body.previous === 'string' && !isNaN(Date.parse(body.previous)) ? new Date(body.previous).toISOString() : null;
+    const cutoff = new Date(Date.now() - RELEASE_WINDOW_MS).toISOString();
+    await db.from('businesses').update({ competitor_analyzed_at: previous }).eq('id', businessId).eq('user_id', userId).gt('competitor_analyzed_at', cutoff);
+    return json(200, { ok: true });
+  }
+
+  const decision = decide(await loadProfile(db, userId), true);
+  if (!decision.ok) return json(402, { error: decision.message });
+
+  const start = monthStart().toISOString();
+  const { data: updated, error } = await db.from('businesses')
+    .update({ competitor_analyzed_at: new Date().toISOString() })
+    .eq('id', businessId).eq('user_id', userId)
+    .or(`competitor_analyzed_at.is.null,competitor_analyzed_at.lt.${start}`)
+    .select('id');
+  if (error) { console.error('quota reserve failed', error.message); return json(500, { error: 'The monthly limit could not be checked. Please try again later.' }); }
+  if (!updated || updated.length === 0) {
+    const next = nextMonthStart();
+    return json(429, {
+      error: `AI competitive analysis is limited to ${COMPETITOR_ANALYSES_PER_MONTH} per month for each business. The next one is available on ${next.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })}.`,
+      nextAvailable: next.toISOString(),
+    });
+  }
+  return json(200, { ok: true, previous: row.competitor_analyzed_at ?? null });
+};
+
 export async function POST(request: Request): Promise<Response> {
   if (!process.env.ANTHROPIC_API_KEY) return json(500, { error: 'ANTHROPIC_API_KEY is not configured on the server.' });
 
@@ -236,6 +375,16 @@ export async function POST(request: Request): Promise<Response> {
     const photoDb = getAdmin();
     if (!photoDb) return json(500, { error: 'Billing is not configured on the server (SUPABASE_SERVICE_ROLE_KEY).' });
     return handlePhoto(body, userId, photoDb);
+  }
+  if (body.action === 'competitor-quota') {
+    const quotaDb = getAdmin();
+    if (!quotaDb) return json(500, { error: 'Billing is not configured on the server (SUPABASE_SERVICE_ROLE_KEY).' });
+    return handleCompetitorQuota(body, userId, quotaDb);
+  }
+  if (body.action === 'verify-links') {
+    const linkDb = getAdmin();
+    if (!linkDb) return json(500, { error: 'Billing is not configured on the server (SUPABASE_SERVICE_ROLE_KEY).' });
+    return handleVerifyLinks(body, userId, linkDb);
   }
 
   const tier = MODELS[body.tier];
@@ -259,7 +408,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const maxTokens = Math.min(Math.max(Number(body.maxTokens) || 8000, 256), MAX_TOKENS_CAP);
   const webSearch = body.webSearch === true;
-  const maxSearches = Math.min(Math.max(Math.round(Number(body.searches)) || 5, 1), 5);
+  const maxSearches = Math.min(Math.max(Math.floor(Number(body.maxSearches)) || 5, 1), 10);
   const useSchema = !!body.schema && typeof body.schema === 'object' && !webSearch;
 
   const client = new Anthropic();
@@ -269,6 +418,8 @@ export async function POST(request: Request): Promise<Response> {
     let final: Anthropic.Message | null = null;
     let inputTokens = 0;
     let outputTokens = 0;
+    const sources = new Set<string>();
+    const searchErrors = new Set<string>();
 
     // Web search can end a turn with pause_turn; resume until the model is done.
     for (let i = 0; i <= MAX_PAUSE_RESUMES; i++) {
@@ -286,6 +437,10 @@ export async function POST(request: Request): Promise<Response> {
       final = await stream.finalMessage();
       inputTokens += final.usage.input_tokens;
       outputTokens += final.usage.output_tokens;
+      collectSearchUrls(final.content as any[]).forEach(u => sources.add(u));
+      for (const b of final.content as any[]) {
+        if (b.type === 'web_search_tool_result' && b.content?.type === 'web_search_tool_result_error') searchErrors.add(String(b.content.error_code));
+      }
       if (final.stop_reason !== 'pause_turn') break;
       messages.push({ role: 'assistant', content: final.content });
     }
@@ -302,7 +457,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     console.log(JSON.stringify({ user: userId, model: tier.model, in: inputTokens, out: outputTokens, stop: final.stop_reason }));
-    return json(200, { text, stopReason: final.stop_reason, usage: { inputTokens, outputTokens } });
+    return json(200, { text, sources: [...sources], searchErrors: [...searchErrors], stopReason: final.stop_reason, usage: { inputTokens, outputTokens } });
   } catch (err) {
     await refund?.();
     if (err instanceof Anthropic.RateLimitError) return json(429, { error: 'The AI service is busy. Please retry shortly.' });
