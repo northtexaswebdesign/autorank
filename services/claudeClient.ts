@@ -10,6 +10,10 @@ export interface ClaudeRequest {
     webSearch?: boolean;
     /** searches allowed in this one request when webSearch is on (server default 5, max 10) */
     maxSearches?: number;
+    /** lets the model open pages named in the prompt (web fetch), for sites the search index barely covers */
+    webFetch?: boolean;
+    /** fetches allowed in this one request when webFetch is on (server default 4, max 8) */
+    maxFetches?: number;
     /** 'article' = a new article; uses one credit / free trial article */
     kind?: 'article';
     schema?: Record<string, unknown>;

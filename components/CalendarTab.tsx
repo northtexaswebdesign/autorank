@@ -32,20 +32,20 @@ const PostCard: React.FC<{ post: ScheduledPost }> = React.memo(({ post }) => {
         setEditingPost(post);
     }
 
-    const QUEUED_STATUS = { text: 'QUEUED', bg: 'bg-amber-100', text_color: 'text-amber-800' };
-    const statusConfig: { [key in ScheduledPost['status']]: { text: string, bg: string, text_color: string } } = {
-        'scheduled': QUEUED_STATUS,
-        'published': { text: 'PUBLISHED', bg: 'bg-green-100', text_color: 'text-green-700' },
-        'draft': { text: 'DRAFT', bg: 'bg-amber-100', text_color: 'text-amber-800' },
-        'generating-text': QUEUED_STATUS,
-        'generating-images': QUEUED_STATUS,
-        'analyzing': QUEUED_STATUS,
-        'rewriting': QUEUED_STATUS,
-        'brief-generating': QUEUED_STATUS,
-        'generating-meta': QUEUED_STATUS,
+    const IN_PROGRESS = { label: 'Writing', dot: 'bg-accent animate-pulse', card: 'bg-white border-[#ECE9E2]' };
+    const statusConfig: { [key in ScheduledPost['status']]: { label: string; dot: string; card: string } } = {
+        'scheduled': { label: 'Scheduled', dot: 'bg-blue-600', card: 'bg-[#F3F7FE] border-[#DCE6F7]' },
+        'published': { label: 'Published', dot: 'bg-green-600', card: 'bg-white border-[#ECE9E2]' },
+        'draft': { label: 'Draft', dot: 'bg-stone-400', card: 'bg-[#F7F6F3] border-[#ECE9E2]' },
+        'generating-text': IN_PROGRESS,
+        'generating-images': IN_PROGRESS,
+        'analyzing': IN_PROGRESS,
+        'rewriting': IN_PROGRESS,
+        'brief-generating': IN_PROGRESS,
+        'generating-meta': IN_PROGRESS,
     };
 
-    const currentStatus = statusConfig[post.status] || QUEUED_STATUS;
+    const currentStatus = statusConfig[post.status] || statusConfig.scheduled;
 
     return (
         <div
@@ -53,24 +53,22 @@ const PostCard: React.FC<{ post: ScheduledPost }> = React.memo(({ post }) => {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             onClick={() => setEditingPost(post)}
-            className="bg-stone-50 rounded-lg border border-stone-200 p-2.5 shadow-md hover:shadow-lg hover:border-brand-400 transition-all cursor-pointer text-sm"
+            title={`${currentStatus.label}: ${post.keyword}`}
+            className={`group relative rounded-lg border px-2 py-1.5 cursor-pointer text-xs transition-colors hover:border-stone-400 ${currentStatus.card}`}
         >
-            <div className="flex justify-between items-center">
-                <span className={`px-2 py-0.5 text-[10px] font-bold tracking-wider rounded ${currentStatus.bg} ${currentStatus.text_color}`}>
-                    {currentStatus.text}
-                </span>
-                 <div className="flex items-center space-x-1">
-                    <button onClick={handleEdit} className="p-1 text-stone-400 hover:text-stone-800 transition-colors" aria-label="Edit Post">
-                        <SparklesIcon className="w-4 h-4" />
-                    </button>
-                    <button onClick={handleDelete} className="p-1 text-stone-400 hover:text-stone-800 transition-colors" aria-label="Delete Post">
-                        <TrashIcon className="w-4 h-4" />
-                    </button>
-                </div>
+            <div className="flex items-start gap-1.5 min-w-0">
+                <span className={`mt-[5px] w-1.5 h-1.5 rounded-full flex-shrink-0 ${currentStatus.dot}`} aria-hidden="true" />
+                <span className="sr-only">{currentStatus.label}:</span>
+                <p className="font-medium text-stone-800 leading-snug line-clamp-2 break-words">{post.keyword}</p>
             </div>
-
-            <p className="font-semibold text-stone-800 leading-tight mt-2">{post.keyword}</p>
-            
+            <div className="absolute top-1 right-1 hidden group-hover:flex group-focus-within:flex items-center gap-0.5 rounded-md bg-white/95 shadow-sm border border-[#ECE9E2]">
+                <button onClick={handleEdit} className="p-1 text-stone-500 hover:text-stone-900 transition-colors" aria-label="Edit post">
+                    <SparklesIcon className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={handleDelete} className="p-1 text-stone-500 hover:text-red-700 transition-colors" aria-label="Remove from calendar">
+                    <TrashIcon className="w-3.5 h-3.5" />
+                </button>
+            </div>
         </div>
     );
 });
@@ -89,7 +87,7 @@ const Month: React.FC<{
 
     return (
         <div className="grid grid-cols-7">
-            {Array.from({ length: startDay }).map((_, i) => <div key={`empty-${i}`} className="border-r border-b border-stone-200/80 bg-stone-50/50"></div>)}
+            {Array.from({ length: startDay }).map((_, i) => <div key={`empty-${i}`} className="border-r border-b border-[#F0EEE9] bg-[#FBFAF7]"></div>)}
             {daysInMonth.map(day => {
                 const dateString = toYYYYMMDD(day);
                 const postsOnDay = getPostsForDate(day, allPosts);
@@ -104,12 +102,12 @@ const Month: React.FC<{
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
-                        className={`min-h-[9rem] p-2 border-r border-b border-stone-200/80 flex flex-col transition-colors duration-200`}
+                        className={`min-h-[8rem] min-w-0 p-1.5 sm:p-2 border-r border-b border-[#F0EEE9] flex flex-col gap-1 transition-colors duration-200 ${isToday ? 'bg-[#FBFAF7]' : ''}`}
                     >
-                        <span className={`text-xs font-semibold self-end ${isToday ? 'text-brand-600' : 'text-stone-500'}`}>
+                        <span className={`self-start min-w-[22px] h-[22px] px-1 rounded-md flex items-center justify-center text-xs tabular-nums ${isToday ? 'bg-stone-900 text-white font-semibold' : 'text-stone-500'}`}>
                             {day.getDate()}
                         </span>
-                        <div className="flex-grow space-y-2 pt-1">
+                        <div className="flex-grow space-y-1">
                             {postsOnDay.map(post => (
                                 <PostCard key={post.id} post={post} />
                             ))}
@@ -288,43 +286,55 @@ export const CalendarTab: React.FC = () => {
         }
     }, [scheduledPosts, updateScheduledPost]);
 
+    const now = new Date();
+    const thisMonth = scheduledPosts.filter(p => {
+        const d = new Date(p.publishDate);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    });
+    const publishedThisMonth = thisMonth.filter(p => p.status === 'published').length;
+    const scheduledThisMonth = thisMonth.filter(p => p.status !== 'published' && p.status !== 'draft').length;
+
     return (
         <div className="flex flex-col h-full">
-            <div className="flex flex-col md:flex-row justify-between md:items-start gap-4 mb-6 flex-shrink-0">
-                 <div>
-                    <h1 className="font-serif text-4xl md:text-[44px] leading-none tracking-[-0.01em] text-stone-900">Calendar</h1>
-                </div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 self-start md:self-end">
-                     <button
+            <div className="flex flex-col md:flex-row justify-between md:items-end gap-4 mb-6 flex-shrink-0">
+                <h1 className="font-serif text-4xl md:text-[44px] leading-none tracking-[-0.01em] text-stone-900">Calendar</h1>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <button
                         onClick={handleAutofillAll}
                         disabled={suggestedKeywords.length === 0 || isAutofilling}
-                        className="w-full sm:w-auto justify-center bg-stone-800 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-stone-900 disabled:bg-stone-400 disabled:cursor-not-allowed flex items-center transition-all shadow-sm hover:shadow-md"
+                        className="justify-center h-9 px-3.5 rounded-[10px] border border-stone-300 bg-white text-[13px] font-medium text-stone-900 hover:border-stone-400 hover:bg-stone-50 disabled:text-stone-400 disabled:cursor-not-allowed flex items-center transition-colors"
                     >
-                        Autofill from All Keywords ({suggestedKeywords.length})
+                        Autofill from all keywords <span className="ml-1.5 text-stone-500">{suggestedKeywords.length}</span>
                     </button>
                     <button
                         onClick={handleAutofill}
                         disabled={queuedKeywords.length === 0 || isAutofilling}
-                        className="w-full sm:w-auto justify-center bg-brand-600 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-brand-700 disabled:bg-stone-400 disabled:cursor-not-allowed flex items-center transition-all shadow-sm hover:shadow-md"
+                        className="justify-center h-9 px-3.5 rounded-[10px] bg-stone-900 text-[13px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(0,0,0,0.2)] hover:bg-black disabled:bg-stone-400 disabled:shadow-none disabled:cursor-not-allowed flex items-center transition-colors"
                     >
-                        Autofill from Content Plan ({queuedKeywords.length})
+                        Autofill from content plan <span className="ml-1.5 text-stone-400">{queuedKeywords.length}</span>
                     </button>
                 </div>
             </div>
 
-            <div ref={calendarContainerRef} className="bg-white border border-stone-200/80 rounded-xl shadow-sm overflow-y-auto flex-grow">
+            <section aria-label="This month" className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 mb-4 rounded-2xl bg-[#F7F6F3] border border-[#ECE9E2] shadow-[inset_0_1px_0_#fff,0_1px_2px_rgba(28,27,25,0.05)] text-[13px] flex-shrink-0">
+                <span className="font-semibold text-stone-900">This month</span>
+                <span className="flex items-center gap-2 text-stone-600"><span className="w-2 h-2 rounded-full bg-green-600" />Published <span className="font-semibold text-stone-900 tabular-nums">{publishedThisMonth}</span></span>
+                <span className="flex items-center gap-2 text-stone-600"><span className="w-2 h-2 rounded-full bg-blue-600" />Scheduled <span className="font-semibold text-stone-900 tabular-nums">{scheduledThisMonth}</span></span>
+            </section>
+
+            <div ref={calendarContainerRef} className="bg-white border border-[#ECE9E2] rounded-2xl shadow-[0_1px_2px_rgba(28,27,25,0.05)] overflow-y-auto flex-grow">
                  <div className="p-0">
                     <div ref={topSentinelRef} style={{ height: 1 }} />
                     {visibleMonths.map(month => (
                         <div key={month.getTime()}>
                              <h2 
-                                className="text-lg font-semibold text-stone-800 p-4 sticky top-0 bg-white/80 backdrop-blur-sm z-10 border-b border-stone-200/80"
+                                className="font-serif text-[24px] leading-none text-stone-900 px-4 py-3.5 sticky top-0 bg-white/90 backdrop-blur-sm z-10 border-b border-[#ECE9E2]"
                                 data-month-iso={month.toISOString()}
                             >
                                 {getMonthYearString(month)}
                             </h2>
-                             <div className="grid grid-cols-7 text-center text-xs font-semibold text-stone-500 bg-stone-50/80 border-b border-stone-200/80">
-                                {WEEKDAYS.map(day => <div key={day} className="py-2">
+                             <div className="grid grid-cols-7 text-xs font-medium text-stone-500 bg-[#FBFAF7] border-b border-[#ECE9E2]">
+                                {WEEKDAYS.map(day => <div key={day} className="py-2 px-2 sm:px-2.5">
                                     <span className="hidden sm:inline">{day}</span>
                                     <span className="sm:hidden">{day.charAt(0)}</span>
                                 </div>)}

@@ -54,29 +54,42 @@ const PastArticleRow: React.FC<{ post: ScheduledPost; onView: () => void; onDele
     const dateLabel = post.status === 'published' ? 'Published' : 'Last updated';
 
     return (
-        <tr className="md:border-b md:border-stone-200/80">
-            <td data-label="Article" className="md:table-cell md:px-6 md:py-4">
-                <p className="font-medium text-stone-800 md:text-left">{post.keyword}</p>
-                <p className="text-xs text-stone-500 md:text-left">
-                    {dateLabel} on {displayDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
-                </p>
+        <tr className="md:border-b md:border-[#F3F1EC] hover:bg-[#FBFAF7] transition-colors">
+            <td data-label="Article" className="md:table-cell md:px-5 md:py-3">
+                <div className="flex items-center gap-3 min-w-0">
+                    {post.images?.featureImage?.url ? (
+                        <img src={post.images.featureImage.url} alt="" loading="lazy" className="hidden md:block w-11 h-11 rounded-lg object-cover border border-[#ECE9E2] flex-shrink-0" />
+                    ) : (
+                        <span aria-hidden="true" className="hidden md:flex w-11 h-11 rounded-lg bg-[#F4F3EF] border border-[#E7E4DC] flex-shrink-0 p-1.5 flex-col justify-between overflow-hidden">
+                            <span className="w-3 h-0.5 rounded-sm bg-stone-400" />
+                            <span className="font-serif text-[8px] leading-[1.05] text-stone-700 line-clamp-2">{post.keyword}</span>
+                        </span>
+                    )}
+                    <div className="min-w-0">
+                        <p className="font-medium text-stone-900 md:text-left truncate">{post.keyword}</p>
+                        <p className="text-xs text-stone-500 md:text-left">
+                            {dateLabel} {displayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                    </div>
+                </div>
             </td>
-            <td data-label="Status" className="md:table-cell md:px-6 md:py-4 text-center">
-                 <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${currentStatus.bg} ${currentStatus.textColor}`}>
-                    {currentStatus.text}
+            <td data-label="Status" className="md:table-cell md:px-5 md:py-3">
+                <span className="inline-flex items-center gap-1.5 h-[22px] px-2 rounded-full border border-[#ECE9E2] bg-white text-xs text-stone-700">
+                    <span className={`w-1.5 h-1.5 rounded-full ${post.status === 'published' ? 'bg-green-600' : 'bg-stone-400'}`} />
+                    {post.status === 'published' ? 'Live' : 'Draft'}
                 </span>
             </td>
-            <td className="md:table-cell md:px-6 md:py-4 md:text-right">
+            <td className="md:table-cell md:px-5 md:py-3 md:text-right">
                 <div className="flex items-center justify-end gap-1">
                     {post.publishedUrl && post.publishedUrl !== '#' && (
-                        <a href={post.publishedUrl} target="_blank" rel="noopener noreferrer" title="View Live Article" className="text-stone-500 hover:text-brand-600 inline-flex items-center justify-center p-2 rounded-lg hover:bg-stone-100 transition-colors">
+                        <a href={post.publishedUrl} target="_blank" rel="noopener noreferrer" title="View live article" aria-label="View live article" className="text-stone-500 hover:text-stone-900 inline-flex items-center justify-center w-8 h-8 rounded-lg border border-[#ECE9E2] hover:border-stone-300 transition-colors">
                             <LinkIcon className="w-4 h-4" />
                         </a>
                     )}
-                    <button onClick={onView} className="bg-brand-100 text-brand-700 px-4 py-2 text-sm rounded-lg font-semibold hover:bg-brand-200 transition-colors">
-                        View Article
+                    <button onClick={onView} className="h-8 px-3 rounded-lg border border-[#ECE9E2] bg-white text-xs font-medium text-stone-900 hover:border-stone-300 transition-colors">
+                        Open
                     </button>
-                    <button onClick={onDelete} className="text-stone-500 hover:text-stone-800 inline-flex items-center justify-center p-2 rounded-lg hover:bg-stone-100 transition-colors">
+                    <button onClick={onDelete} aria-label="Delete article" className="text-stone-400 hover:text-red-700 inline-flex items-center justify-center w-8 h-8 rounded-lg transition-colors">
                         <TrashIcon className="w-4 h-4" />
                     </button>
                 </div>
@@ -90,7 +103,7 @@ export const PastArticlesTab: React.FC = () => {
     const [activeFilter, setActiveFilter] = useState<'all' | 'draft' | 'published'>('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const ARTICLES_PER_PAGE = 20;
+    const ARTICLES_PER_PAGE = 10;
 
     const pastArticles = useMemo(() => {
         return scheduledPosts
@@ -141,25 +154,25 @@ export const PastArticlesTab: React.FC = () => {
     return (
         <div>
             <h1 className="font-serif text-4xl md:text-[44px] leading-none tracking-[-0.01em] text-stone-900">Articles</h1>
-            <p className="mt-1 text-stone-600 mb-8">Manage all your written and published content.</p>
+            <p className="mt-2.5 text-sm text-stone-500 mb-8">Everything Autorank has written for you, drafts and published.</p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-                <StatCard icon={<HistoryIcon className="w-6 h-6"/>} label="All Past Articles" count={statCounts.all} isActive={activeFilter === 'all'} onClick={handleFilterAll} />
-                <StatCard icon={<WrittenIcon className="w-6 h-6"/>} label="Written (Drafts)" count={statCounts.draft} isActive={activeFilter === 'draft'} onClick={handleFilterDraft} />
+                <StatCard icon={<HistoryIcon className="w-6 h-6"/>} label="All articles" count={statCounts.all} isActive={activeFilter === 'all'} onClick={handleFilterAll} />
+                <StatCard icon={<WrittenIcon className="w-6 h-6"/>} label="Drafts" count={statCounts.draft} isActive={activeFilter === 'draft'} onClick={handleFilterDraft} />
                 <StatCard icon={<CheckIcon className="w-6 h-6"/>} label="Published" count={statCounts.published} isActive={activeFilter === 'published'} onClick={handleFilterPublished} />
             </div>
 
-            <div className="bg-white border border-stone-200/80 rounded-xl shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-stone-200/80">
+            <div className="bg-white border border-[#ECE9E2] rounded-2xl shadow-[0_1px_2px_rgba(28,27,25,0.05)] overflow-hidden">
+                <div className="p-3 border-b border-[#ECE9E2]">
                     <div className="relative">
                         <input
                             type="text"
                             placeholder="Search articles..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full md:w-72 bg-white border border-stone-300 rounded-lg pl-10 pr-4 py-2 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
+                            aria-label="Search articles" className="w-full md:w-72 h-9 bg-white border border-[#E4E1D9] rounded-lg pl-9 pr-3 text-[13px] text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
                         />
-                        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                     </div>
@@ -169,10 +182,10 @@ export const PastArticlesTab: React.FC = () => {
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm responsive-table">
                                 <thead className="md:table-header-group">
-                                    <tr className="text-left text-sm font-semibold text-stone-500 bg-stone-50">
-                                        <th className="px-6 py-3">Article</th>
-                                        <th className="px-6 py-3 text-center">Status</th>
-                                        <th className="px-6 py-3"></th>
+                                    <tr className="text-left text-xs font-medium text-stone-500 bg-[#FBFAF7] border-b border-[#ECE9E2]">
+                                        <th className="px-5 py-2.5">Article</th>
+                                        <th className="px-5 py-2.5">Status</th>
+                                        <th className="px-5 py-2.5"><span className="sr-only">Actions</span></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -188,10 +201,10 @@ export const PastArticlesTab: React.FC = () => {
                             </table>
                         </div>
                         {totalPages > 1 && (
-                            <div className="flex justify-between items-center p-4 border-t border-stone-200/80 text-sm">
+                            <div className="flex justify-between items-center px-5 py-3 border-t border-[#ECE9E2] bg-[#FBFAF7] text-[13px]">
                                 <div>
                                     <p className="text-stone-600">
-                                        Showing <span className="font-semibold">{paginatedPosts.length}</span> of <span className="font-semibold">{filteredPosts.length}</span> articles
+                                        Showing <span className="font-semibold">{(currentPage - 1) * ARTICLES_PER_PAGE + 1}–{(currentPage - 1) * ARTICLES_PER_PAGE + paginatedPosts.length}</span> of <span className="font-semibold">{filteredPosts.length}</span> articles
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-2">
