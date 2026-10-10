@@ -10,8 +10,9 @@ import path from 'node:path';
  * Branded cover (featured) images for blog articles: 1080x1080 JPEG under 200 KB.
  *
  * Flow:  brand style (saved on the business, else read from its website, else none)
- *        -> Claude writes a small design spec (layout, tag, headline, key points, and a palette
- *           when there is no brand) -> we render it as SVG -> resvg -> JPEG.
+ *        -> Claude writes a small design spec (tag, short headline, key points, article kind, a stock-photo
+ *           search, and a palette when there is no brand) -> we pick one of 10 layouts, rotating per business
+ *           so neighbouring posts differ, about 1 in 3 with a real photo (Pexels) -> SVG -> resvg -> JPEG.
  * Claude never writes raw SVG: the layout is ours, so the result is always clean and on brand.
  *
  * Auth: a Supabase user token (Bearer), or the header  x-cron-secret: <CRON_SECRET>  for the auto-publisher.
@@ -83,7 +84,7 @@ interface Tokens {
   heading: string; body: string;
 }
 
-const buildTokens = (p: Palette, headingFont: string, bodyFont: string): Tokens => {
+export const buildTokens = (p: Palette, headingFont: string, bodyFont: string): Tokens => {
   const bg = p.background;
   const text = contrast(p.text, bg) >= 4.5 ? p.text : readableOn(bg);
   const accent = p.primary;
@@ -151,17 +152,46 @@ const headlineSvg = (lines: string[], highlight: string, x: number, y: number, s
 };
 
 // ---------------- design spec & layouts ----------------
+export type Layout = 'photo' | 'editorial' | 'split' | 'bold' | 'frame' | 'steps' | 'centered' | 'minimal' | 'question' | 'number';
+export type ArticleKind = 'howto' | 'list' | 'cost' | 'comparison' | 'question' | 'guide';
+
 export interface CoverSpec {
-  layout: 'editorial' | 'bold' | 'centered';
+  layout: Layout;
+  kind: ArticleKind;
   tag: string;
   headline: string;
   highlight: string;
   points: string[];
   bigNumber?: string;
+  photoQuery: string;
+  photo?: string; // JPEG data URI, set when a stock photo was found
   alt: string;
   palette?: { primary: string; secondary?: string; background: string; text: string; headingFont?: string; bodyFont?: string };
 }
-const LAYOUTS: CoverSpec['layout'][] = ['editorial', 'bold', 'centered'];
+
+/**
+ * The order covers rotate through, one step per article of the same business, so neighbouring posts never look
+ * alike. Photo layouts are spread out (about 1 in 3). A layout is skipped when the article does not suit it.
+ */
+const CYCLE: Layout[] = ['photo', 'editorial', 'steps', 'split', 'bold', 'minimal', 'frame', 'centered', 'question', 'number'];
+export const PHOTO_LAYOUTS = new Set<Layout>(['photo', 'split', 'frame']);
+
+const suits = (l: Layout, s: CoverSpec): boolean => {
+  if (PHOTO_LAYOUTS.has(l)) return !!s.photo;
+  if (l === 'number') return !!s.bigNumber;
+  if (l === 'question') return /\?\s*$/.test(s.headline);
+  if (l === 'steps') return (s.kind === 'howto' || s.kind === 'list') && s.points.length >= 3;
+  return true;
+};
+
+/** Picks the layout for the nth cover of a business: the next suitable one in the cycle. */
+export const chooseLayout = (s: CoverSpec, n: number): Layout => {
+  for (let i = 0; i < CYCLE.length; i++) {
+    const l = CYCLE[(n + i) % CYCLE.length];
+    if (suits(l, s)) return l;
+  }
+  return 'editorial';
+};
 
 interface Brandmark { name: string; logoDataUri?: string; lightLogo?: boolean; logoRatio?: number }
 
@@ -190,6 +220,18 @@ const tagPill = (label: string, t: Tokens, x: number, y: number, fill: string, c
   const px = anchor === 'middle' ? x - w / 2 : x;
   return `<rect x="${px}" y="${y}" width="${w}" height="46" rx="23" fill="${fill}"/>` +
     `<text x="${px + w / 2}" y="${y + 31}" font-family="${t.body}" font-weight="700" font-size="20" letter-spacing="2" text-anchor="middle" fill="${color}">${esc(txt)}</text>`;
+};
+
+/** A photo cropped to fill a box (optionally with rounded corners). */
+const photoBox = (uri: string, id: string, x: number, y: number, w: number, h: number, rx = 0) =>
+  `<clipPath id="${id}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}"/></clipPath>` +
+  `<image x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid slice" href="${uri}" clip-path="url(#${id})"/>`;
+
+/** Headline block whose last line sits on `baseline` (for layouts anchored to the bottom). */
+const headlineUp = (s: CoverSpec, t: Tokens, fill: string, x: number, baseline: number, maxW: number, maxLines: number, max: number, min: number) => {
+  const h = fit(s.headline, t.heading, maxW, maxLines, max, min);
+  const first = baseline - (h.lines.length - 1) * h.size * 1.06;
+  return { svg: headlineSvg(h.lines, s.highlight, x, first, h.size, t, fill), top: first - h.size * 0.8 };
 };
 
 const editorial = (s: CoverSpec, t: Tokens, b: Brandmark) => {
@@ -280,7 +322,119 @@ const centered = (s: CoverSpec, t: Tokens, b: Brandmark) => {
   ${logoSvg(b, t, SIZE / 2, 1080 - 64 - 93, 440, 93, false, 'middle')}`;
 };
 
-const RENDERERS = { editorial, bold, centered };
+/** Full-bleed photo, darkened toward the bottom, headline over it. */
+const photo = (s: CoverSpec, t: Tokens, b: Brandmark) => {
+  const head = headlineUp(s, { ...t, accent: mix(t.accent, '#FFFFFF', 0.15) }, '#FFFFFF', 80, 850, 920, 4, 104, 56);
+  return `
+  <defs><linearGradient id="shade" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="${t.dark}" stop-opacity="0.10"/>
+    <stop offset="0.42" stop-color="${t.dark}" stop-opacity="0.30"/>
+    <stop offset="1" stop-color="${t.dark}" stop-opacity="0.94"/>
+  </linearGradient></defs>
+  <rect width="${SIZE}" height="${SIZE}" fill="${t.dark}"/>
+  ${photoBox(s.photo!, 'ph', 0, 0, SIZE, SIZE)}
+  <rect width="${SIZE}" height="${SIZE}" fill="url(#shade)"/>
+  ${tagPill(s.tag, t, 80, 80, t.accent, t.onAccent)}
+  <rect x="80" y="${head.top - 34}" width="72" height="8" rx="4" fill="${t.accent}"/>
+  ${head.svg}
+  ${logoSvg(b, t, 80, 1080 - 56 - 93, 440, 93, true)}`;
+};
+
+/** Photo on top, brand panel below with the headline. */
+const split = (s: CoverSpec, t: Tokens, b: Brandmark) => {
+  const panel = t.dark;
+  const h = fit(s.headline, t.heading, 920, 3, 84, 48);
+  const y0 = 640 + h.size * 0.8;
+  return `
+  <rect width="${SIZE}" height="${SIZE}" fill="${panel}"/>
+  ${photoBox(s.photo!, 'ph', 0, 0, SIZE, 560)}
+  <rect x="0" y="556" width="${SIZE}" height="8" fill="${t.accent}"/>
+  ${tagPill(s.tag, t, 80, 534, t.accent, t.onAccent)}
+  ${headlineSvg(h.lines, s.highlight, 80, y0, h.size, t, t.onDark)}
+  ${logoSvg(b, t, 80, 1080 - 48 - 80, 400, 80, true)}`;
+};
+
+/** Brand background, headline on top, the photo as a tilted print below. */
+const frame = (s: CoverSpec, t: Tokens, b: Brandmark) => {
+  const h = fit(s.headline, t.heading, 900, 3, 88, 48);
+  const y0 = 170 + h.size * 0.8;
+  const top = 170 + h.lines.length * h.size * 1.06 + 40;
+  const ph = Math.min(470, 1080 - 150 - top);
+  return `
+  <rect width="${SIZE}" height="${SIZE}" fill="${t.accentSoft}"/>
+  <circle cx="1000" cy="980" r="300" fill="${t.accent}" opacity="0.25"/>
+  ${tagPill(s.tag, t, 80, 80, t.text, t.surface)}
+  ${headlineSvg(h.lines, s.highlight, 80, y0, h.size, t, t.text)}
+  <g transform="rotate(-3 ${640} ${top + ph / 2})">
+    <rect x="${400 - 14}" y="${top - 14 + 10}" width="${600 + 28}" height="${ph + 28}" rx="22" fill="#000" opacity="0.12"/>
+    <rect x="${400 - 14}" y="${top - 14}" width="${600 + 28}" height="${ph + 28}" rx="22" fill="#FFFFFF"/>
+    ${photoBox(s.photo!, 'ph', 400, top, 600, ph, 12)}
+  </g>
+  ${logoSvg(b, t, 80, 1080 - 64 - 80, 300, 80, false)}`;
+};
+
+/** Numbered steps for how-to and list articles. */
+const steps = (s: CoverSpec, t: Tokens, b: Brandmark) => {
+  const h = fit(s.headline, t.heading, 920, 3, 88, 48);
+  const y0 = 190 + h.size * 0.8;
+  const startY = 190 + h.lines.length * h.size * 1.06 + 60;
+  const pts = s.points.slice(0, 4);
+  const gap = Math.min(110, (1080 - 190 - startY) / pts.length);
+  const rows = pts.map((p, i) => {
+    const y = startY + i * gap;
+    return `<rect x="80" y="${y}" width="920" height="${gap - 18}" rx="18" fill="${mix(t.dark, '#FFFFFF', 0.07)}"/>` +
+      `<text x="116" y="${y + (gap - 18) / 2 + 14}" font-family="${t.heading}" font-weight="700" font-size="40" fill="${t.accent}">${String(i + 1).padStart(2, '0')}</text>` +
+      `<text x="196" y="${y + (gap - 18) / 2 + 11}" font-family="${t.body}" font-size="32" fill="${t.onDark}">${esc(p.slice(0, 34))}</text>`;
+  }).join('');
+  return `
+  <rect width="${SIZE}" height="${SIZE}" fill="${t.dark}"/>
+  <rect x="0" y="0" width="16" height="${SIZE}" fill="${t.accent}"/>
+  ${tagPill(s.tag, t, 80, 80, t.accent, t.onAccent)}
+  ${headlineSvg(h.lines, s.highlight, 80, y0, h.size, t, t.onDark)}
+  ${rows}
+  ${logoSvg(b, t, 80, 1080 - 56 - 80, 400, 80, true)}`;
+};
+
+/** Typographic: a very large headline and lots of air. */
+const minimal = (s: CoverSpec, t: Tokens, b: Brandmark) => {
+  const h = fit(s.headline, t.heading, 900, 5, 128, 60, 640);
+  const y0 = 300 + h.size * 0.8;
+  const end = 300 + h.lines.length * h.size * 1.06;
+  return `
+  <rect width="${SIZE}" height="${SIZE}" fill="${t.surface}"/>
+  <rect x="80" y="80" width="920" height="3" fill="${t.text}" opacity="0.85"/>
+  <text x="80" y="140" font-family="${t.body}" font-weight="700" font-size="22" letter-spacing="4" fill="${t.accent}">${esc(s.tag.toUpperCase().slice(0, 28))}</text>
+  ${headlineSvg(h.lines, s.highlight, 80, y0, h.size, t, t.text)}
+  <rect x="80" y="${Math.min(end + 30, 880)}" width="160" height="14" fill="${t.accent}"/>
+  <rect x="80" y="${1080 - 160}" width="920" height="2" fill="${t.text}" opacity="0.25"/>
+  ${logoSvg(b, t, 80, 1080 - 140, 400, 80, false)}`;
+};
+
+/** A question headline on the accent colour with a giant question mark. */
+const question = (s: CoverSpec, t: Tokens, b: Brandmark) => {
+  const h = fit(s.headline, t.heading, 820, 5, 104, 52, 520);
+  const y0 = 260 + h.size * 0.8;
+  const ink = t.onAccent;
+  return `
+  <rect width="${SIZE}" height="${SIZE}" fill="${t.accent}"/>
+  <text x="1060" y="1000" font-family="${t.heading}" font-weight="700" font-size="900" text-anchor="end" fill="${ink}" opacity="0.10">?</text>
+  ${tagPill(s.tag, t, 80, 100, ink, t.accent)}
+  ${headlineSvg(h.lines, '', 80, y0, h.size, t, ink)}
+  ${logoSvg(b, { ...t, onDark: ink, text: ink, accent: ink }, 80, 1080 - 64 - 80, 400, 80, lum(t.accent) < 0.45)}`;
+};
+
+/** The leading number of a list title, very large. */
+const number = (s: CoverSpec, t: Tokens, b: Brandmark) => {
+  const h = fit(s.headline, t.heading, 900, 3, 84, 48);
+  return `
+  <rect width="${SIZE}" height="${SIZE}" fill="${t.bg}"/>
+  <text x="60" y="640" font-family="${t.heading}" font-weight="700" font-size="540" fill="${t.accent}">${esc((s.bigNumber || '').slice(0, 3))}</text>
+  ${tagPill(s.tag, t, 80, 80, t.text, t.bg)}
+  ${headlineSvg(h.lines, s.highlight, 80, 720 + h.size * 0.8, h.size, t, t.text)}
+  ${logoSvg(b, t, 80, 1080 - 56 - 80, 400, 80, lum(t.bg) < 0.45)}`;
+};
+
+const RENDERERS: Record<Layout, (s: CoverSpec, t: Tokens, b: Brandmark) => string> = { editorial, bold, centered, photo, split, frame, steps, minimal, question, number };
 
 export const buildSvg = (spec: CoverSpec, tokens: Tokens, brand: Brandmark): string =>
   `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">${RENDERERS[spec.layout](spec, tokens, brand)}</svg>`;
@@ -351,6 +505,25 @@ const toDataUri = async (logoUrl: string): Promise<{ uri: string; ratio?: number
     else if (got.type === 'image/jpeg' || got.type === 'image/jpg') { const d = jpeg.decode(got.bytes, { useTArray: true }); ratio = d.width / d.height; }
   } catch { /* unknown shape: use the default wide panel */ }
   return { uri: `data:${got.type};base64,${got.bytes.toString('base64')}`, ratio: ratio && isFinite(ratio) ? ratio : undefined };
+};
+
+// ---------------- stock photo (Pexels) for the photo layouts ----------------
+const stockPhoto = async (query: string, seed: number): Promise<string | undefined> => {
+  const key = process.env.PEXELS_API_KEY;
+  if (!key || !query.trim()) return undefined;
+  const search = async (orientation: string) => {
+    const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}${orientation}&per_page=12`, { headers: { Authorization: key }, signal: AbortSignal.timeout(8000) }).catch(() => null);
+    if (!res?.ok) return [];
+    return ((await res.json()).photos || []).filter((p: any) => typeof p.src?.original === 'string' && p.width >= 1000);
+  };
+  let photos = await search('&orientation=square');
+  if (photos.length < 3) photos = await search('');
+  if (!photos.length) return undefined;
+  const pick = photos[Math.abs(seed) % Math.min(photos.length, 8)];
+  const u = new URL(pick.src.original);
+  if (u.hostname !== 'images.pexels.com') return undefined;
+  const img = await safeFetch(`${u.origin}${u.pathname}?auto=compress&cs=tinysrgb&w=${SIZE}&h=${SIZE}&fit=crop`, 900_000, /^image\/jpe?g$/);
+  return img?.bytes.length ? `data:image/jpeg;base64,${img.bytes.toString('base64')}` : undefined;
 };
 
 // ---------------- reading a brand from the website ----------------
@@ -444,32 +617,41 @@ const sanitizeBrand = (b: any): BrandStyle | null => {
 };
 
 // ---------------- Claude: the design spec ----------------
-const designSpec = async (claude: Anthropic, p: { title: string; keyword: string; businessName: string; description: string; hasBrand: boolean; layout: CoverSpec['layout']; variant: number }): Promise<CoverSpec> => {
+const designSpec = async (claude: Anthropic, p: { title: string; keyword: string; businessName: string; description: string; hasBrand: boolean; variant: number }): Promise<CoverSpec> => {
   const res = await claude.messages.create({
     model: MODEL_FAST,
     max_tokens: 900,
-    messages: [{ role: 'user', content: `Design the cover image for a blog article.
+    messages: [{ role: 'user', content: `Write the text for the cover image of a blog article.
 Article title: "${p.title}"
 Target keyword: "${p.keyword}"
 Published by: ${p.businessName}${p.description ? ` (${p.description.slice(0, 200)})` : ''}
 
-The cover is a square graphic with a short category tag, a big headline, and 3 or 4 short key points. Layout is already chosen: "${p.layout}".
-Rules: plain words, no em dashes, no emojis. headline = the article title, shortened to at most 70 characters if needed (keep the meaning and the main keyword). highlight = the 1 to 3 consecutive words in the headline that matter most (copied exactly as written there). tag = 1 to 3 words naming the topic area (for example "Web Design", "Roofing Tips"). points = 3 or 4 concrete takeaways from the article topic, each at most 24 characters. bigNumber = the leading number if the title starts with a count (for example "7"), else empty. alt = SEO alt text under 125 characters describing the cover.
+A cover is read in one second, like a magazine cover, so be short and punchy. Rules: plain words, no em dashes, no emojis.
+- headline: a short version of the title, at most 6 words and 45 characters, keeping the main topic (for example "Flower Mound Web Design: What It Costs"). If the title is a question, keep it a question. Never invent numbers.
+- highlight: the 1 or 2 consecutive words in the headline that matter most, copied exactly.
+- tag: 1 or 2 words naming the topic area (for example "Web Design", "Roofing").
+- points: 3 or 4 concrete takeaways, each at most 22 characters.
+- bigNumber: the leading number if the title starts with a count (for example "7"), else empty.
+- kind: howto (steps or a process), list (a numbered list), cost (prices or budgets), comparison (X vs Y, options), question (the title asks something), or guide (anything else).
+- photoQuery: 2 to 4 words for a stock photo search that finds a realistic, attractive photo of the subject (real people, places or objects you could photograph; no screens full of text, no abstract ideas, no logos). For example "contractor measuring roof", "dentist with patient".
+- alt: SEO alt text under 125 characters describing the cover.
 ${p.hasBrand ? 'The brand colours are fixed, so leave the palette fields empty.' : `The business has no brand style, so choose one that fits this topic and industry${p.variant ? ' (try something different from a typical choice)' : ''}: primary = a confident accent colour, secondary = a light tint of it, background = a light background, text = a dark headline colour readable on the background (all hex), headingFont and bodyFont from: ${FONT_NAMES.join(', ')}.`}` }],
     output_config: {
       effort: 'low',
-      format: { type: 'json_schema', schema: { type: 'object', properties: { tag: { type: 'string' }, headline: { type: 'string' }, highlight: { type: 'string' }, points: { type: 'array', items: { type: 'string' } }, bigNumber: { type: 'string' }, alt: { type: 'string' }, primary: { type: 'string' }, secondary: { type: 'string' }, background: { type: 'string' }, text: { type: 'string' }, headingFont: { type: 'string' }, bodyFont: { type: 'string' } }, required: ['tag', 'headline', 'highlight', 'points', 'bigNumber', 'alt', 'primary', 'secondary', 'background', 'text', 'headingFont', 'bodyFont'], additionalProperties: false } },
+      format: { type: 'json_schema', schema: { type: 'object', properties: { tag: { type: 'string' }, headline: { type: 'string' }, highlight: { type: 'string' }, points: { type: 'array', items: { type: 'string' } }, bigNumber: { type: 'string' }, kind: { type: 'string', enum: ['howto', 'list', 'cost', 'comparison', 'question', 'guide'] }, photoQuery: { type: 'string' }, alt: { type: 'string' }, primary: { type: 'string' }, secondary: { type: 'string' }, background: { type: 'string' }, text: { type: 'string' }, headingFont: { type: 'string' }, bodyFont: { type: 'string' } }, required: ['tag', 'headline', 'highlight', 'points', 'bigNumber', 'kind', 'photoQuery', 'alt', 'primary', 'secondary', 'background', 'text', 'headingFont', 'bodyFont'], additionalProperties: false } },
     },
   } as any);
   const o = JSON.parse(res.content.filter(b => b.type === 'text').map((b: any) => b.text).join(''));
   const primary = cleanHex(o.primary);
   return {
-    layout: p.layout,
+    layout: 'editorial',
+    kind: (['howto', 'list', 'cost', 'comparison', 'question', 'guide'].includes(o.kind) ? o.kind : 'guide') as ArticleKind,
     tag: String(o.tag || '').trim() || 'Guide',
-    headline: String(o.headline || p.title).trim().slice(0, 90),
+    headline: String(o.headline || p.title).trim().slice(0, 70),
     highlight: String(o.highlight || '').trim(),
     points: (Array.isArray(o.points) ? o.points : []).map((x: any) => String(x).trim()).filter(Boolean).slice(0, 4),
     bigNumber: String(o.bigNumber || '').trim() || undefined,
+    photoQuery: String(o.photoQuery || p.keyword).trim().slice(0, 60),
     alt: String(o.alt || p.title).trim().slice(0, 125),
     palette: primary ? { primary, secondary: cleanHex(o.secondary), background: cleanHex(o.background) || '#F7F7F7', text: cleanHex(o.text) || '#1A1A1A', headingFont: pickFont(o.headingFont, 'Inter'), bodyFont: pickFont(o.bodyFont, 'Inter') } : undefined,
   };
@@ -555,9 +737,20 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // 2. design spec from Claude
-    const layout = LAYOUTS[(Math.abs(hashCode(title)) + variant) % LAYOUTS.length];
-    const spec = await designSpec(claude, { title, keyword, businessName, description, hasBrand: !!brand, layout, variant });
+    const spec = await designSpec(claude, { title, keyword, businessName, description, hasBrand: !!brand, variant });
     if (spec.points.length < 3) spec.points = ['Clear next steps', 'Local focus', 'Proven approach'].slice(0, 3);
+
+    // layout: rotate per business (its article count), so neighbouring covers differ; photo layouts need a stock photo
+    let n = Math.abs(hashCode(title));
+    if (businessId && db) {
+      const { count } = await db.from('posts').select('id', { count: 'exact', head: true }).eq('business_id', businessId).then(r => r, () => ({ count: null }));
+      if (typeof count === 'number') n = count;
+    }
+    n += variant;
+    spec.photo = 'pending';
+    spec.layout = chooseLayout(spec, n);
+    spec.photo = PHOTO_LAYOUTS.has(spec.layout) ? await stockPhoto(spec.photoQuery, n + Math.abs(hashCode(title))).catch(() => undefined) : undefined;
+    if (PHOTO_LAYOUTS.has(spec.layout) && !spec.photo) spec.layout = chooseLayout(spec, n);
 
     // 3. tokens: brand colours/fonts, else the palette Claude chose, else a neutral default
     const pal = brand ? { primary: brand.primary!, secondary: brand.secondary, background: brand.background || '#F7F7F7', text: brand.text || '#1A1A1A' }
