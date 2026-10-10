@@ -207,8 +207,11 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
         }
     };
 
+    // one generation at a time: a second click would start a second run and use a second credit
+    const generationInFlight = useRef(false);
     const runFullGenerationProcess = useCallback(async () => {
-        if (!selectedBusiness) return;
+        if (!selectedBusiness || generationInFlight.current) return;
+        generationInFlight.current = true;
         setIsGeneratingText(true);
         setGenerationProgress({ value: 5, text: 'Warming up the content engine...' });
         await handleUpdatePost({ status: 'generating-text' });
@@ -247,6 +250,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
             alert((e as any)?.message || "Failed to generate article. Please try again.");
             await handleUpdatePost({ status: 'scheduled' });
         } finally {
+            generationInFlight.current = false;
             setIsGeneratingText(false);
             setGenerationProgress(null);
         }
@@ -377,7 +381,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center max-w-2xl">
                     <h1 className="text-4xl font-extrabold text-slate-900 mb-6">{post.keyword}</h1>
                     <p className="text-slate-600 mb-10">This article hasn't been written yet. Generate it now to start your GEO strategy.</p>
-                    <button onClick={() => runFullGenerationProcess()} className="bg-orange-500 text-white px-10 py-4 rounded-xl font-bold shadow-lg hover:bg-orange-600 transition-all">Generate Article with AI</button>
+                    <button onClick={() => runFullGenerationProcess()} disabled={isGeneratingText} className="disabled:opacity-60 disabled:cursor-not-allowed bg-orange-500 text-white px-10 py-4 rounded-xl font-bold shadow-lg hover:bg-orange-600 transition-all">Generate Article with AI</button>
                 </div>
             </div>
         );

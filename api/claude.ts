@@ -93,16 +93,43 @@ const reserveArticle = async (db: SupabaseClient, userId: string): Promise<{ ok:
       return {
         ok: true,
         refund: async () => {
-          // best effort; add back relative to the current value
-          const latest = await loadProfile(db, userId);
-          if (!latest) return;
-          const cur = (isPaid ? latest.credits_remaining : latest.trial_articles_created) ?? 0;
-          await db.from('profiles').update({ [column]: isPaid ? cur + CREDITS_PER_ARTICLE : Math.max(0, cur - 1) }).eq('id', userId);
+          // best effort; add back relative to the current value (compare-and-swap, so a parallel change is not lost)
+          for (let i = 0; i < 4; i++) {
+            const latest = await loadProfile(db, userId);
+            if (!latest) return;
+            const cur = (isPaid ? latest.credits_remaining : latest.trial_articles_created) ?? 0;
+            const { data: done } = await db.from('profiles').update({ [column]: isPaid ? cur + CREDITS_PER_ARTICLE : Math.max(0, cur - 1) }).eq('id', userId).eq(column, cur).select('id');
+            if (done && done.length) return;
+          }
         },
       };
     }
   }
   return { ok: false, message: 'Could not reserve a credit. Please try again.' };
+};
+
+/**
+ * Calls that do not take an article credit (rewrites, repair and source passes, keyword and gap research) are
+ * counted per user per UTC day and capped relative to the articles charged that day. The browser chooses which
+ * kind of call it sends, so without this cap a user could run unlimited expensive calls for free.
+ */
+const FREE_SMART_PER_DAY = 6;
+const SMART_PER_ARTICLE = 4;
+const FREE_SEARCH_PER_DAY = 40;
+const SEARCH_PER_ARTICLE = 4;
+
+const meterUsage = async (db: SupabaseClient, userId: string, kind: 'article' | 'smart' | 'search'): Promise<Decision> => {
+  const { data, error } = await db.rpc('bump_ai_usage', { p_user: userId, p_kind: kind });
+  if (error || !Array.isArray(data) || !data[0]) {
+    console.error('usage meter failed', error?.message); // fail open: a metering outage must not block paying users
+    return { ok: true };
+  }
+  const u = data[0] as { articles: number; smart: number; search: number };
+  if (kind === 'smart' && u.smart > FREE_SMART_PER_DAY + SMART_PER_ARTICLE * u.articles)
+    return { ok: false, message: 'Daily limit for AI rewrites reached. It resets at midnight UTC, or write a new article to unlock more.' };
+  if (kind === 'search' && u.search > FREE_SEARCH_PER_DAY + SEARCH_PER_ARTICLE * u.articles)
+    return { ok: false, message: 'Daily limit for AI research reached. It resets at midnight UTC.' };
+  return { ok: true };
 };
 // ------------------------------------------------------
 
@@ -401,9 +428,14 @@ export async function POST(request: Request): Promise<Response> {
     const reservation = await reserveArticle(db, userId);
     if (!reservation.ok) return json(402, { error: reservation.message });
     refund = reservation.refund ?? null;
+    await meterUsage(db, userId, 'article');
   } else {
     const decision = decide(await loadProfile(db, userId), heavy);
     if (!decision.ok) return json(402, { error: decision.message });
+    if (heavy) {
+      const metered = await meterUsage(db, userId, body.tier === 'smart' ? 'smart' : 'search');
+      if (!metered.ok) return json(429, { error: metered.message });
+    }
   }
 
   const maxTokens = Math.min(Math.max(Number(body.maxTokens) || 8000, 256), MAX_TOKENS_CAP);
