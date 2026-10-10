@@ -5,13 +5,13 @@
 ## Script
 | Time | Beat | On screen |
 |---|---|---|
-| 0.0–2.5 | Hook | "Your customers stopped searching." (strike-through) → "They ask *AI.*", with ChatGPT / Perplexity / Gemini / Claude chips |
+| 0.0–2.5 | Hook | "Your customers stopped searching." (strike-through) → "They ask *AI.*", with ChatGPT / Perplexity / AI Overviews / Claude chips |
 | 2.5–4.5 | Drop + logo | Orange and canvas wipe, the mark springs in, the A draws, the dot pops, "autorank" + "Grow your organic traffic on *autopilot.*" |
 | 4.5–7.0 | 01 Analyze | URL typed, site scanned, GEO score counts to 94, competitor and keyword-gap metrics |
 | 7.0–9.5 | 02 Plan | Pillar "Roof replacement" with cluster keywords flying in; the one to write gets picked |
 | 9.5–12.0 | 03 Write & publish | Cover + article build, quality checks pop, the week fills in, "Published" stamp |
 | 12.0–13.5 | Cited | "Who's the best roofer near me?" → AI answer citing yourbusiness.com |
-| 13.5–15.0 | End card | autorank: "Get found — and cited — by *AI search.*" + "Start your free trial" |
+| 13.5–15.0 | End card | autorank: "Get found — and cited — by *AI search.*" + "Start your 5-day free trial", "3 free articles · autorank-ai.com" |
 
 Brand comes from the app: canvas `#F4F3EF`, ink `#111214`, accent `#EA580C`, Geist + Instrument Serif, the `LogoMark` A.
 
