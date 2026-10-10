@@ -23,18 +23,25 @@ export const keywordRules = (keyword: string, words = 1800): string => `KEYWORD 
 
 /** Searches an article may use: a few to study competing pages, the rest reserved for finding sources. */
 export const ARTICLE_SEARCHES = 10;
-export const MIN_SOURCES = 4;
+export const MIN_SOURCES = 3;
+
+/** Outside sources must be this recent: published or updated this year or last year. */
+const THIS_YEAR = new Date().getUTCFullYear();
+export const OLDEST_SOURCE_YEAR = THIS_YEAR - 1;
+
+const RECENCY_RULE = `RECENT SOURCES ONLY: cite pages published or updated in ${OLDEST_SOURCE_YEAR} or later. Never cite news, blog posts, reports or studies older than that, even if they rank well; find a newer source or drop the claim. Official documentation the publisher keeps current (for example Google Search Central, government agency pages) is fine; name a year for it only if the page itself shows one, never a guessed year. The only exception is the primary record of a law, regulation or standard (for example "the ADA (1990)").`;
 
 export const SOURCE_RULES = `CREDIBLE SOURCES (strict, every article):
     - SEARCH PLAN: you have ${ARTICLE_SEARCHES} searches. Use at most 3 to study competing pages. Spend at least 5 on finding sources: (a) official standards, regulations or government guidance on the topic, (b) guidance from professional associations, clinical or industry bodies, (c) research or statistics, (d) safety or best-practice guidance. If early searches come up thin, search again with different wording.
-    - Aim for ${MIN_SOURCES} or more inline citations from at least 3 different publishers, even when the topic is practical or how-to. Anchor the key claims (why it matters, safety, sizing, standards, risks, best practice) on what those sources say. Never publish with no outside sources, and never write that the article has none.
+    - Aim for ${MIN_SOURCES} or more inline citations from at least 2 different publishers, placed where a claim needs support (facts, numbers, rules, safety, best practice). Never add a citation just to reach a count, and never write that the article has no sources.
+    - ${RECENCY_RULE}
     - RELEVANCE OVER COUNT: cite a source only where it directly supports that exact sentence. Never stretch a source to fit (for example "this is about X, not Y, but it shows..."). Fewer strong sources beat padded ones; old or off-topic sources weaken the article.
     - NEVER cite a business that sells the same kind of product or service as this article's subject (competitors, retailers, manufacturers' product or shop pages for that product type). Prefer non-commercial sources: government (.gov), universities (.edu), standards bodies, clinical and professional associations, peer-reviewed research, and established news or data publishers.
     - Avoid content farms, anonymous blogs, press-release sites, forums and social posts.
     - Link each source inline as <a href="URL" target="_blank" rel="noopener">descriptive anchor text</a>, using only URLs exactly as they appear in your search results. Never guess, shorten or reconstruct a URL. Links that were not in your search results are removed automatically.
     - Name the source and year in the sentence, for example: According to the U.S. Bureau of Labor Statistics (2025), ...
     - Do not state numbers, studies or regulations you did not find in a source. If one claim has no source, reword it as general guidance or drop it.
-    - After the FAQ section, add <h2>Sources</h2> followed by a <ul>. EVERY entry must be: publisher, title, year, and the link as <a href="URL">. Never list an entry without its link.`;
+    - Do NOT add a Sources, References or Bibliography section at the end. The inline links are the citations.`;
 
 export const INTERNAL_LINK_RULES = (ownUrl: string, sitemapUrl?: string) => `INTERNAL LINKS:
     - Include 2-3 links to real content pages on ${ownUrl} (guides, articles, product or service pages) that are genuinely relevant. Find them by searching the site (for example: site:${ownUrl} followed by the topic)${sitemapUrl ? ` or by reading the sitemap (${sitemapUrl}) to discover page addresses` : ''}.
@@ -48,9 +55,10 @@ export const buildSourcePassPrompt = (html: string, keyword: string): string => 
 Search for: (a) official standards, regulations or government guidance on the topic, (b) guidance from professional associations or clinical/industry bodies, (c) research or statistics, (d) safety or best-practice guidance. You have ${ARTICLE_SEARCHES} searches.
 
 Then edit the article:
-- Add ${MIN_SOURCES} or more inline citations from at least 3 different publishers, attached only to the claims they directly support (never stretch a source to fit). Never cite a business that sells the same kind of product as the topic; prefer government, standards, clinical/professional and research sources. Name the source and year in the sentence and link it as <a href="URL" target="_blank" rel="noopener">descriptive anchor text</a>. Use only URLs exactly as they appear in your search results; never guess a URL.
+- Add ${MIN_SOURCES} or more inline citations from at least 2 different publishers, attached only to the claims they directly support (never stretch a source to fit). Never cite a business that sells the same kind of product as the topic; prefer government, standards, clinical/professional and research sources. Name the source and year in the sentence and link it as <a href="URL" target="_blank" rel="noopener">descriptive anchor text</a>. Use only URLs exactly as they appear in your search results; never guess a URL.
 - You may add or sharpen sentences so the sources are used where they genuinely support the point. Do not state anything the sources do not say, and do not invent numbers or quotes.
-- Replace any "Sources" section with <h2>Sources</h2> and a <ul> listing every source linked; each entry is publisher, title, year and the link as <a href="URL">. Never write that the article has no sources.
+- ${RECENCY_RULE}
+- Remove any Sources or References list at the end; citations stay inline. Never write that the article has no sources.
 - Keep everything else: structure, headings, existing links to the business's own site, and the FAQ.
 Return ONLY the full HTML, no commentary, no code fences.
 
@@ -59,14 +67,13 @@ ${html}`;
 
 export const TRUST_RULES = `TRUST AND HONESTY (strict):
     - Do not invent an author, credentials, personal experience, testing, case studies, reviews, customer quotes or awards. Do not write "we tested" or "in our experience" unless the business context above states it.
-    - Product or service facts about the business come only from the business context provided. Anything not stated there, say plainly that readers should confirm it with the provider.
+    - Product or service facts about the business (prices, response times, guarantees, awards, years in business) come only from the business context provided. If a fact is not there, leave it out or speak generally. Never write that the business has not published something, and never tell readers to confirm the business's own details.
     - Be even-handed: say what a solution does not do as well as what it does. Do not exaggerate.
     - Never write meta-commentary about the article or its format (for example "no diagram is needed", "as an AI", "in this article we will"). Do not add a "last updated" line or schema markup; those are added automatically. 
     - CLOSING CALL TO ACTION: if you end with one, it must name the business and link to a real, relevant page on its site that you found (a product, category or contact page). If you found no such page, leave the call to action out. Never write "check out our catalog" or "message us" without a link.`;
 
 export const FOCUS_RULES = `TOPIC FOCUS:
     - Stay on what the person searching this keyword wants. Mention the business's own niche only where it genuinely fits, in a sentence or two. Never add whole sections, FAQ questions or audience groups just to bring in the business's other lines of work.
-    - Prefer sources from the last 3 years. Cite older ones only when they are the primary record (a law, a standard, an official notice), and still say the year.
     - Where first-hand knowledge from the business would make the article stronger (a real photo, a fitting tip, a customer situation), leave an HTML comment in that spot: <!-- EDITOR: add a real photo or first-hand note here: what to show -->. Use 1 or 2 at most. Never invent experiences, customers or results.`;
 
 /** Searches for the gap-research step (cheap model), and for the writer when it already has the brief. */
@@ -87,6 +94,10 @@ export const researchBriefBlock = (research: string): string => research ? `RESE
 ${research}
 
 Use the brief: cover everything under MUST COVER, make the GAPS and ANGLE the parts where this article clearly beats the current results, and match the format under INTENT AND FORMAT. URLs listed under SOURCES came from search results and may be cited; verify or add others with your own searches.` : '';
+
+/** Removes a Sources / References / Bibliography section at the end (citations stay inline). */
+export const stripSourcesSection = (html: string): string =>
+    html.replace(/<h2[^>]*>\s*(sources|references|bibliography|works cited)\s*:?\s*<\/h2>[\s\S]*?(?=<h2[\s>]|<script|$)/gi, '').trim();
 
 /** WordPress themes print the post title as the H1, so the body's own H1 (a copy of the title) is dropped and any other becomes an H2. */
 export const dropTitleH1 = (html: string): string =>
@@ -281,16 +292,20 @@ export const lintArticle = (html: string, o: LintOptions): { issues: LintIssue[]
     else if (credible === 0) add('weak-sources', 'warning', 'None of the cited sources is a government, university, standards body or major publication.');
     const badInternal = [...html.matchAll(/<a\s[^>]*href=["'](https?:\/\/[^"']+)["']/gi)].map(m => m[1]).filter(isNonContentUrl);
     if (badInternal.length) add('non-content-link', 'error', `Remove links to non-page addresses (${badInternal[0]}); link only to real content pages.`);
-    const sourcesList = html.match(/<h2[^>]*>\s*sources\s*<\/h2>([\s\S]*)$/i)?.[1] || '';
-    const unlinkedSources = (sourcesList.match(/<li[^>]*>[\s\S]*?<\/li>/gi) || []).filter(li => !/<a\s[^>]*href=/i.test(li));
-    if (unlinkedSources.length) add('unlinked-source', 'error', `${unlinkedSources.length} entr${unlinkedSources.length === 1 ? 'y' : 'ies'} in the Sources list ha${unlinkedSources.length === 1 ? 's' : 've'} no link; every entry needs publisher, title, year and its link (copy the link from the inline citation).`);
+    if (/<h2[^>]*>\s*(sources|references|bibliography|works cited)\s*:?\s*<\/h2>/i.test(html)) add('sources-list', 'error', 'Remove the Sources/References section at the end; citations stay inline.');
+    const dated = (body.match(/<(p|li)[^>]*>[\s\S]*?<\/\1>/gi) || []).filter(p => {
+        if (!externalLinks(p, ownHost).length) return false;
+        const t = stripTags(p);
+        if (/\b(act|law|regulation|statute|standard|iso|ansi|code)\b/i.test(t)) return false; // primary legal or standards record
+        return [...t.matchAll(/\b(19[5-9]\d|20\d\d)\b/g)].some(m => +m[1] < OLDEST_SOURCE_YEAR);
+    });
+    if (dated.length) add('old-source', 'error', `${dated.length} citation(s) rely on a source older than ${OLDEST_SOURCE_YEAR}, for example: "${stripTags(dated[0]).slice(0, 110)}". Remove that claim and its link, or keep the advice as general guidance without the old citation.`);
     if (/(this|that|the) (notice|source|study|report|page|standard) (is about|concerns|covers) [^.]{0,80}, not\b/i.test(stripTags(body)))
         add('stretched-source', 'error', 'A source is stretched to fit a claim it does not support ("it is about X, not Y, but..."). Remove that citation and sentence.');
     const ctaParas = (body.match(/<p[^>]*>[\s\S]*?<\/p>/gi) || []).filter(p => /(check out|browse|shop|see) (our|the) (catalog|catalogue|products|store|shop)|message us|contact us/i.test(stripTags(p)));
     if (ctaParas.some(p => !/<a\s[^>]*href=/i.test(p))) add('unlinked-cta', 'error', 'The call to action has no link. Link it to a page already linked in the article, or remove it.');
     if (ownHost && ![...body.matchAll(/<a\s[^>]*href=["'](https?:\/\/[^"']+)["']/gi)].some(m => hostOf(m[1]) === ownHost))
         add('no-internal-links', 'warning', 'No links to the business\'s own pages; add 1-3 links to relevant product, category or guide pages.');
-    if (!/<h2[^>]*>\s*sources\s*<\/h2>/i.test(html)) add('no-sources-section', 'warning', 'Add a "Sources" section listing each cited source.');
 
     const unsourced = (body.match(/<(p|li)[^>]*>[\s\S]*?<\/\1>/gi) || []).filter(p => FIGURE.test(stripTags(p)) && !/<a\s[^>]*href=/i.test(p));
     if (unsourced.length) add('unsourced-figure', unsourced.length >= 3 ? 'error' : 'warning', `${unsourced.length} statement(s) contain a statistic or study claim with no linked source, for example: "${stripTags(unsourced[0]).slice(0, 110)}".`);
@@ -314,12 +329,12 @@ export const sourceStats = (html: string, ownUrl?: string): { links: number; pub
     return { links: ext.length, publishers: new Set(ext.map(hostOf)).size };
 };
 
-/** True when the article cites fewer than 3 publishers or says it has no sources: it needs the search-backed source pass. */
+/** True when the article cites fewer than 2 publishers or says it has no sources: it needs the search-backed source pass. */
 export const needsSourcePass = (html: string, ownUrl?: string): boolean =>
-    sourceStats(html, ownUrl).publishers < 3 || LEAK_PATTERNS.some(([re, label]) => /no sources/.test(label) && re.test(html));
+    sourceStats(html, ownUrl).publishers < 2 || LEAK_PATTERNS.some(([re, label]) => /no sources/.test(label) && re.test(html));
 
-/** Model output that should be HTML: strips a code fence if the model added one. */
-export const stripFences = (text: string): string => text.trim().replace(/^```(?:html)?\s*/i, '').replace(/\s*```$/, '').trim();
+/** Model output that should be HTML: strips a code fence and any Sources list the model added anyway. */
+export const stripFences = (text: string): string => stripSourcesSection(text.trim().replace(/^```(?:html)?\s*/i, '').replace(/\s*```$/, '').trim());
 
 // ---------------------------------------------------------------- FAQ + JSON-LD
 
@@ -378,7 +393,7 @@ const formatDate = (d: Date) => d.toLocaleDateString('en-US', { year: 'numeric',
 
 /** Adds a visible "Last updated" line under the H1 and the JSON-LD block. Idempotent. */
 export const finalizeForPublish = (html: string, i: Omit<JsonLdInput, 'html'>): string => {
-    let out = html.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/gi, '').replace(/<p class="article-updated">[\s\S]*?<\/p>/gi, '');
+    let out = stripSourcesSection(html).replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/gi, '').replace(/<p class="article-updated">[\s\S]*?<\/p>/gi, '');
     const now = new Date();
     const line = `<p class="article-updated"><em>Last updated: <time datetime="${now.toISOString().slice(0, 10)}">${formatDate(now)}</time></em></p>`;
     out = /<\/h1>/i.test(out) ? out.replace(/<\/h1>/i, m => m + line) : line + out;

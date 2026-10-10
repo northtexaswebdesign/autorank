@@ -132,7 +132,7 @@ ${SOURCE_RULES}
 ${STRUCTURE_RULES}
 ${FOCUS_RULES}
 ${TRUST_RULES}
-- Include a dedicated FAQ section near the end (<h2>Frequently Asked Questions</h2>, each question as an <h3> followed by a short answer paragraph), then the Sources section.
+- Include a dedicated FAQ section near the end (<h2>Frequently Asked Questions</h2>, each question as an <h3> followed by a short answer paragraph). No Sources list at the end; citations stay inline.
 **Formatting and Style:**
 - Output clean HTML only (<h1>, <h2>, <h3>, <p>, <a>, <ul>, <li>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <strong>). No <html>, <head>, <body>, no markdown, no code fences, no images or image placeholders.
 - Short paragraphs, no fluff.
