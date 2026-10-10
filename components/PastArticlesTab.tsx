@@ -19,19 +19,19 @@ const StatCard: React.FC<{
 }> = React.memo(({ icon, label, count, isActive, onClick }) => (
     <button
         onClick={onClick}
-        className={`p-4 text-left bg-gradient-to-br from-white to-slate-50 border rounded-xl shadow-lg transition-all duration-300 ease-in-out ${
+        className={`px-[18px] py-4 text-left bg-[#F7F6F3] border rounded-2xl shadow-[inset_0_1px_0_#fff,0_1px_2px_rgba(28,27,25,0.05)] transition-colors duration-150 ${
             isActive 
-                ? 'border-orange-400 shadow-orange-500/20' 
-                : 'border-slate-200 hover:border-slate-300 hover:shadow-xl hover:-translate-y-1'
+                ? 'border-stone-900' 
+                : 'border-[#ECE9E2] hover:border-stone-300'
         }`}
     >
         <div className="flex items-start justify-between">
-            <div className="text-slate-500">
+            <div className="text-stone-500">
                 {icon}
             </div>
-            <p className="text-3xl font-bold text-slate-900">{count}</p>
+            <p className="font-serif text-[40px] leading-none text-stone-900 tabular-nums">{count}</p>
         </div>
-        <h3 className="text-base font-semibold text-slate-800 mt-3">{label}</h3>
+        <h3 className="text-base font-semibold text-stone-800 mt-3">{label}</h3>
     </button>
 ));
 
@@ -43,9 +43,9 @@ const PastArticleRow: React.FC<{ post: ScheduledPost; onView: () => void; onDele
     };
 
     const getScoreColor = (score: number | undefined | null) => {
-        if (score == null) return 'text-slate-500';
-        if (score >= 75) return 'text-orange-600';
-        if (score >= 35) return 'text-orange-500';
+        if (score == null) return 'text-stone-500';
+        if (score >= 75) return 'text-brand-600';
+        if (score >= 35) return 'text-brand-500';
         return 'text-stone-500';
     }
     
@@ -54,10 +54,10 @@ const PastArticleRow: React.FC<{ post: ScheduledPost; onView: () => void; onDele
     const dateLabel = post.status === 'published' ? 'Published' : 'Last updated';
 
     return (
-        <tr className="md:border-b md:border-slate-200/80">
+        <tr className="md:border-b md:border-stone-200/80">
             <td data-label="Article" className="md:table-cell md:px-6 md:py-4">
-                <p className="font-medium text-slate-800 md:text-left">{post.keyword}</p>
-                <p className="text-xs text-slate-500 md:text-left">
+                <p className="font-medium text-stone-800 md:text-left">{post.keyword}</p>
+                <p className="text-xs text-stone-500 md:text-left">
                     {dateLabel} on {displayDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}
                 </p>
             </td>
@@ -69,14 +69,14 @@ const PastArticleRow: React.FC<{ post: ScheduledPost; onView: () => void; onDele
             <td className="md:table-cell md:px-6 md:py-4 md:text-right">
                 <div className="flex items-center justify-end gap-1">
                     {post.publishedUrl && post.publishedUrl !== '#' && (
-                        <a href={post.publishedUrl} target="_blank" rel="noopener noreferrer" title="View Live Article" className="text-slate-500 hover:text-orange-600 inline-flex items-center justify-center p-2 rounded-lg hover:bg-slate-100 transition-colors">
+                        <a href={post.publishedUrl} target="_blank" rel="noopener noreferrer" title="View Live Article" className="text-stone-500 hover:text-brand-600 inline-flex items-center justify-center p-2 rounded-lg hover:bg-stone-100 transition-colors">
                             <LinkIcon className="w-4 h-4" />
                         </a>
                     )}
-                    <button onClick={onView} className="bg-orange-100 text-orange-700 px-4 py-2 text-sm rounded-lg font-semibold hover:bg-orange-200 transition-colors">
+                    <button onClick={onView} className="bg-brand-100 text-brand-700 px-4 py-2 text-sm rounded-lg font-semibold hover:bg-brand-200 transition-colors">
                         View Article
                     </button>
-                    <button onClick={onDelete} className="text-slate-500 hover:text-slate-800 inline-flex items-center justify-center p-2 rounded-lg hover:bg-slate-100 transition-colors">
+                    <button onClick={onDelete} className="text-stone-500 hover:text-stone-800 inline-flex items-center justify-center p-2 rounded-lg hover:bg-stone-100 transition-colors">
                         <TrashIcon className="w-4 h-4" />
                     </button>
                 </div>
@@ -140,8 +140,8 @@ export const PastArticlesTab: React.FC = () => {
 
     return (
         <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Past Articles</h1>
-            <p className="mt-1 text-slate-600 mb-8">Manage all your written and published content.</p>
+            <h1 className="font-serif text-4xl md:text-[44px] leading-none tracking-[-0.01em] text-stone-900">Articles</h1>
+            <p className="mt-1 text-stone-600 mb-8">Manage all your written and published content.</p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
                 <StatCard icon={<HistoryIcon className="w-6 h-6"/>} label="All Past Articles" count={statCounts.all} isActive={activeFilter === 'all'} onClick={handleFilterAll} />
@@ -149,17 +149,17 @@ export const PastArticlesTab: React.FC = () => {
                 <StatCard icon={<CheckIcon className="w-6 h-6"/>} label="Published" count={statCounts.published} isActive={activeFilter === 'published'} onClick={handleFilterPublished} />
             </div>
 
-            <div className="bg-white border border-slate-200/80 rounded-xl shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-slate-200/80">
+            <div className="bg-white border border-stone-200/80 rounded-xl shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-stone-200/80">
                     <div className="relative">
                         <input
                             type="text"
                             placeholder="Search articles..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full md:w-72 bg-white border border-slate-300 rounded-lg pl-10 pr-4 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition"
+                            className="w-full md:w-72 bg-white border border-stone-300 rounded-lg pl-10 pr-4 py-2 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
                         />
-                        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                     </div>
@@ -169,7 +169,7 @@ export const PastArticlesTab: React.FC = () => {
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm responsive-table">
                                 <thead className="md:table-header-group">
-                                    <tr className="text-left text-sm font-semibold text-slate-500 bg-slate-50">
+                                    <tr className="text-left text-sm font-semibold text-stone-500 bg-stone-50">
                                         <th className="px-6 py-3">Article</th>
                                         <th className="px-6 py-3 text-center">Status</th>
                                         <th className="px-6 py-3"></th>
@@ -188,9 +188,9 @@ export const PastArticlesTab: React.FC = () => {
                             </table>
                         </div>
                         {totalPages > 1 && (
-                            <div className="flex justify-between items-center p-4 border-t border-slate-200/80 text-sm">
+                            <div className="flex justify-between items-center p-4 border-t border-stone-200/80 text-sm">
                                 <div>
-                                    <p className="text-slate-600">
+                                    <p className="text-stone-600">
                                         Showing <span className="font-semibold">{paginatedPosts.length}</span> of <span className="font-semibold">{filteredPosts.length}</span> articles
                                     </p>
                                 </div>
@@ -198,17 +198,17 @@ export const PastArticlesTab: React.FC = () => {
                                     <button
                                         onClick={() => setCurrentPage(p => p - 1)}
                                         disabled={currentPage === 1}
-                                        className="px-2 py-1.5 border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="px-2 py-1.5 border border-stone-300 rounded-md hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         <ChevronLeftIcon className="w-5 h-5" />
                                     </button>
-                                    <span className="text-slate-600 font-medium">
+                                    <span className="text-stone-600 font-medium">
                                         Page {currentPage} of {totalPages}
                                     </span>
                                     <button
                                         onClick={() => setCurrentPage(p => p + 1)}
                                         disabled={currentPage === totalPages}
-                                        className="px-2 py-1.5 border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="px-2 py-1.5 border border-stone-300 rounded-md hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         <ChevronRightIcon className="w-5 h-5" />
                                     </button>
@@ -218,9 +218,9 @@ export const PastArticlesTab: React.FC = () => {
                     </>
                 ) : (
                     <div className="text-center py-20">
-                        <SparklesIcon className="w-12 h-12 mx-auto text-slate-300 mb-4" />
-                        <h2 className="text-xl font-bold text-slate-700">No Articles Found</h2>
-                        <p className="text-slate-500 mt-2">No articles match your current filter. Try generating some from the planner!</p>
+                        <SparklesIcon className="w-12 h-12 mx-auto text-stone-300 mb-4" />
+                        <h2 className="font-serif text-[26px] leading-tight text-stone-900">No Articles Found</h2>
+                        <p className="text-stone-500 mt-2">No articles match your current filter. Try generating some from the planner!</p>
                     </div>
                 )}
             </div>

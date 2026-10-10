@@ -49,27 +49,27 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ post }) => {
   if (!post || !rawHtml) {
     if (post?.status === 'pending') {
         return (
-          <div className="flex items-center justify-center p-12 text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-lg h-[400px]">
+          <div className="flex items-center justify-center p-12 text-stone-400 bg-stone-50 border border-dashed border-stone-200 rounded-lg h-[400px]">
             <div className="flex flex-col items-center text-center">
-                <p className="font-medium text-slate-500 mb-2">No content generated yet.</p>
-                <p className="text-sm text-slate-400">Click the "Generate Full Article" button to create content.</p>
+                <p className="font-medium text-stone-500 mb-2">No content generated yet.</p>
+                <p className="text-sm text-stone-400">Click the "Generate Full Article" button to create content.</p>
             </div>
           </div>
         );
     }
 
     return (
-      <div className="flex items-center justify-center p-12 text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-lg h-[400px]">
+      <div className="flex items-center justify-center p-12 text-stone-400 bg-stone-50 border border-dashed border-stone-200 rounded-lg h-[400px]">
         <div className="flex flex-col items-center">
-            <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="font-medium text-slate-500">Formatting article document...</p>
+            <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="font-medium text-stone-500">Formatting article document...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+    <div className="w-full bg-white rounded-lg shadow-sm border border-stone-200 overflow-hidden">
       <iframe
         srcDoc={processedHtml}
         title="Article Content Preview"

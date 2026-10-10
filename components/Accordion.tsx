@@ -9,15 +9,15 @@ interface AccordionProps {
 
 const AccordionItem: React.FC<{ item: FAQItem; isOpen: boolean; onClick: () => void }> = ({ item, isOpen, onClick }) => {
   return (
-    <div className="border-b border-slate-200/80 last:border-b-0">
+    <div className="border-b border-stone-200/80 last:border-b-0">
       <button
         className="w-full flex justify-between items-center text-left py-4"
         onClick={onClick}
         aria-expanded={isOpen}
       >
-        <span className="font-medium text-slate-800">{item.question}</span>
+        <span className="font-medium text-stone-800">{item.question}</span>
         <ChevronDownIcon
-          className={`w-5 h-5 text-slate-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
+          className={`w-5 h-5 text-stone-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
         />
       </button>
       <div
@@ -26,7 +26,7 @@ const AccordionItem: React.FC<{ item: FAQItem; isOpen: boolean; onClick: () => v
         }`}
       >
         <div className="overflow-hidden">
-          <div className="prose prose-sm max-w-none text-slate-600 pb-4 pr-6">
+          <div className="prose prose-sm max-w-none text-stone-600 pb-4 pr-6">
             <p>{item.answer}</p>
           </div>
         </div>

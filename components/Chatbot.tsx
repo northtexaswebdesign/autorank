@@ -66,7 +66,7 @@ export const Chatbot: React.FC = () => {
       <div className={`fixed bottom-6 right-6 z-50 transition-transform duration-300 ease-in-out ${isOpen ? 'scale-0 opacity-0' : 'scale-100 opacity-100'}`}>
         <button
           onClick={() => setIsOpen(true)}
-          className="bg-slate-800 text-white w-16 h-16 rounded-full shadow-lg flex items-center justify-center hover:bg-slate-900 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+          className="bg-stone-800 text-white w-16 h-16 rounded-full shadow-lg flex items-center justify-center hover:bg-stone-900 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500"
           aria-label="Open AI Assistant"
         >
           <ChatbotIcon className="w-8 h-8" />
@@ -74,19 +74,19 @@ export const Chatbot: React.FC = () => {
       </div>
 
       <div
-        className={`fixed bottom-6 right-6 z-50 w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200/80 flex flex-col transition-all duration-300 ease-in-out origin-bottom-right ${
+        className={`fixed bottom-6 right-6 z-50 w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-stone-200/80 flex flex-col transition-all duration-300 ease-in-out origin-bottom-right ${
           isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0 pointer-events-none'
         }`}
         style={{ height: 'min(70vh, 600px)' }}
       >
-        <header className="flex items-center justify-between p-4 border-b border-slate-200/80 flex-shrink-0">
+        <header className="flex items-center justify-between p-4 border-b border-stone-200/80 flex-shrink-0">
           <div className="flex items-center">
-            <div className="w-8 h-8 bg-slate-800 text-white rounded-lg flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 bg-stone-800 text-white rounded-lg flex items-center justify-center flex-shrink-0">
                 <LogoIcon className="w-5 h-5" />
             </div>
-            <h2 className="ml-3 text-lg font-semibold text-slate-900">AI Assistant</h2>
+            <h2 className="ml-3 text-lg font-semibold text-stone-900">AI Assistant</h2>
           </div>
-          <button onClick={() => setIsOpen(false)} className="p-1 text-slate-500 hover:text-slate-800">
+          <button onClick={() => setIsOpen(false)} className="p-1 text-stone-500 hover:text-stone-800">
             <CloseIcon className="w-5 h-5" />
           </button>
         </header>
@@ -98,8 +98,8 @@ export const Chatbot: React.FC = () => {
                 <div
                   className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
                     msg.role === 'user'
-                      ? 'bg-slate-800 text-white rounded-br-lg'
-                      : 'bg-slate-100 text-slate-800 rounded-bl-lg'
+                      ? 'bg-stone-800 text-white rounded-br-lg'
+                      : 'bg-stone-100 text-stone-800 rounded-bl-lg'
                   }`}
                 >
                   <div className="prose prose-sm max-w-none [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_li]:my-1" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(msg.parts[0].text) }} />
@@ -108,11 +108,11 @@ export const Chatbot: React.FC = () => {
             ))}
             {isLoading && (
               <div className="flex justify-start">
-                <div className="bg-slate-100 text-slate-800 rounded-2xl rounded-bl-lg px-4 py-2.5">
+                <div className="bg-stone-100 text-stone-800 rounded-2xl rounded-bl-lg px-4 py-2.5">
                   <div className="flex items-center justify-center space-x-1">
-                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-pulse [animation-delay:-0.3s]"></div>
-                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-pulse [animation-delay:-0.15s]"></div>
-                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-pulse"></div>
+                      <div className="w-2 h-2 bg-stone-400 rounded-full animate-pulse [animation-delay:-0.3s]"></div>
+                      <div className="w-2 h-2 bg-stone-400 rounded-full animate-pulse [animation-delay:-0.15s]"></div>
+                      <div className="w-2 h-2 bg-stone-400 rounded-full animate-pulse"></div>
                   </div>
                 </div>
               </div>
@@ -121,7 +121,7 @@ export const Chatbot: React.FC = () => {
           </div>
         </div>
 
-        <footer className="p-3 border-t border-slate-200/80 flex-shrink-0">
+        <footer className="p-3 border-t border-stone-200/80 flex-shrink-0">
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -129,13 +129,13 @@ export const Chatbot: React.FC = () => {
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Ask a question..."
-              className="flex-grow bg-slate-100 border-transparent rounded-lg px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition"
+              className="flex-grow bg-stone-100 border-transparent rounded-lg px-3 py-2 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
               disabled={isLoading}
             />
             <button
               onClick={handleSend}
               disabled={isLoading || input.trim() === ''}
-              className="bg-slate-800 text-white px-4 py-2 rounded-lg font-semibold hover:bg-slate-900 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
+              className="bg-stone-800 text-white px-4 py-2 rounded-lg font-semibold hover:bg-stone-900 disabled:bg-stone-400 disabled:cursor-not-allowed transition-colors"
             >
               Send
             </button>

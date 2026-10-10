@@ -1,19 +1,12 @@
 
 import React from 'react';
 import { AppTab, ScheduledPost } from '../types.ts';
-import { KeywordIcon } from './icons/KeywordIcon.tsx';
-import { CalendarIcon } from './icons/CalendarIcon.tsx';
-import { SettingsIcon } from './icons/SettingsIcon.tsx';
-import { LogoIcon } from './icons/LogoIcon.tsx';
-import { LinkIcon } from './icons/LinkIcon.tsx';
-import { HistoryIcon } from './icons/HistoryIcon.tsx';
-import { LogoutIcon } from './icons/LogoutIcon.tsx';
-import { LogsIcon } from './icons/LogsIcon.tsx';
-import { BrainCircuitIcon } from './icons/BrainCircuitIcon.tsx';
-import { HelpCircleIcon } from './icons/HelpCircleIcon.tsx';
-import { UserIcon } from './icons/UserIcon.tsx';
-import { DashboardIcon } from './icons/DashboardIcon.tsx';
-import { ShieldIcon } from './icons/ShieldIcon.tsx';
+import { useApp } from '../context/AppContext.tsx';
+import { LogoMark } from './icons/LogoMark.tsx';
+import {
+  NavDashboardIcon, NavSearchIcon, NavSparklesIcon, NavCalendarIcon, NavArticleIcon,
+  NavBusinessIcon, NavPlugIcon, NavActivityIcon, NavShieldIcon, NavUserIcon, NavHelpIcon, NavLogoutIcon,
+} from './icons/NavIcons.tsx';
 
 interface SidebarProps {
   activeTab: AppTab;
@@ -27,127 +20,108 @@ interface SidebarProps {
 }
 
 const NavItem: React.FC<{
-  // FIX: Specified that the icon prop is a ReactElement that accepts a className prop to resolve cloneElement type error.
   icon: React.ReactElement<{ className?: string }>;
   label: string;
   isActive: boolean;
   onClick: () => void;
-}> = React.memo(({ icon, label, isActive, onClick }) => (
+  badge?: React.ReactNode;
+}> = React.memo(({ icon, label, isActive, onClick, badge }) => (
   <button
     onClick={onClick}
-    className={`w-full flex items-center px-3 py-2.5 text-sm rounded-lg transition-colors duration-150 ${
+    aria-current={isActive ? 'page' : undefined}
+    className={`w-full flex items-center gap-2.5 h-8 px-2 text-[13px] rounded-lg transition-colors duration-150 ${
       isActive
-        ? 'bg-slate-800 text-orange-500 font-semibold'
-        : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+        ? 'bg-white text-stone-900 font-medium shadow-[0_1px_2px_rgba(28,27,25,0.08),0_0_0_1px_rgba(28,27,25,0.05)]'
+        : 'text-stone-600 hover:bg-white/60 hover:text-stone-900'
     }`}
   >
-    {React.cloneElement(icon, { className: 'w-5 h-5' })}
-    <span className="ml-3">{label}</span>
+    {React.cloneElement(icon, { className: 'w-[15px] h-[15px] flex-shrink-0' })}
+    <span className="flex-1 text-left truncate">{label}</span>
+    {badge}
   </button>
 ));
 
+const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="px-2 pt-4 pb-1 text-[11px] font-medium text-stone-500">{children}</div>
+);
+
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isOpen, setIsOpen, onLogout, setEditingPost, userEmail, showAdmin }) => {
+  const { scheduledPosts, selectedBusiness, userProfile } = useApp();
+  const draftCount = scheduledPosts.filter(p => p.status === 'draft').length;
+
   const handleNavClick = (tab: AppTab) => {
     setEditingPost(null); // Close the article editor on navigation.
     setActiveTab(tab);
     setIsOpen(false); // Close sidebar on navigation in mobile
   };
 
+  const planLine = userProfile?.planStatus === 'paid'
+    ? `${userProfile.creditsRemaining ?? 0} credits left`
+    : userProfile?.planStatus === 'trial'
+      ? `Trial · ${Math.max(0, 3 - (userProfile.trialArticlesCreated ?? 0))} articles left`
+      : userProfile?.planStatus === 'expired' ? 'Plan expired' : '';
+
   return (
     <div
-      className={`w-64 h-screen bg-slate-900 border-r border-slate-800 p-4 flex flex-col fixed z-40 transition-transform duration-300 ease-in-out md:translate-x-0 ${
-        isOpen ? 'translate-x-0' : '-translate-x-full'
+      className={`w-60 h-screen bg-canvas px-2.5 pt-5 pb-3 flex flex-col fixed z-40 transition-transform duration-300 ease-in-out md:translate-x-0 ${
+        isOpen ? 'translate-x-0 shadow-xl' : '-translate-x-full'
       }`}
     >
-      <div className="flex items-center mb-10 px-2">
-        <div className="w-8 h-8 bg-slate-800 text-white rounded-lg flex items-center justify-center">
-            <LogoIcon className="w-5 h-5" />
-        </div>
-        <span className="ml-3 text-xl font-bold text-white">Autorank AI</span>
-      </div>
-      <nav className="flex-1 space-y-1">
+      <button onClick={() => handleNavClick('dashboard')} className="flex items-center gap-2.5 h-9 px-2 mb-3 rounded-lg text-left">
+        <LogoMark className="w-6 h-6" />
+        <span className="text-[15px] font-semibold tracking-tight text-stone-900">autorank</span>
+      </button>
+
+      <nav className="flex-1 overflow-y-auto space-y-0.5" aria-label="Main">
+        <NavItem icon={<NavDashboardIcon />} label="Dashboard" isActive={activeTab === 'dashboard'} onClick={() => handleNavClick('dashboard')} />
+        <NavItem icon={<NavSearchIcon />} label="Keyword Planner" isActive={activeTab === 'planner'} onClick={() => handleNavClick('planner')} />
+        <NavItem icon={<NavSparklesIcon />} label="AI Intelligence" isActive={activeTab === 'intelligence'} onClick={() => handleNavClick('intelligence')} />
+        <NavItem icon={<NavCalendarIcon />} label="Calendar" isActive={activeTab === 'calendar'} onClick={() => handleNavClick('calendar')} />
         <NavItem
-          icon={<DashboardIcon />}
-          label="Dashboard"
-          isActive={activeTab === 'dashboard'}
-          onClick={() => handleNavClick('dashboard')}
-        />
-        <NavItem
-          icon={<KeywordIcon />}
-          label="Keyword Planner"
-          isActive={activeTab === 'planner'}
-          onClick={() => handleNavClick('planner')}
-        />
-        <NavItem
-          icon={<BrainCircuitIcon />}
-          label="AI Intelligence"
-          isActive={activeTab === 'intelligence'}
-          onClick={() => handleNavClick('intelligence')}
-        />
-        <NavItem
-          icon={<CalendarIcon />}
-          label="Calendar"
-          isActive={activeTab === 'calendar'}
-          onClick={() => handleNavClick('calendar')}
-        />
-         <NavItem
-          icon={<HistoryIcon />}
-          label="Past Articles"
+          icon={<NavArticleIcon />}
+          label="Articles"
           isActive={activeTab === 'past-articles'}
           onClick={() => handleNavClick('past-articles')}
+          badge={draftCount > 0 ? (
+            <span className="text-[11px] text-stone-500 bg-stone-200/70 rounded-md px-1.5" title={`${draftCount} drafts`}>{draftCount}</span>
+          ) : undefined}
         />
-        <NavItem
-          icon={<SettingsIcon />}
-          label="Business & Settings"
-          isActive={activeTab === 'settings'}
-          onClick={() => handleNavClick('settings')}
-        />
-        <NavItem
-          icon={<LinkIcon />}
-          label="CMS Integrations"
-          isActive={activeTab === 'integrations'}
-          onClick={() => handleNavClick('integrations')}
-        />
-        <NavItem
-          icon={<LogsIcon />}
-          label="Activity Log"
-          isActive={activeTab === 'log'}
-          onClick={() => handleNavClick('log')}
-        />
-      </nav>
-      <div className="mt-auto">
+
+        <SectionLabel>Setup</SectionLabel>
+        <NavItem icon={<NavBusinessIcon />} label="Business profile" isActive={activeTab === 'settings'} onClick={() => handleNavClick('settings')} />
+        <NavItem icon={<NavPlugIcon />} label="Integrations" isActive={activeTab === 'integrations'} onClick={() => handleNavClick('integrations')} />
+        <NavItem icon={<NavActivityIcon />} label="Activity log" isActive={activeTab === 'log'} onClick={() => handleNavClick('log')} />
+
+        <SectionLabel>Support</SectionLabel>
+        <NavItem icon={<NavHelpIcon />} label="Help center" isActive={activeTab === 'help'} onClick={() => handleNavClick('help')} />
         {showAdmin && (
-          <NavItem
-            icon={<ShieldIcon />}
-            label="Admin: Users"
-            isActive={activeTab === 'admin'}
-            onClick={() => handleNavClick('admin')}
-          />
+          <NavItem icon={<NavShieldIcon />} label="Admin" isActive={activeTab === 'admin'} onClick={() => handleNavClick('admin')} />
         )}
-        <NavItem
-            icon={<UserIcon />}
-            label="Account Settings"
-            isActive={activeTab === 'account-settings'}
-            onClick={() => handleNavClick('account-settings')}
-        />
-        <NavItem
-            icon={<HelpCircleIcon />}
-            label="Help Section"
-            isActive={activeTab === 'help'}
-            onClick={() => handleNavClick('help')}
-        />
-        <NavItem
-            icon={<LogoutIcon />}
-            label="Logout"
-            isActive={false}
-            onClick={onLogout}
-        />
-        {userEmail && (
-            <p className="mt-2 text-xs text-center text-slate-400 truncate px-2" title={userEmail}>
-                {userEmail}
-            </p>
-        )}
-        <p className="mt-4 text-xs text-center text-slate-500">&copy; 2026 Autorank AI</p>
+      </nav>
+
+      <div className="mt-3 space-y-1">
+        <button
+          onClick={() => handleNavClick('account-settings')}
+          className={`w-full flex items-center gap-2.5 p-1.5 rounded-lg text-left transition-colors ${
+            activeTab === 'account-settings' ? 'bg-white shadow-[0_1px_2px_rgba(28,27,25,0.08),0_0_0_1px_rgba(28,27,25,0.05)]' : 'hover:bg-white/60'
+          }`}
+        >
+          <span className="w-7 h-7 rounded-lg bg-stone-900 text-white text-[10px] font-semibold flex items-center justify-center flex-shrink-0">
+            {(selectedBusiness?.name || 'A').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase()}
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-[13px] font-medium text-stone-900 truncate">{selectedBusiness?.name?.trim() || 'Your business'}</span>
+            <span className="block text-xs text-stone-500 truncate" title={userEmail}>{planLine || userEmail}</span>
+          </span>
+          <NavUserIcon className="w-4 h-4 text-stone-400 flex-shrink-0" />
+        </button>
+        <button
+          onClick={onLogout}
+          className="w-full flex items-center gap-2.5 h-8 px-2 text-[13px] rounded-lg text-stone-500 hover:bg-white/60 hover:text-stone-900 transition-colors"
+        >
+          <NavLogoutIcon className="w-[15px] h-[15px]" />
+          Log out
+        </button>
       </div>
     </div>
   );

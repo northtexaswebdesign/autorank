@@ -49,19 +49,19 @@ export const UpdatePasswordPage: React.FC<UpdatePasswordPageProps> = ({ onComple
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-stone-50 flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center mb-4">
-            <div className="w-12 h-12 bg-slate-900 text-white rounded-xl flex items-center justify-center shadow-lg">
+            <div className="w-12 h-12 bg-stone-900 text-white rounded-xl flex items-center justify-center shadow-lg">
               <LogoIcon className="w-7 h-7" />
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">Set New Password</h1>
-          <p className="text-slate-600 mt-2">Secure your account with a new password.</p>
+          <h1 className="text-2xl font-bold text-stone-900">Set New Password</h1>
+          <p className="text-stone-600 mt-2">Secure your account with a new password.</p>
         </div>
 
-        <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-200/80">
+        <div className="bg-white p-8 rounded-2xl shadow-xl border border-stone-200/80">
           {success ? (
             <div className="text-center py-4">
               <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -69,32 +69,32 @@ export const UpdatePasswordPage: React.FC<UpdatePasswordPageProps> = ({ onComple
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h2 className="text-xl font-bold text-slate-900">Password Updated!</h2>
-              <p className="text-slate-600 mt-2">Redirecting you to sign in...</p>
+              <h2 className="font-serif text-[26px] leading-tight text-stone-900">Password Updated!</h2>
+              <p className="text-stone-600 mt-2">Redirecting you to sign in...</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">New Password</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1.5">New Password</label>
                 <input
                   type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                  className="w-full px-4 py-2.5 bg-stone-50 border border-stone-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all"
                   placeholder="Min. 6 characters"
                   autoFocus
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Confirm Password</label>
+                <label className="block text-sm font-medium text-stone-700 mb-1.5">Confirm Password</label>
                 <input
                   type="password"
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
+                  className="w-full px-4 py-2.5 bg-stone-50 border border-stone-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all"
                   placeholder="Confirm new password"
                 />
               </div>
@@ -108,7 +108,7 @@ export const UpdatePasswordPage: React.FC<UpdatePasswordPageProps> = ({ onComple
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 px-4 bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold rounded-lg shadow-md hover:from-amber-500 hover:to-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-all disabled:opacity-50"
+                className="w-full py-3 px-4 bg-brand-600 text-white font-bold rounded-lg shadow-md hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 transition-all disabled:opacity-50"
               >
                 {loading ? 'Updating...' : 'Update Password'}
               </button>

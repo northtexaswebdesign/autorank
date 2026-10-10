@@ -371,12 +371,12 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
     const orphanedGeneration = (post.status === 'generating-text' || post.status === 'brief-generating') && !isGeneratingText && !isLoadingEditingPost;
     if (orphanedGeneration) {
         return (
-            <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-slate-50">
-                <h2 className="text-2xl font-bold text-slate-800">This article is still marked as generating</h2>
-                <p className="text-slate-500 mt-2 max-w-lg">It may be running in another tab, or the run was interrupted (for example the page was closed). If nothing is running, reset it and generate again.</p>
+            <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-stone-50">
+                <h2 className="font-serif text-[26px] leading-tight text-stone-900">This article is still marked as generating</h2>
+                <p className="text-stone-500 mt-2 max-w-lg">It may be running in another tab, or the run was interrupted (for example the page was closed). If nothing is running, reset it and generate again.</p>
                 <div className="mt-6 flex gap-3">
-                    <button onClick={onBack} className="rounded-lg border border-slate-300 px-5 py-2.5 font-semibold text-slate-700 hover:bg-slate-100">Back</button>
-                    <button onClick={() => handleUpdatePost({ status: 'draft' })} className="rounded-lg bg-orange-500 px-5 py-2.5 font-semibold text-white hover:bg-orange-600">Reset and try again</button>
+                    <button onClick={onBack} className="rounded-lg border border-stone-300 px-5 py-2.5 font-semibold text-stone-700 hover:bg-stone-100">Back</button>
+                    <button onClick={() => handleUpdatePost({ status: 'draft' })} className="rounded-lg bg-brand-500 px-5 py-2.5 font-semibold text-white hover:bg-brand-600">Reset and try again</button>
                 </div>
             </div>
         );
@@ -384,11 +384,11 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
 
     if (post.status === 'generating-text' || post.status === 'brief-generating' || isLoadingEditingPost) {
         return (
-            <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-slate-50">
-                <SparklesIcon className="w-12 h-12 text-orange-500 mb-4 animate-spin" />
-                <h2 className="text-2xl font-bold text-slate-800">{isLoadingEditingPost ? 'Opening Article...' : 'Generating Content...'}</h2>
-                <p className="text-slate-500 mt-2">{generationProgress?.text || 'Connecting to brain...'}</p>
-                {isLoadingEditingPost && <button onClick={onBack} className="mt-6 rounded-lg border border-slate-300 px-5 py-2 font-semibold text-slate-700 hover:bg-slate-100">Back</button>}
+            <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-stone-50">
+                <SparklesIcon className="w-12 h-12 text-brand-500 mb-4 animate-spin" />
+                <h2 className="font-serif text-[26px] leading-tight text-stone-900">{isLoadingEditingPost ? 'Opening Article...' : 'Generating Content...'}</h2>
+                <p className="text-stone-500 mt-2">{generationProgress?.text || 'Connecting to brain...'}</p>
+                {isLoadingEditingPost && <button onClick={onBack} className="mt-6 rounded-lg border border-stone-300 px-5 py-2 font-semibold text-stone-700 hover:bg-stone-100">Back</button>}
             </div>
         );
     }
@@ -396,37 +396,37 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
     // not written yet (a scheduled post, or a draft created from the planner): offer to generate it
     if (!currentContent && (post.status === 'scheduled' || post.status === 'draft')) {
         return (
-            <div className="flex flex-col items-center justify-center h-full p-6 bg-slate-50">
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center max-w-2xl">
-                    <h1 className="text-4xl font-extrabold text-slate-900 mb-6">{post.keyword}</h1>
-                    <p className="text-slate-600 mb-10">This article hasn't been written yet. Generate it now to start your GEO strategy.</p>
-                    <button onClick={() => runFullGenerationProcess()} disabled={isGeneratingText} className="disabled:opacity-60 disabled:cursor-not-allowed bg-orange-500 text-white px-10 py-4 rounded-xl font-bold shadow-lg hover:bg-orange-600 transition-all">Generate Article with AI</button>
+            <div className="flex flex-col items-center justify-center h-full p-6 bg-stone-50">
+                <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-12 text-center max-w-2xl">
+                    <h1 className="text-4xl font-extrabold text-stone-900 mb-6">{post.keyword}</h1>
+                    <p className="text-stone-600 mb-10">This article hasn't been written yet. Generate it now to start your GEO strategy.</p>
+                    <button onClick={() => runFullGenerationProcess()} disabled={isGeneratingText} className="disabled:opacity-60 disabled:cursor-not-allowed bg-brand-500 text-white px-10 py-4 rounded-xl font-bold shadow-lg hover:bg-brand-600 transition-all">Generate Article with AI</button>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col h-full bg-slate-100 relative">
-             <header className="bg-white border-b border-slate-200/80 px-6 py-3 flex-shrink-0">
+        <div className="flex flex-col h-full bg-stone-100 relative">
+             <header className="bg-white border-b border-stone-200/80 px-6 py-3 flex-shrink-0">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-sm">
-                        <button onClick={onBack} className="text-slate-500 hover:text-slate-800">&larr; Back</button>
-                        <span className="text-slate-300">/</span>
-                        <span className="font-medium text-slate-800 truncate max-w-xs">{post.keyword}</span>
+                        <button onClick={onBack} className="text-stone-500 hover:text-stone-800">&larr; Back</button>
+                        <span className="text-stone-300">/</span>
+                        <span className="font-medium text-stone-800 truncate max-w-xs">{post.keyword}</span>
                     </div>
                      <div className="flex items-center gap-4">
-                        <span className="text-[10px] text-slate-400">Last saved: {lastSaved?.toLocaleTimeString()}</span>
-                        <button onClick={() => handleUpdatePost({})} className="text-sm font-medium text-slate-600 hover:text-orange-600">Save Changes</button>
+                        <span className="text-[10px] text-stone-400">Last saved: {lastSaved?.toLocaleTimeString()}</span>
+                        <button onClick={() => handleUpdatePost({})} className="text-sm font-medium text-stone-600 hover:text-brand-600">Save Changes</button>
                     </div>
                 </div>
                 {isTrulyPublished && (
-                    <div className="mt-3 bg-slate-50 border border-slate-200 rounded-lg p-2 flex items-center justify-between text-sm">
+                    <div className="mt-3 bg-stone-50 border border-stone-200 rounded-lg p-2 flex items-center justify-between text-sm">
                          <div className="flex items-center gap-2">
                              <span className="bg-green-100 text-green-700 text-xs font-semibold px-2 py-0.5 rounded-full">Published</span>
-                             <a href={post.publishedUrl || post.published_url} target="_blank" rel="noopener noreferrer" className="text-slate-600 truncate hover:underline">{post.publishedUrl || post.published_url}</a>
+                             <a href={post.publishedUrl || post.published_url} target="_blank" rel="noopener noreferrer" className="text-stone-600 truncate hover:underline">{post.publishedUrl || post.published_url}</a>
                          </div>
-                         <button onClick={() => copyToClipboard((post.publishedUrl || post.published_url)!)} className="flex items-center gap-1.5 bg-white border border-slate-300 rounded-md px-2 py-1 text-slate-700 hover:bg-slate-100 transition-colors">
+                         <button onClick={() => copyToClipboard((post.publishedUrl || post.published_url)!)} className="flex items-center gap-1.5 bg-white border border-stone-300 rounded-md px-2 py-1 text-stone-700 hover:bg-stone-100 transition-colors">
                             <CopyIcon className="w-4 h-4"/> Copy URL
                          </button>
                     </div>
@@ -435,7 +435,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
 
             <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
                 <div className="flex-grow p-4 md:p-6 overflow-y-auto">
-                    <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 md:p-12 mx-auto max-w-5xl min-h-full">
+                    <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-6 md:p-12 mx-auto max-w-5xl min-h-full">
                         <div className="flex justify-between items-center mb-6">
                             <div>
                                 {isTrulyPublished && (post.publishedUrl || post.published_url) && (
@@ -449,54 +449,54 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
                             </div>
                             {isEditing ? (
                                 <div className="flex items-center gap-2">
-                                    <button onClick={handleCancelClick} className="bg-slate-100 px-4 py-2 text-sm rounded-lg">Cancel</button>
-                                    <button onClick={handleSaveClick} className="bg-orange-500 text-white px-4 py-2 text-sm rounded-lg">Save Changes</button>
+                                    <button onClick={handleCancelClick} className="bg-stone-100 px-4 py-2 text-sm rounded-lg">Cancel</button>
+                                    <button onClick={handleSaveClick} className="bg-brand-500 text-white px-4 py-2 text-sm rounded-lg">Save Changes</button>
                                 </div>
                             ) : (
-                                <button onClick={handleEditClick} className="bg-slate-800 text-white px-4 py-2 text-sm rounded-lg flex items-center gap-2 shadow-sm">
+                                <button onClick={handleEditClick} className="bg-stone-800 text-white px-4 py-2 text-sm rounded-lg flex items-center gap-2 shadow-sm">
                                     <RefreshIcon className="w-4 h-4" /> Manual Edit
                                 </button>
                             )}
                         </div>
                         {isEditing ? (
-                            <div ref={articleEditorRef} contentEditable className="prose prose-slate max-w-none p-4 bg-slate-50 border rounded-md focus:outline-none min-h-[500px]" />
+                            <div ref={articleEditorRef} contentEditable className="prose prose-slate max-w-none p-4 bg-stone-50 border rounded-md focus:outline-none min-h-[500px]" />
                         ) : (
                             <ArticleRenderer post={post} />
                         )}
                     </div>
                 </div>
 
-                <aside className="w-full lg:w-80 bg-white border-l border-slate-200/80 p-4 overflow-y-auto flex-shrink-0 flex flex-col gap-6">
+                <aside className="w-full lg:w-80 bg-white border-l border-stone-200/80 p-4 overflow-y-auto flex-shrink-0 flex flex-col gap-6">
                     <div className="space-y-3">
-                        <button onClick={handlePublish} disabled={isPublishing} className="w-full bg-slate-900 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors disabled:bg-slate-300 shadow-sm">
+                        <button onClick={handlePublish} disabled={isPublishing} className="w-full bg-stone-900 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-stone-800 transition-colors disabled:bg-stone-300 shadow-sm">
                             <LinkIcon className="w-5 h-5" /> {isPublishing ? 'Publishing...' : isTrulyPublished ? 'Update Live Article' : 'Publish to WordPress'}
                         </button>
                     </div>
 
                     {/* GEO Score */}
-                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                        <h4 className="text-sm font-bold text-slate-800 mb-3">GEO Score</h4>
+                    <div className="bg-stone-50 p-4 rounded-lg border border-stone-200">
+                        <h4 className="text-sm font-bold text-stone-800 mb-3">GEO Score</h4>
                         <div className="flex items-center justify-center py-2">
                             {post.geo_score != null ? (
                                 <GeoScoreCircularProgress score={post.geo_score} size={90} strokeWidth={9} />
                             ) : post.geoScore != null ? (
                                 <GeoScoreCircularProgress score={post.geoScore} size={90} strokeWidth={9} />
                             ) : (
-                                <div className="w-20 h-20 rounded-full border-4 border-slate-200 flex items-center justify-center">
-                                    <span className="text-lg font-bold text-slate-300">—</span>
+                                <div className="w-20 h-20 rounded-full border-4 border-stone-200 flex items-center justify-center">
+                                    <span className="text-lg font-bold text-stone-300">—</span>
                                 </div>
                             )}
                         </div>
                         {!post.geo_score && !post.geoScore && currentContent && (
-                            <button onClick={handleReanalyze} disabled={isAnalyzing} className="w-full mt-2 text-[10px] font-bold bg-orange-50 border border-orange-200 text-orange-600 py-1.5 rounded-lg hover:bg-orange-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-1">
+                            <button onClick={handleReanalyze} disabled={isAnalyzing} className="w-full mt-2 text-[10px] font-bold bg-brand-50 border border-brand-200 text-brand-600 py-1.5 rounded-lg hover:bg-brand-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-1">
                                 <SparklesIcon className="w-3 h-3" />
                                 {isAnalyzing ? 'Analyzing...' : 'Analyze GEO Score'}
                             </button>
                         )}
                     </div>
 
-                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                        <h4 className="text-sm font-bold text-slate-800 mb-4">Featured Image</h4>
+                    <div className="bg-stone-50 p-4 rounded-lg border border-stone-200">
+                        <h4 className="text-sm font-bold text-stone-800 mb-4">Featured Image</h4>
                         {featureImageSrc ? (
                             <div className="space-y-2">
                                 <div className="group relative">
@@ -506,12 +506,12 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
                                     </div>
                                 </div>
                                 <div className="flex flex-col gap-2">
-                                     <button onClick={() => window.open(featureImageSrc, '_blank')} className="w-full bg-white border text-[10px] font-bold py-1.5 rounded hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"><DownloadIcon className="w-3 h-3" /> Download</button>
+                                     <button onClick={() => window.open(featureImageSrc, '_blank')} className="w-full bg-white border text-[10px] font-bold py-1.5 rounded hover:bg-stone-50 transition-colors flex items-center justify-center gap-1.5 shadow-sm"><DownloadIcon className="w-3 h-3" /> Download</button>
                                      {cmsIntegration && (
                                          <button 
                                             onClick={handleSyncImage} 
                                             disabled={isSyncingImage || !post.slug}
-                                            className="w-full bg-slate-800 text-white text-[10px] font-bold py-1.5 rounded hover:bg-slate-900 transition-colors flex items-center justify-center gap-1.5 shadow-sm disabled:bg-slate-400"
+                                            className="w-full bg-stone-800 text-white text-[10px] font-bold py-1.5 rounded hover:bg-stone-900 transition-colors flex items-center justify-center gap-1.5 shadow-sm disabled:bg-stone-400"
                                             title={!post.slug ? "Set a slug below to enable syncing" : ""}
                                          >
                                             <RefreshIcon className={`w-3 h-3 ${isSyncingImage ? 'animate-spin' : ''}`} /> 
@@ -521,11 +521,11 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
                                 </div>
                             </div>
                         ) : (
-                            <div className="w-full aspect-video bg-slate-100 border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center gap-2">
-                                <p className="text-[11px] text-slate-400">No image assigned</p>
+                            <div className="w-full aspect-video bg-stone-100 border-2 border-dashed border-stone-300 rounded-lg flex flex-col items-center justify-center gap-2">
+                                <p className="text-[11px] text-stone-400">No image assigned</p>
                                 <div className="flex gap-2">
-                                    <button onClick={() => fileInputRef.current?.click()} className="text-[10px] font-bold bg-white border px-3 py-1.5 rounded-md hover:bg-slate-50 shadow-sm">Upload</button>
-                                    <button onClick={handleRegenerateFeatureImage} disabled={isGeneratingImages} className="text-[10px] font-bold bg-slate-800 text-white px-3 py-1.5 rounded-md hover:bg-slate-900 shadow-sm disabled:bg-slate-400">
+                                    <button onClick={() => fileInputRef.current?.click()} className="text-[10px] font-bold bg-white border px-3 py-1.5 rounded-md hover:bg-stone-50 shadow-sm">Upload</button>
+                                    <button onClick={handleRegenerateFeatureImage} disabled={isGeneratingImages} className="text-[10px] font-bold bg-stone-800 text-white px-3 py-1.5 rounded-md hover:bg-stone-900 shadow-sm disabled:bg-stone-400">
                                         {isGeneratingImages ? 'Creating...' : 'AI Generate'}
                                     </button>
                                 </div>
@@ -534,16 +534,16 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
                         <input type="file" ref={fileInputRef} className="hidden" onChange={handleImageUpload} />
                     </div>
 
-                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <div className="bg-stone-50 p-4 rounded-lg border border-stone-200">
                         <div className="flex items-center justify-between mb-4">
-                            <h4 className="text-sm font-bold text-slate-800">Meta Settings</h4>
+                            <h4 className="text-sm font-bold text-stone-800">Meta Settings</h4>
                             <button
                                 onClick={handleGenerateMeta}
                                 disabled={isGeneratingMeta || !currentContent}
-                                className="flex items-center gap-1 text-[10px] font-bold text-orange-600 hover:text-orange-700 disabled:text-slate-300 transition-colors"
+                                className="flex items-center gap-1 text-[10px] font-bold text-brand-600 hover:text-brand-700 disabled:text-stone-300 transition-colors"
                             >
                                 {isGeneratingMeta
-                                    ? <span className="w-3 h-3 border-2 border-orange-400 border-t-transparent rounded-full animate-spin inline-block" />
+                                    ? <span className="w-3 h-3 border-2 border-brand-400 border-t-transparent rounded-full animate-spin inline-block" />
                                     : <SparklesIcon className="w-3 h-3" />
                                 }
                                 {isGeneratingMeta ? 'Generating...' : 'Auto-fill with AI'}
@@ -551,54 +551,54 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
                         </div>
                         <div className="space-y-4">
                             <div>
-                                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Meta Title</label>
+                                <label className="text-[10px] uppercase font-bold text-stone-400 block mb-1.5">Meta Title</label>
                                 <input 
                                     value={localMetaTitle} 
                                     onChange={(e) => setLocalMetaTitle(e.target.value)} 
                                     onBlur={() => handleSaveField('metaTitle', localMetaTitle)} 
-                                    className="w-full text-xs p-2.5 border rounded-lg focus:ring-1 focus:ring-orange-500 outline-none transition-all" 
+                                    className="w-full text-xs p-2.5 border rounded-lg focus:ring-1 focus:ring-brand-500 outline-none transition-all" 
                                     placeholder="SEO Optimized Title..."
                                 />
                             </div>
                             <div>
-                                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Meta Description</label>
+                                <label className="text-[10px] uppercase font-bold text-stone-400 block mb-1.5">Meta Description</label>
                                 <textarea 
                                     value={localMetaDescription} 
                                     onChange={(e) => setLocalMetaDescription(e.target.value)} 
                                     onBlur={() => handleSaveField('metaDescription', localMetaDescription)} 
-                                    className="w-full text-xs p-2.5 border rounded-lg focus:ring-1 focus:ring-orange-500 outline-none transition-all" 
+                                    className="w-full text-xs p-2.5 border rounded-lg focus:ring-1 focus:ring-brand-500 outline-none transition-all" 
                                     rows={4} 
                                     placeholder="Brief summary for search results..."
                                 />
                             </div>
                             <div>
-                                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Slug (URL Path)</label>
+                                <label className="text-[10px] uppercase font-bold text-stone-400 block mb-1.5">Slug (URL Path)</label>
                                 <input 
                                     value={localSlug} 
                                     onChange={(e) => setLocalSlug(e.target.value)} 
                                     onBlur={() => handleSaveField('slug', localSlug)} 
                                     disabled={isTrulyPublished}
-                                    className="w-full text-xs p-2.5 border rounded-lg focus:ring-1 focus:ring-orange-500 outline-none transition-all disabled:bg-slate-100 disabled:text-slate-400" 
+                                    className="w-full text-xs p-2.5 border rounded-lg focus:ring-1 focus:ring-brand-500 outline-none transition-all disabled:bg-stone-100 disabled:text-stone-400" 
                                     placeholder="article-url-slug"
                                 />
                                 {!post.slug && cmsIntegration && (
-                                    <p className="text-[9px] text-orange-600 mt-1 font-medium italic">* Slug is required to sync images</p>
+                                    <p className="text-[9px] text-brand-600 mt-1 font-medium italic">* Slug is required to sync images</p>
                                 )}
                             </div>
                         </div>
                     </div>
 
-                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <div className="bg-stone-50 p-4 rounded-lg border border-stone-200">
                         <button onClick={() => setIsInstructionsOpen(prev => !prev)} className="w-full flex justify-between items-center group">
-                            <h3 className="text-sm font-bold text-slate-800">Advanced Instructions</h3>
-                            <ChevronDownIcon className={`w-4 h-4 text-slate-400 transition-transform ${isInstructionsOpen ? 'rotate-180' : ''}`} />
+                            <h3 className="text-sm font-bold text-stone-800">Advanced Instructions</h3>
+                            <ChevronDownIcon className={`w-4 h-4 text-stone-400 transition-transform ${isInstructionsOpen ? 'rotate-180' : ''}`} />
                         </button>
                         {isInstructionsOpen && (
-                            <div className="mt-4 pt-4 border-t border-slate-200">
+                            <div className="mt-4 pt-4 border-t border-stone-200">
                                 <textarea
                                     value={advancedInstructions}
                                     onChange={(e) => setAdvancedInstructions(e.target.value)}
-                                    className="w-full text-xs p-2.5 border rounded-lg outline-none focus:ring-1 focus:ring-orange-500"
+                                    className="w-full text-xs p-2.5 border rounded-lg outline-none focus:ring-1 focus:ring-brand-500"
                                     rows={3}
                                     placeholder="e.g., Focus more on local Texas pricing..."
                                 />
@@ -606,17 +606,17 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
                         )}
                     </div>
 
-                    <div className="mt-auto pt-6 border-t border-slate-200">
-                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Optimization Roadmap</h4>
+                    <div className="mt-auto pt-6 border-t border-stone-200">
+                        <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-4">Optimization Roadmap</h4>
                         <div className="space-y-2">
                             {allSuggestions.slice(0, 3).map((item, i) => (
-                                <div key={i} className="text-[11px] leading-relaxed text-slate-600 bg-orange-50/50 p-3 rounded-lg border border-orange-100 flex gap-2.5">
-                                    <SparklesIcon className="w-3 h-3 text-orange-400 flex-shrink-0 mt-0.5" />
+                                <div key={i} className="text-[11px] leading-relaxed text-stone-600 bg-brand-50/50 p-3 rounded-lg border border-brand-100 flex gap-2.5">
+                                    <SparklesIcon className="w-3 h-3 text-brand-400 flex-shrink-0 mt-0.5" />
                                     <span>{item}</span>
                                 </div>
                             ))}
                         </div>
-                        <button onClick={handleRewrite} disabled={isRewriting || !currentContent} className="w-full mt-4 bg-slate-100 border text-xs font-bold py-2 rounded-lg hover:bg-slate-200 transition-all flex items-center justify-center gap-2 text-slate-700 disabled:opacity-50">
+                        <button onClick={handleRewrite} disabled={isRewriting || !currentContent} className="w-full mt-4 bg-stone-100 border text-xs font-bold py-2 rounded-lg hover:bg-stone-200 transition-all flex items-center justify-center gap-2 text-stone-700 disabled:opacity-50">
                              <RewriteIcon className={`w-3.5 h-3.5 ${isRewriting ? 'animate-spin' : ''}`} />
                              {isRewriting ? 'Rewriting...' : 'Rewrite with AI Intelligence'}
                         </button>

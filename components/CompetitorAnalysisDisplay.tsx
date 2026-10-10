@@ -24,45 +24,45 @@ export const CompetitorAnalysisDisplay: React.FC<CompetitorAnalysisDisplayProps>
     };
 
     return (
-        <div className="bg-white border border-slate-200/80 rounded-xl shadow-sm p-8 space-y-8">
+        <div className="bg-white border border-stone-200/80 rounded-xl shadow-sm p-8 space-y-8">
             <div>
-                <h2 className="text-xl font-semibold text-slate-900 flex items-center">
-                    <SparklesIcon className="w-6 h-6 mr-3 text-orange-500" />
+                <h2 className="font-serif text-[26px] leading-tight text-stone-900 flex items-center">
+                    <SparklesIcon className="w-6 h-6 mr-3 text-brand-500" />
                     AI Competitive Intelligence Report
                 </h2>
-                <p className="text-sm text-slate-500 mt-1">
+                <p className="text-sm text-stone-500 mt-1">
                     Last analyzed on: {formatDate(analysis.analyzedAt)}
                 </p>
             </div>
             
             <div className="space-y-6">
                 {analysis.analysis.map((report, index) => (
-                    <div key={index} className="bg-slate-50 border border-slate-200/80 rounded-lg p-6">
-                        <a href={report.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-slate-800 hover:text-orange-600 hover:underline flex items-center text-lg break-all">
+                    <div key={index} className="bg-stone-50 border border-stone-200/80 rounded-lg p-6">
+                        <a href={report.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-stone-800 hover:text-brand-600 hover:underline flex items-center text-lg break-all">
                             {report.url}
                             <LinkIcon className="w-4 h-4 ml-2 flex-shrink-0" />
                         </a>
-                        <SimpleMarkdownRenderer as="p" text={report.contentStrategySummary} className="text-sm text-slate-600 mt-2 mb-4" />
+                        <SimpleMarkdownRenderer as="p" text={report.contentStrategySummary} className="text-sm text-stone-600 mt-2 mb-4" />
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                             <div>
-                                <h4 className="font-semibold text-slate-700 mb-2">Strengths</h4>
+                                <h4 className="font-semibold text-stone-700 mb-2">Strengths</h4>
                                 <ul className="space-y-1.5 text-sm">
                                     {report.strengths.map((item, i) => (
                                         <li key={i} className="flex items-start">
                                             <CheckCircleIcon className="w-5 h-5 mr-2 text-green-500 flex-shrink-0 mt-0.5" />
-                                            <SimpleMarkdownRenderer as="span" text={item} className="text-slate-700" />
+                                            <SimpleMarkdownRenderer as="span" text={item} className="text-stone-700" />
                                         </li>
                                     ))}
                                 </ul>
                             </div>
                              <div>
-                                <h4 className="font-semibold text-slate-700 mb-2">Weaknesses</h4>
+                                <h4 className="font-semibold text-stone-700 mb-2">Weaknesses</h4>
                                 <ul className="space-y-1.5 text-sm">
                                     {report.weaknesses.map((item, i) => (
                                         <li key={i} className="flex items-start">
                                             <XCircleIcon className="w-5 h-5 mr-2 text-red-500 flex-shrink-0 mt-0.5" />
-                                            <SimpleMarkdownRenderer as="span" text={item} className="text-slate-700" />
+                                            <SimpleMarkdownRenderer as="span" text={item} className="text-stone-700" />
                                         </li>
                                     ))}
                                 </ul>
@@ -73,11 +73,11 @@ export const CompetitorAnalysisDisplay: React.FC<CompetitorAnalysisDisplayProps>
             </div>
 
             <div>
-                 <h3 className="text-lg font-semibold text-slate-900 flex items-center mb-3">
-                    <LightbulbIcon className="w-5 h-5 mr-2 text-slate-500" />
+                 <h3 className="text-lg font-semibold text-stone-900 flex items-center mb-3">
+                    <LightbulbIcon className="w-5 h-5 mr-2 text-stone-500" />
                     Strategic Recommendations
                 </h3>
-                <ul className="space-y-2 text-sm text-slate-700 list-disc list-inside">
+                <ul className="space-y-2 text-sm text-stone-700 list-disc list-inside">
                     {analysis.strategicRecommendations.map((rec, index) => (
                         <SimpleMarkdownRenderer key={index} as="li" text={rec} />
                     ))}

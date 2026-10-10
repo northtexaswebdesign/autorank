@@ -227,10 +227,10 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
 
   return (
     <div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900 mb-8">Business Information & Settings</h1>
+        <h1 className="font-serif text-4xl md:text-[44px] leading-none tracking-[-0.01em] text-stone-900 mb-8">Business profile</h1>
         <form onSubmit={handleSubmit} className="space-y-8 max-w-4xl">
-            <div className="bg-white border border-slate-200/80 rounded-xl shadow-sm p-8 space-y-6">
-                <h2 className="text-xl font-semibold text-slate-900">Your Business Profile</h2>
+            <div className="bg-white border border-stone-200/80 rounded-xl shadow-sm p-8 space-y-6">
+                <h2 className="font-serif text-[26px] leading-tight text-stone-900">Your Business Profile</h2>
                 <InputField label="Business URL" name="url" value={formData.url} onChange={handleChange} placeholder="https://example.com" />
                 <InputField label="Business Name" name="name" value={formData.name} onChange={handleChange} placeholder="Acme Inc." />
                 <TextareaField label="Short Business Description" name="description" value={formData.description} onChange={handleChange} placeholder="What you do, for whom." />
@@ -245,21 +245,21 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
                     description="Provide a link to your XML sitemap. This may be used in the future for advanced analytics and crawling features."
                 />
                 <div>
-                    <label htmlFor="language" className="block text-sm font-medium text-slate-700 mb-1.5">Main Output Language</label>
+                    <label htmlFor="language" className="block text-sm font-medium text-stone-700 mb-1.5">Main Output Language</label>
                     <select
                         id="language"
                         name="language"
                         value={formData.language}
                         onChange={handleChange}
-                        className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500 transition"
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
                     >
                         <option value="English">English</option>
                         <option value="Vietnamese">Vietnamese</option>
                     </select>
-                    <p className="text-xs text-slate-500 mt-1">The primary language for all AI-generated content.</p>
+                    <p className="text-xs text-stone-500 mt-1">The primary language for all AI-generated content.</p>
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Main Competitors (URLs)</label>
+                    <label className="block text-sm font-medium text-stone-700 mb-1.5">Main Competitors (URLs)</label>
                     <div className="space-y-2">
                         {formData.competitors.map((competitor, index) => (
                             <input
@@ -268,18 +268,18 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
                                 value={competitor}
                                 onChange={(e) => handleCompetitorChange(index, e.target.value)}
                                 placeholder={`https://competitor${index + 1}.com`}
-                                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition"
+                                className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
                             />
                         ))}
                     </div>
                      {limitReached && (
-                        <p className="mt-4 text-sm text-slate-600">AI competitive analysis is limited to 1 per month for each business. The next one is available on <strong>{nextAvailable}</strong>. You can still view the existing report below.</p>
+                        <p className="mt-4 text-sm text-stone-600">AI competitive analysis is limited to 1 per month for each business. The next one is available on <strong>{nextAvailable}</strong>. You can still view the existing report below.</p>
                      )}
                      <button 
                         type="button"
                         onClick={handleAnalyze}
                         disabled={isAnalyzing || limitReached || !formData.competitors.some(c => c)}
-                        className="mt-4 bg-orange-700 text-white px-4 py-2 rounded-lg font-semibold hover:bg-orange-800 disabled:bg-slate-400 disabled:cursor-not-allowed flex items-center transition-all shadow-sm"
+                        className="mt-4 bg-brand-700 text-white px-4 py-2 rounded-lg font-semibold hover:bg-brand-800 disabled:bg-stone-400 disabled:cursor-not-allowed flex items-center transition-all shadow-sm"
                     >
                        <SparklesIcon className={`w-5 h-5 mr-2 ${isAnalyzing ? 'animate-spin' : ''}`} />
                        {isAnalyzing ? 'Analyzing...' : 'Analyze Competitors with AI'}
@@ -288,31 +288,31 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
             </div>
 
              {selectedBusiness.competitorAnalysis && (
-                <div className="bg-white border border-slate-200/80 rounded-xl shadow-sm p-8">
-                    <h2 className="text-xl font-semibold text-slate-900 mb-4">Existing Analysis</h2>
-                    <p className="text-slate-600 mb-4">An AI-powered competitive analysis has already been generated. You can view the full report in the "AI Intelligence" tab, or run a new analysis (1 per month) to replace it.</p>
+                <div className="bg-white border border-stone-200/80 rounded-xl shadow-sm p-8">
+                    <h2 className="font-serif text-[26px] leading-tight text-stone-900 mb-4">Existing Analysis</h2>
+                    <p className="text-stone-600 mb-4">An AI-powered competitive analysis has already been generated. You can view the full report in the "AI Intelligence" tab, or run a new analysis (1 per month) to replace it.</p>
                      <button 
                         type="button"
                         onClick={() => setActiveTab('intelligence')}
-                        className="bg-slate-800 text-white px-4 py-2 rounded-lg font-semibold hover:bg-slate-900 flex items-center transition-colors shadow-sm"
+                        className="bg-stone-800 text-white px-4 py-2 rounded-lg font-semibold hover:bg-stone-900 flex items-center transition-colors shadow-sm"
                     >
                        View Report
                     </button>
                 </div>
             )}
 
-            <div className="bg-white border border-slate-200/80 rounded-xl shadow-sm p-8 space-y-6">
-                <h2 className="text-xl font-semibold text-slate-900 mb-4">Automation & Content Settings</h2>
+            <div className="bg-white border border-stone-200/80 rounded-xl shadow-sm p-8 space-y-6">
+                <h2 className="font-serif text-[26px] leading-tight text-stone-900 mb-4">Automation & Content Settings</h2>
                 <div className="flex items-center justify-between">
                     <div>
-                        <p className="font-medium text-slate-800">Master Auto-Schedule</p>
-                        <p className="text-sm text-slate-500">Enables the backend automation to run daily, processing any posts scheduled for that day.</p>
+                        <p className="font-medium text-stone-800">Master Auto-Schedule</p>
+                        <p className="text-sm text-stone-500">Enables the backend automation to run daily, processing any posts scheduled for that day.</p>
                     </div>
                     <button
                         type="button"
                         onClick={() => updateBusiness({ ...selectedBusiness, autoSchedule: !formData.autoSchedule}).catch((e: any) => alert(e?.message || 'Could not save.'))}
                         className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${
-                            formData.autoSchedule ? 'bg-orange-500' : 'bg-gray-200'
+                            formData.autoSchedule ? 'bg-brand-500' : 'bg-gray-200'
                         }`}
                     >
                         <span
@@ -323,16 +323,16 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
                     </button>
                 </div>
                 
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                <div className="pt-4 border-t border-stone-100 flex items-center justify-between">
                     <div>
-                        <p className="font-medium text-slate-800">Skip Image Generation</p>
-                        <p className="text-sm text-slate-500">When enabled, AI will only generate text content and skip creating unique images.</p>
+                        <p className="font-medium text-stone-800">Skip Image Generation</p>
+                        <p className="text-sm text-stone-500">When enabled, AI will only generate text content and skip creating unique images.</p>
                     </div>
                     <button
                         type="button"
                         onClick={() => updateBusiness({ ...selectedBusiness, skipImageGeneration: !formData.skipImageGeneration}).catch((e: any) => alert(e?.message || 'Could not save.'))}
                         className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${
-                            formData.skipImageGeneration ? 'bg-orange-500' : 'bg-gray-200'
+                            formData.skipImageGeneration ? 'bg-brand-500' : 'bg-gray-200'
                         }`}
                     >
                         <span
@@ -344,10 +344,10 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
                 </div>
             </div>
 
-            <div className="bg-white border border-slate-200/80 rounded-xl shadow-sm p-8 space-y-5">
+            <div className="bg-white border border-stone-200/80 rounded-xl shadow-sm p-8 space-y-5">
                 <div>
-                    <h2 className="text-xl font-semibold text-slate-900">Brand Style for Cover Images</h2>
-                    <p className="text-sm text-slate-500 mt-1 max-w-2xl">
+                    <h2 className="font-serif text-[26px] leading-tight text-stone-900">Brand Style for Cover Images</h2>
+                    <p className="text-sm text-stone-500 mt-1 max-w-2xl">
                         Every article gets a cover image in your brand style. Leave this empty and we read the colors and logo from your website the first time an image is made. If that finds nothing, the AI picks a look that fits the article.
                     </p>
                     {brand.source === 'auto' && (
@@ -357,32 +357,32 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {([['primary', 'Main color', '#E59173'], ['secondary', 'Soft accent color', '#EFDED9'], ['background', 'Background color', '#F5F5F5'], ['text', 'Headline color', '#1A1A1A']] as const).map(([key, label, ph]) => (
                         <div key={key}>
-                            <label className="block text-sm font-medium text-slate-700 mb-1.5">{label}</label>
+                            <label className="block text-sm font-medium text-stone-700 mb-1.5">{label}</label>
                             <div className="flex items-center gap-2">
                                 <input
                                     type="color"
                                     aria-label={`${label} picker`}
                                     value={/^#[0-9a-f]{6}$/i.test((brand as any)[key] || '') ? (brand as any)[key] : ph}
                                     onChange={e => setBrand(key, e.target.value)}
-                                    className="h-10 w-12 rounded border border-slate-300 bg-white p-1"
+                                    className="h-10 w-12 rounded border border-stone-300 bg-white p-1"
                                 />
                                 <input
                                     type="text"
                                     value={(brand as any)[key] || ''}
                                     onChange={e => setBrand(key, e.target.value)}
                                     placeholder={ph}
-                                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 transition"
+                                    className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-stone-800 placeholder-stone-400 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
                                 />
                             </div>
                         </div>
                     ))}
                     {([['headingFont', 'Heading font'], ['bodyFont', 'Body font']] as const).map(([key, label]) => (
                         <div key={key}>
-                            <label className="block text-sm font-medium text-slate-700 mb-1.5">{label}</label>
+                            <label className="block text-sm font-medium text-stone-700 mb-1.5">{label}</label>
                             <select
                                 value={(brand as any)[key] || ''}
                                 onChange={e => setBrand(key, e.target.value)}
-                                className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-500 transition"
+                                className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-stone-800 focus:outline-none focus:ring-2 focus:ring-brand-500 transition"
                             >
                                 <option value="">Auto</option>
                                 {['Inter', 'Montserrat', 'DM Sans', 'Poppins', 'Space Grotesk', 'Cormorant Garamond', 'Playfair Display', 'Lora'].map(f => <option key={f} value={f}>{f}</option>)}
@@ -399,20 +399,20 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
                     description="PNG, JPG, WebP or SVG. Shown at the bottom of each cover."
                 />
                 {formData.brandStyle && (
-                    <button type="button" onClick={clearBrand} className="text-sm text-slate-600 underline hover:text-slate-900">
+                    <button type="button" onClick={clearBrand} className="text-sm text-stone-600 underline hover:text-stone-900">
                         Clear brand style (read it from my website again)
                     </button>
                 )}
             </div>
 
-            <div className="bg-white border border-slate-200/80 rounded-xl shadow-sm p-8">
+            <div className="bg-white border border-stone-200/80 rounded-xl shadow-sm p-8">
                 <div className="flex items-start justify-between">
                     <div>
-                        <h2 className="text-xl font-semibold text-slate-900 flex items-center">
-                            <LinkIcon className="w-5 h-5 mr-2 text-slate-500" />
+                        <h2 className="font-serif text-[26px] leading-tight text-stone-900 flex items-center">
+                            <LinkIcon className="w-5 h-5 mr-2 text-stone-500" />
                             Storage Optimization
                         </h2>
-                        <p className="text-slate-600 mt-2 text-sm max-w-2xl">
+                        <p className="text-stone-600 mt-2 text-sm max-w-2xl">
                             If you have articles with images stored directly in the database (causing slow loads), this tool moves them to your Storage Bucket. It also cleans up redundant data to reduce database size.
                         </p>
                     </div>
@@ -423,19 +423,19 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
                         <button
                             type="button"
                             onClick={handleMigrateImages}
-                            className="bg-slate-100 text-slate-700 border border-slate-300 px-4 py-2 rounded-lg font-semibold hover:bg-slate-200 transition-colors shadow-sm text-sm flex items-center"
+                            className="bg-stone-100 text-stone-700 border border-stone-300 px-4 py-2 rounded-lg font-semibold hover:bg-stone-200 transition-colors shadow-sm text-sm flex items-center"
                         >
                             {migrationStatus === 'done' ? 'Scan Again' : 'Migrate & Cleanup Images'}
                         </button>
                     ) : (
                         <div className="w-full max-w-md">
-                            <div className="flex justify-between text-xs text-slate-600 mb-1">
+                            <div className="flex justify-between text-xs text-stone-600 mb-1">
                                 <span>{migrationStatus === 'scanning' ? 'Scanning database...' : `Optimizing...`}</span>
                                 <span>{migrationProgress.current} / {migrationProgress.total}</span>
                             </div>
-                            <div className="w-full bg-slate-200 rounded-full h-2">
+                            <div className="w-full bg-stone-200 rounded-full h-2">
                                 <div 
-                                    className="bg-orange-500 h-2 rounded-full transition-all duration-300" 
+                                    className="bg-brand-500 h-2 rounded-full transition-all duration-300" 
                                     style={{ width: `${migrationProgress.total > 0 ? (migrationProgress.current / migrationProgress.total) * 100 : 0}%` }}
                                 ></div>
                             </div>
@@ -445,7 +445,7 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
             </div>
             
             <div className="flex justify-end">
-                <button type="submit" className="bg-gradient-to-r from-amber-400 to-orange-500 text-white px-6 py-2.5 rounded-lg font-semibold hover:from-amber-500 hover:to-orange-600 transition-all shadow-sm hover:shadow-md">
+                <button type="submit" className="bg-brand-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-brand-700 transition-all shadow-sm hover:shadow-md">
                     Save Settings
                 </button>
             </div>

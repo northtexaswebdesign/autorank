@@ -15,10 +15,10 @@ interface HelpModalProps {
 const HelpSection: React.FC<{ icon: React.ReactNode; title: string; children: React.ReactNode }> = ({ icon, title, children }) => (
     <div className="mb-8 last:mb-0">
         <div className="flex items-center mb-3">
-            <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-slate-600 mr-3">
+            <div className="w-8 h-8 bg-stone-100 rounded-lg flex items-center justify-center text-stone-600 mr-3">
                 {icon}
             </div>
-            <h3 className="text-xl font-semibold text-slate-900">{title}</h3>
+            <h3 className="text-xl font-semibold text-stone-900">{title}</h3>
         </div>
         <div className="prose prose-slate max-w-none prose-sm sm:prose-base">
             {children}

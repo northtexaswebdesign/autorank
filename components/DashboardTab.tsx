@@ -1,220 +1,222 @@
-
 import React, { useMemo } from 'react';
 import { useApp } from '../context/AppContext.tsx';
-import { KeywordIcon } from './icons/KeywordIcon.tsx';
-import { LightbulbIcon } from './icons/LightbulbIcon.tsx';
-import { CalendarIcon } from './icons/CalendarIcon.tsx';
 import { ScheduledPost } from '../types.ts';
-import { SparklesIcon } from './icons/SparklesIcon.tsx';
-import { LinkIcon } from './icons/LinkIcon.tsx';
-import { HistoryIcon } from './icons/HistoryIcon.tsx';
+import { PageHeader } from './common/PageHeader.tsx';
+import { StatCard } from './common/StatCard.tsx';
+import { NavArrowUpRightIcon, NavPlusIcon } from './icons/NavIcons.tsx';
 
-// Helper component for the stat cards
-const StatCard: React.FC<{
-    title: string;
-    value: string | number;
-    subtitle?: string;
-    icon: React.ReactNode;
-    colorClass: string;
-}> = ({ title, value, subtitle, icon, colorClass }) => (
-    <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-sm flex flex-col justify-between h-full transition-all hover:shadow-md">
-        <div className="flex justify-between items-start mb-4">
-            <div>
-                <p className="text-sm font-medium text-slate-500 uppercase tracking-wide">{title}</p>
-                <h3 className="text-3xl font-bold text-slate-900 mt-1">{value}</h3>
-            </div>
-            <div className={`p-3 rounded-lg ${colorClass} bg-opacity-10`}>
-                {React.isValidElement(icon) 
-                    ? React.cloneElement(icon as React.ReactElement<{ className?: string }>, { className: `w-6 h-6 ${colorClass.replace('bg-', 'text-')}` })
-                    : icon}
-            </div>
-        </div>
-        {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
-    </div>
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Which step of writing a post is on, for the "writing now" card. -1 = not started yet. */
+const STEPS = ['Research', 'Draft', 'Cover image', 'Publish'];
+const stepIndex = (status: ScheduledPost['status']): number => {
+    switch (status) {
+        case 'brief-generating':
+        case 'analyzing': return 0;
+        case 'generating-text':
+        case 'rewriting':
+        case 'generating-meta': return 1;
+        case 'generating-images': return 2;
+        default: return -1;
+    }
+};
+
+const greeting = () => {
+    const h = new Date().getHours();
+    return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+};
+
+const coverUrl = (post: ScheduledPost) => post.images?.featureImage?.url;
+const liveUrl = (post: ScheduledPost) => {
+    const url = post.publishedUrl || post.published_url;
+    return url && url !== '#' ? url : undefined;
+};
+
+/** Typographic stand-in used when an article has no cover image yet. */
+const COVER_LOOKS = [
+    'bg-stone-900 text-white border-stone-900',
+    'bg-[#F4F3EF] text-stone-900 border-[#E7E4DC]',
+    'bg-[#E9E6DE] text-stone-900 border-[#DCD8CD]',
+    'bg-[#2A2B30] text-[#F4F3EF] border-[#2A2B30]',
+];
+const CoverFallback: React.FC<{ title: string; look: number; className?: string }> = ({ title, look, className = '' }) => (
+    <span aria-hidden="true" className={`flex flex-col justify-between p-4 rounded-xl border ${COVER_LOOKS[look % COVER_LOOKS.length]} ${className}`}>
+        <span className="w-6 h-[3px] rounded-sm bg-current opacity-60" />
+        <span className="font-serif text-[21px] leading-[1.08] line-clamp-4">{title}</span>
+    </span>
 );
 
-const RecentArticleItem: React.FC<{ post: ScheduledPost }> = ({ post }) => (
-    <div className="flex items-center justify-between py-4 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors -mx-2 px-2 rounded-lg">
-        <div className="flex items-start gap-3 overflow-hidden">
-            <div className="mt-1.5 w-2 h-2 rounded-full flex-shrink-0 bg-green-500" />
-            <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-800 truncate pr-4">{post.keyword}</p>
-                <p className="text-xs text-slate-500 mt-0.5">Published on {new Date(post.publishDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-            </div>
-        </div>
-        {(post.publishedUrl || post.published_url) && (post.publishedUrl || post.published_url) !== '#' && (
-             <a 
-                href={post.publishedUrl || post.published_url} 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="flex-shrink-0 text-xs font-medium text-slate-500 hover:text-orange-600 flex items-center transition-colors px-3 py-1.5 rounded-md hover:bg-white border border-transparent hover:border-slate-200 hover:shadow-sm"
-            >
-                View Live <LinkIcon className="w-3 h-3 ml-1.5" />
-            </a>
-        )}
-    </div>
-);
+const RecentArticleCard: React.FC<{ post: ScheduledPost; index: number }> = ({ post, index }) => {
+    const url = liveUrl(post);
+    const img = coverUrl(post);
+    const date = new Date(post.publishDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const inner = (
+        <>
+            {img
+                ? <img src={img} alt="" loading="lazy" className="aspect-square w-full object-cover rounded-xl border border-[#E7E4DC] shadow-[0_1px_2px_rgba(28,27,25,0.06)] transition-transform duration-300 group-hover:-translate-y-0.5" />
+                : <CoverFallback title={post.metaTitle || post.keyword} look={index} className="aspect-square shadow-[0_1px_2px_rgba(28,27,25,0.06)] transition-transform duration-300 group-hover:-translate-y-0.5" />}
+            <span className="flex flex-col gap-0.5 min-w-0">
+                <span className="text-[13px] font-medium text-stone-900 truncate">{post.metaTitle || post.keyword}</span>
+                <span className="flex items-center gap-1.5 text-xs text-stone-500">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-600" />Live · {date}
+                    {url && <NavArrowUpRightIcon className="w-3 h-3 ml-auto text-stone-400 group-hover:text-stone-900" />}
+                </span>
+            </span>
+        </>
+    );
+    return url
+        ? <a href={url} target="_blank" rel="noopener noreferrer" className="group flex flex-col gap-2.5 min-w-0">{inner}</a>
+        : <div className="group flex flex-col gap-2.5 min-w-0">{inner}</div>;
+};
 
-export const DashboardTab: React.FC = () => {
-    const { scheduledPosts, selectedBusiness, setActiveTab, suggestedKeywords, queuedKeywords } = useApp();
-
-    // --- Calculations ---
-
-    // 1. Keyword Counts
-    const allKeywordsCount = suggestedKeywords.length + queuedKeywords.length;
-    const contentPlanCount = queuedKeywords.length;
-
-    // 2. Next Scheduled Post
-    const nextScheduledPost = useMemo(() => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // Compare against start of today to include today's pending posts
-
-        const upcoming = scheduledPosts
-            .filter(p => p.status !== 'published' && new Date(p.publishDate) >= today)
-            .sort((a, b) => new Date(a.publishDate).getTime() - new Date(b.publishDate).getTime());
-        
-        return upcoming.length > 0 ? upcoming[0] : null;
-    }, [scheduledPosts]);
-
-    // 3. System Health
-    const isAutoScheduleOn = selectedBusiness?.autoSchedule || false;
-
-    // 4. Recent Published Posts (Limit to 5)
-    const recentPublishedPosts = useMemo(() => {
-        return scheduledPosts
-            .filter(p => p.status === 'published')
-            .sort((a, b) => new Date(b.publishDate).getTime() - new Date(a.publishDate).getTime())
-            .slice(0, 5);
-    }, [scheduledPosts]);
-
+const NextArticleCard: React.FC<{ post: ScheduledPost | null; onPlan: () => void; onCalendar: () => void }> = ({ post, onPlan, onCalendar }) => {
+    if (!post) {
+        return (
+            <section className="rounded-2xl bg-stone-900 text-white px-6 py-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-[0_1px_2px_rgba(0,0,0,0.2),0_12px_32px_rgba(17,18,20,0.18)]">
+                <div>
+                    <div className="text-xs text-stone-400">Nothing scheduled</div>
+                    <h2 className="font-serif text-3xl leading-tight mt-1.5">Give Autorank something to write.</h2>
+                </div>
+                <button onClick={onPlan} className="self-start sm:self-auto h-9 px-4 rounded-[10px] bg-white text-stone-900 text-[13px] font-medium hover:bg-stone-100 transition-colors">Plan articles</button>
+            </section>
+        );
+    }
+    const step = stepIndex(post.status);
+    const writing = step >= 0;
+    const when = new Date(post.publishDate);
+    const today = new Date();
+    const isToday = when.toDateString() === today.toDateString();
+    const whenText = isToday ? 'publishes today' : `publishes ${when.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`;
+    const img = coverUrl(post);
 
     return (
-        <div className="space-y-8">
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h1>
-                    <p className="text-slate-600 mt-1">Welcome back, {selectedBusiness?.name}. Here's your content automation overview.</p>
+        <section aria-labelledby="next-article" className="relative overflow-hidden rounded-2xl bg-stone-900 text-white px-6 py-[22px] flex flex-wrap items-center gap-6 shadow-[0_1px_2px_rgba(0,0,0,0.2),0_12px_32px_rgba(17,18,20,0.18)]">
+            <div className="flex-1 min-w-[260px] flex flex-col gap-3.5">
+                <div className="flex items-center gap-2 text-xs text-stone-400">
+                    <span className={`w-[7px] h-[7px] rounded-full bg-accent ${writing ? 'animate-pulse' : ''}`} />
+                    {writing ? `Autorank is writing your next article · ${whenText}` : `Up next · ${whenText}`}
                 </div>
-                <div className="flex items-center bg-white border border-slate-200/80 px-4 py-2 rounded-lg shadow-sm">
-                    <div className={`w-3 h-3 rounded-full mr-2 ${isAutoScheduleOn ? 'bg-green-500 animate-pulse' : 'bg-slate-400'}`}></div>
-                    <span className="text-sm font-medium text-slate-700">
-                        Auto-Schedule: <span className={isAutoScheduleOn ? 'text-green-600' : 'text-slate-500'}>{isAutoScheduleOn ? 'Active' : 'Paused'}</span>
-                    </span>
-                    {!isAutoScheduleOn && (
-                         <button 
-                            onClick={() => setActiveTab('settings')} 
-                            className="ml-3 text-xs text-orange-600 hover:underline font-medium"
-                        >
-                            Enable
-                        </button>
-                    )}
-                </div>
+                <h2 id="next-article" className="font-serif text-[30px] leading-[1.1]">{post.metaTitle || post.keyword}</h2>
+                <ol aria-label="Progress" className="flex flex-wrap gap-1.5">
+                    {STEPS.map((label, i) => {
+                        const done = writing && i < step;
+                        const active = writing && i === step;
+                        return (
+                            <li key={label} className={`flex items-center gap-1.5 h-[26px] px-2.5 rounded-full text-xs border ${
+                                active ? 'bg-[#1E1F23] border-[#3A3A3F] text-white' : done ? 'border-[#2E2F34] text-white' : 'border-[#232428] text-[#8B8B93]'
+                            }`}>
+                                {done && <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>}
+                                {active && <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />}
+                                {label}
+                            </li>
+                        );
+                    })}
+                </ol>
+                {writing ? (
+                    <div className="relative h-[3px] rounded-full bg-[#26272B] overflow-hidden">
+                        <div className="h-[3px] rounded-full bg-white transition-all" style={{ width: `${Math.max(10, post.progress ?? ((step + 0.5) / STEPS.length) * 100)}%` }} />
+                        <div className="ar-shimmer absolute inset-y-0 left-0 w-2/5 bg-gradient-to-r from-transparent via-white/60 to-transparent" />
+                    </div>
+                ) : (
+                    <button onClick={onCalendar} className="self-start text-xs font-medium text-stone-300 hover:text-white">View calendar →</button>
+                )}
             </div>
+            {img ? (
+                <img src={img} alt="" className="w-[168px] h-[168px] object-cover rounded-xl rotate-2 shadow-[0_10px_30px_rgba(0,0,0,0.35)] hidden sm:block" />
+            ) : (
+                <CoverFallback title={post.metaTitle || post.keyword} look={1} className="w-[168px] h-[168px] rotate-2 shadow-[0_10px_30px_rgba(0,0,0,0.35)] hidden sm:flex" />
+            )}
+        </section>
+    );
+};
 
-            {/* Key Metrics Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Metric 1: All Keywords */}
-                <StatCard
-                    title="All Keywords"
-                    value={allKeywordsCount}
-                    subtitle="Total opportunities discovered"
-                    icon={<KeywordIcon />}
-                    colorClass="bg-blue-500 text-blue-600"
-                />
+export const DashboardTab: React.FC = () => {
+    const { scheduledPosts, selectedBusiness, setActiveTab, suggestedKeywords, queuedKeywords, userProfile } = useApp();
 
-                {/* Metric 2: Content Plan */}
-                <StatCard
-                    title="Content Plan"
-                    value={contentPlanCount}
-                    subtitle="Keywords ready to schedule"
-                    icon={<LightbulbIcon />}
-                    colorClass="bg-amber-500 text-amber-600"
-                />
+    const nextPost = useMemo(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // include today's posts that have not gone out yet
+        return scheduledPosts
+            .filter(p => p.status !== 'published' && p.status !== 'draft' && new Date(p.publishDate) >= today)
+            .sort((a, b) => new Date(a.publishDate).getTime() - new Date(b.publishDate).getTime())[0] || null;
+    }, [scheduledPosts]);
 
-                {/* Timeline Metric */}
-                <StatCard
-                    title="Next Scheduled Post"
-                    value={nextScheduledPost ? new Date(nextScheduledPost.publishDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : "None Scheduled"}
-                    subtitle={nextScheduledPost ? nextScheduledPost.keyword : "Add to your calendar"}
-                    icon={<CalendarIcon />}
-                    colorClass="bg-orange-500 text-orange-600"
-                />
-            </div>
+    const published = useMemo(() => scheduledPosts
+        .filter(p => p.status === 'published')
+        .sort((a, b) => new Date(b.publishDate).getTime() - new Date(a.publishDate).getTime()), [scheduledPosts]);
 
-            {/* Secondary Section: Activity & Quick Actions */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                
-                {/* Recent Published Articles Feed */}
-                <div className="lg:col-span-2 bg-white border border-slate-200/80 rounded-xl shadow-sm p-6">
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-lg font-bold text-slate-900 flex items-center">
-                            <HistoryIcon className="w-5 h-5 mr-2 text-slate-400" />
-                            Recently Published Articles
-                        </h2>
-                        <button onClick={() => setActiveTab('past-articles')} className="text-sm text-orange-600 hover:text-orange-700 font-medium hover:underline">
-                            View All
-                        </button>
+    // published articles per week for the last 8 weeks, oldest first
+    const publishedTrend = useMemo(() => {
+        const now = Date.now();
+        const weeks = new Array(8).fill(0);
+        published.forEach(p => {
+            const age = Math.floor((now - new Date(p.publishDate).getTime()) / WEEK_MS);
+            if (age >= 0 && age < 8) weeks[7 - age]++;
+        });
+        return weeks;
+    }, [published]);
+
+    const now = new Date();
+    const publishedThisMonth = published.filter(p => {
+        const d = new Date(p.publishDate);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).length;
+    const draftCount = scheduledPosts.filter(p => p.status === 'draft').length;
+    const allKeywords = suggestedKeywords.length + queuedKeywords.length;
+    const firstName = (userProfile?.fullName || '').trim().split(/\s+/)[0];
+    const autoOn = !!selectedBusiness?.autoSchedule;
+
+    return (
+        <div>
+            <PageHeader
+                eyebrow={now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                title={<>{greeting()}{firstName ? <>, <span className="italic">{firstName}</span></> : ''}</>}
+                actions={<>
+                    <button
+                        onClick={() => setActiveTab('settings')}
+                        className="flex items-center gap-2 h-8 px-3 rounded-full border border-[#E7E4DC] text-xs text-stone-600 hover:border-stone-300 transition-colors"
+                        title={autoOn ? 'Articles publish automatically' : 'Turn on in Business profile'}
+                    >
+                        <span className={`w-[7px] h-[7px] rounded-full ${autoOn ? 'bg-accent animate-pulse' : 'bg-stone-400'}`} />
+                        {autoOn ? 'Auto-publish on · every 2 hours' : 'Auto-publish paused'}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('planner')}
+                        className="flex items-center gap-1.5 h-[34px] px-3.5 rounded-[10px] bg-stone-900 text-white text-[13px] font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(0,0,0,0.2)] hover:bg-black transition-colors"
+                    >
+                        <NavPlusIcon className="w-3.5 h-3.5" />
+                        New article
+                    </button>
+                </>}
+            />
+
+            <div className="flex flex-col gap-5">
+                <NextArticleCard post={nextPost} onPlan={() => setActiveTab('planner')} onCalendar={() => setActiveTab('calendar')} />
+
+                <section aria-label="Overview" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                    <StatCard label="Keywords found" value={allKeywords} hint={`${suggestedKeywords.length} waiting to be planned`} onClick={() => setActiveTab('planner')} />
+                    <StatCard label="In content plan" value={queuedKeywords.length} hint={queuedKeywords.length ? 'Ready to schedule' : 'Add keywords to keep publishing'} onClick={() => setActiveTab('planner')} />
+                    <StatCard label="Published" value={published.length} hint={`${publishedThisMonth} this month`} trend={publishedTrend} onClick={() => setActiveTab('past-articles')} />
+                    <StatCard label="Drafts" value={draftCount} hint={draftCount ? 'Waiting for a date' : 'None waiting'} onClick={() => setActiveTab('past-articles')} />
+                </section>
+
+                <section aria-labelledby="recent-articles" className="flex flex-col gap-3 mt-2">
+                    <div className="flex items-baseline justify-between">
+                        <h2 id="recent-articles" className="font-serif text-[26px] text-stone-900">Recent articles</h2>
+                        <button onClick={() => setActiveTab('past-articles')} className="text-xs font-medium text-stone-600 hover:text-stone-900">View all →</button>
                     </div>
-                    <div className="space-y-1">
-                        {recentPublishedPosts.length > 0 ? (
-                            recentPublishedPosts.map(post => <RecentArticleItem key={post.id} post={post} />)
-                        ) : (
-                            <div className="text-center py-8">
-                                <p className="text-sm text-slate-500">No articles published yet.</p>
-                                <button 
-                                    onClick={() => setActiveTab('planner')}
-                                    className="mt-2 text-xs font-semibold text-orange-600 hover:text-orange-700"
-                                >
-                                    Start generating content
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Quick Actions / Status */}
-                <div className="bg-slate-50 border border-slate-200/80 rounded-xl shadow-sm p-6 flex flex-col">
-                    <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center">
-                        <SparklesIcon className="w-5 h-5 mr-2 text-orange-500" />
-                        Quick Actions
-                    </h2>
-                    <div className="space-y-3 flex-grow">
-                         <button 
-                            onClick={() => setActiveTab('planner')}
-                            className="w-full text-left px-4 py-3 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-orange-300 hover:shadow-md transition-all group"
-                        >
-                            <span className="block font-semibold text-slate-800 group-hover:text-orange-600">Generate Ideas</span>
-                            <span className="text-xs text-slate-500">Find new high-value keywords</span>
-                        </button>
-                        
-                        <button 
-                            onClick={() => setActiveTab('calendar')}
-                            className="w-full text-left px-4 py-3 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-orange-300 hover:shadow-md transition-all group"
-                        >
-                            <span className="block font-semibold text-slate-800 group-hover:text-orange-600">Manage Schedule</span>
-                            <span className="text-xs text-slate-500">Review upcoming posts</span>
-                        </button>
-
-                        <button 
-                            onClick={() => setActiveTab('past-articles')}
-                            className="w-full text-left px-4 py-3 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-orange-300 hover:shadow-md transition-all group"
-                        >
-                            <span className="block font-semibold text-slate-800 group-hover:text-orange-600">View History</span>
-                            <span className="text-xs text-slate-500">See all published content</span>
-                        </button>
-                    </div>
-                    
-                    {!selectedBusiness?.autoSchedule && (
-                        <div className="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                            <p className="text-xs text-amber-800 font-medium flex items-start">
-                                <span className="mr-2 text-lg leading-none">⚠️</span>
-                                Automation is paused. Articles will not publish automatically.
-                            </p>
-                            <button onClick={() => setActiveTab('settings')} className="text-xs text-amber-700 underline mt-1 ml-6">Enable in Settings</button>
+                    {published.length > 0 ? (
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+                            {published.slice(0, 4).map((post, i) => <RecentArticleCard key={post.id} post={post} index={i} />)}
+                        </div>
+                    ) : (
+                        <div className="rounded-2xl border border-dashed border-stone-300 px-6 py-10 text-center">
+                            <p className="font-serif text-2xl text-stone-900">Your first article is one click away.</p>
+                            <p className="text-sm text-stone-500 mt-1.5">Pick a keyword and Autorank writes, illustrates and publishes it for you.</p>
+                            <button onClick={() => setActiveTab('planner')} className="mt-4 h-9 px-4 rounded-[10px] bg-stone-900 text-white text-[13px] font-medium hover:bg-black">Find keywords</button>
                         </div>
                     )}
-                </div>
+                </section>
             </div>
         </div>
     );
