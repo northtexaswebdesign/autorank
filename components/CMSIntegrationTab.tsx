@@ -39,9 +39,14 @@ export const CMSIntegrationTab: React.FC = () => {
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSaving(true);
-        await updateCmsIntegration(formData);
-        setIsSaving(false);
-        alert("Settings saved successfully!");
+        try {
+            await updateCmsIntegration(formData);
+            alert("Settings saved successfully!");
+        } catch (err: any) {
+            alert(err?.message || 'Could not save. Please try again.');
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleTestConnection = async () => {

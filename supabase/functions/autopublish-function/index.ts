@@ -119,6 +119,7 @@ const askWithSearch = async (prompt: string, maxTokens: number, opts: { model?: 
     }
     if (!message) throw new Error('No response from model.');
     if (message.stop_reason === 'refusal') throw new Error('Article generation was declined by the model.');
+    if (message.stop_reason === 'max_tokens' || message.stop_reason === 'pause_turn') throw new Error('The model output was cut off before it finished.');
     let text = '';
     for (const block of message.content as any[]) {
         if (block.type === 'text') text += block.text;

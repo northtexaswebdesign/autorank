@@ -145,3 +145,19 @@ test('fromYYYYMMDD keeps the local calendar day', async () => {
   assert.equal(toYYYYMMDD(fromYYYYMMDD('2026-10-12')), '2026-10-12');
   assert.equal(fromYYYYMMDD('2026-10-12', 14, 30).getHours(), 14);
 });
+
+test('old-source only looks at years that date a source, and sitemap is an allowed word', () => {
+  const old = OLDEST_SOURCE_YEAR - 3;
+  const link = '<a href="https://news.example.com/a">guide</a>';
+  const since = lintArticle(`<h1>T</h1><p>Prices have risen since ${old}, per this ${link}.</p><p>Submit your XML sitemap.</p>`, { keyword: 'x' }).issues;
+  assert.ok(!since.some(i => i.code === 'old-source'), 'a plain year is not a source date');
+  assert.ok(!since.some(i => i.code === 'leaked-text'), 'sitemap is a normal word');
+  const dated = lintArticle(`<h1>T</h1><p>Example News (${old}) says so in this ${link}.</p>`, { keyword: 'x' }).issues;
+  assert.ok(dated.some(i => i.code === 'old-source'));
+});
+
+test('verifyLinks keeps a link whose href escapes & as &amp;', async () => {
+  const html = '<p><a href="https://data.gov/x?a=1&amp;b=2">data</a></p>';
+  const out = await verifyLinks(html, { searchUrls: ['https://data.gov/x?a=1&b=2'], checkLive: false });
+  assert.equal(out.report.removed.length, 0);
+});

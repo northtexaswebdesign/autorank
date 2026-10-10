@@ -353,16 +353,20 @@ const handleCompetitorQuota = async (body: any, userId: string, db: SupabaseClie
   if (!/^[0-9a-f-]{36}$/i.test(businessId)) return json(400, { error: 'businessId is required.' });
   if (body.op !== 'reserve' && body.op !== 'release') return json(400, { error: 'op must be reserve or release.' });
 
-  const { data: row, error: readError } = await db.from('businesses').select('id, user_id, competitor_analyzed_at').eq('id', businessId).maybeSingle();
+  const { data: row, error: readError } = await db.from('businesses').select('id, user_id, competitor_analyzed_at, competitor_prev_analyzed_at, competitor_released_at').eq('id', businessId).maybeSingle();
   if (readError) { console.error('quota read failed', readError.message); return json(500, { error: 'The monthly limit could not be checked. Please try again later.' }); }
   if (!row || row.user_id !== userId) return json(404, { error: 'Business not found.' });
 
   if (body.op === 'release') {
-    // Give the run back only if the stamp is the fresh one made for this attempt.
-    const previous = typeof body.previous === 'string' && !isNaN(Date.parse(body.previous)) ? new Date(body.previous).toISOString() : null;
-    const cutoff = new Date(Date.now() - RELEASE_WINDOW_MS).toISOString();
-    await db.from('businesses').update({ competitor_analyzed_at: previous }).eq('id', businessId).eq('user_id', userId).gt('competitor_analyzed_at', cutoff);
-    return json(200, { ok: true });
+    // Give a failed run back: only a fresh stamp (this attempt), at most once per month, restoring the value the
+    // server saved at reserve time (never a value sent by the browser).
+    const fresh = row.competitor_analyzed_at && Date.now() - Date.parse(row.competitor_analyzed_at) < RELEASE_WINDOW_MS;
+    const releasedThisMonth = row.competitor_released_at && Date.parse(row.competitor_released_at) >= monthStart().getTime();
+    if (!fresh || releasedThisMonth) return json(200, { ok: true, released: false });
+    await db.from('businesses')
+      .update({ competitor_analyzed_at: row.competitor_prev_analyzed_at ?? null, competitor_released_at: new Date().toISOString() })
+      .eq('id', businessId).eq('user_id', userId).eq('competitor_analyzed_at', row.competitor_analyzed_at);
+    return json(200, { ok: true, released: true });
   }
 
   const decision = decide(await loadProfile(db, userId), true);
@@ -370,7 +374,7 @@ const handleCompetitorQuota = async (body: any, userId: string, db: SupabaseClie
 
   const start = monthStart().toISOString();
   const { data: updated, error } = await db.from('businesses')
-    .update({ competitor_analyzed_at: new Date().toISOString() })
+    .update({ competitor_analyzed_at: new Date().toISOString(), competitor_prev_analyzed_at: row.competitor_analyzed_at ?? null })
     .eq('id', businessId).eq('user_id', userId)
     .or(`competitor_analyzed_at.is.null,competitor_analyzed_at.lt.${start}`)
     .select('id');
@@ -479,6 +483,10 @@ export async function POST(request: Request): Promise<Response> {
 
     if (!final) { await refund?.(); return json(502, { error: 'No response from model.' }); }
     if (final.stop_reason === 'refusal') { await refund?.(); return json(422, { error: 'The model declined this request.' }); }
+    if (refund && (final.stop_reason === 'max_tokens' || final.stop_reason === 'pause_turn')) {
+      await refund();
+      return json(502, { error: 'The article came back incomplete (it was cut off). You were not charged; please try again.' });
+    }
 
     // Keep only text produced after the last tool step, so any "let me search..."
     // narration doesn't end up in front of the JSON/article payload.

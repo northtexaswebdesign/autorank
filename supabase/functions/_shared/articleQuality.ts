@@ -217,19 +217,21 @@ export const verifyLinks = async (html: string, opts: { ownUrl?: string; searchU
     const bad = new Map<string, LinkReport['removed'][number]['reason']>();
     const toCheck: string[] = [];
 
+    // hrefs in HTML escape & as &amp;; compare and fetch the real address, keep the raw href to unlink it
+    const plain = (u: string) => u.replace(/&amp;/gi, '&');
     for (const u of urls) {
-        const host = hostOf(u);
+        const host = hostOf(plain(u));
         const own = !!ownHost && host === ownHost;
-        if (!isSafePublicUrl(u)) bad.set(u, 'unsafe');
+        if (!isSafePublicUrl(plain(u))) bad.set(u, 'unsafe');
         else if (isBlockedHost(host)) bad.set(u, 'blocked-host');
-        else if (isNonContentUrl(u)) bad.set(u, 'not-a-content-page');
-        else if (!own && allowed.size > 0 && !allowed.has(normalizeUrl(u))) bad.set(u, 'not-in-search-results');
+        else if (isNonContentUrl(plain(u))) bad.set(u, 'not-a-content-page');
+        else if (!own && allowed.size > 0 && !allowed.has(normalizeUrl(plain(u)))) bad.set(u, 'not-in-search-results');
         else if (opts.checkLive !== false) toCheck.push(u);
     }
 
     await Promise.all(toCheck.slice(0, 25).map(async (u) => {
         try {
-            const res = await fetch(u, { redirect: 'follow', signal: AbortSignal.timeout(7000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AutorankLinkCheck/1.0)' } });
+            const res = await fetch(plain(u), { redirect: 'follow', signal: AbortSignal.timeout(7000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AutorankLinkCheck/1.0)' } });
             if (res.status === 404 || res.status === 410) bad.set(u, 'dead');
             await res.body?.cancel();
         } catch (e: any) {
@@ -253,7 +255,7 @@ const LEAK_PATTERNS: [RegExp, string][] = [
     [/lorem ipsum|\bTODO\b|\[citation needed\]|\[insert[^\]]*\]|\[(source|link|url)\]/i, 'placeholder text'],
     [/```|<html|<body|<head>/i, 'code fence or page wrapper'],
     [/no (external |outside |third[- ]party )?sources? (are |is )?(cited|used|included)|contains? no statistics|no statistics or regulatory claims/i, 'a statement that the article has no sources (it needs real sources)'],
-    [/\b(site directory|sitemap|click here)\b/i, 'awkward link wording such as "site directory", "sitemap" or "click here"; name the destination instead'],
+    [/\b(site directory|click here)\b/i, 'awkward link wording such as "site directory" or "click here"; name the destination instead'],
 ];
 
 const FIGURE = /(\d[\d,.]*\s?(%|percent\b)|\$\s?\d|\b\d[\d,.]*\s?(million|billion|trillion)\b|\b(study|survey|research|report)s?\s+(found|show|shows|showed|suggest|suggests)\b)/i;
@@ -297,7 +299,13 @@ export const lintArticle = (html: string, o: LintOptions): { issues: LintIssue[]
         if (!externalLinks(p, ownHost).length) return false;
         const t = stripTags(p);
         if (/\b(act|law|regulation|statute|standard|iso|ansi|code)\b/i.test(t)) return false; // primary legal or standards record
-        return [...t.matchAll(/\b(19[5-9]\d|20\d\d)\b/g)].some(m => +m[1] < OLDEST_SOURCE_YEAR);
+        // only years that date a source: "(2021)", "Example News (2021)", "a 2021 report", "published in 2021"
+        const sourceYears = [
+            ...t.matchAll(/\((?:[^()]{0,60}?[\s,])?((?:19|20)\d\d)\)/g),
+            ...t.matchAll(/\b((?:19|20)\d\d)\s+(?:report|study|survey|article|analysis|paper|post|guide|data|edition)\b/gi),
+            ...t.matchAll(/\b(?:published|updated|released)\s+(?:in\s+)?((?:19|20)\d\d)\b/gi),
+        ].map(m => +m[1]);
+        return sourceYears.some(y => y < OLDEST_SOURCE_YEAR);
     });
     if (dated.length) add('old-source', 'error', `${dated.length} citation(s) rely on a source older than ${OLDEST_SOURCE_YEAR}, for example: "${stripTags(dated[0]).slice(0, 110)}". Remove that claim and its link, or keep the advice as general guidance without the old citation.`);
     if (/(this|that|the) (notice|source|study|report|page|standard) (is about|concerns|covers) [^.]{0,80}, not\b/i.test(stripTags(body)))

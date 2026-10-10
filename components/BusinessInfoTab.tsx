@@ -67,7 +67,7 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
     setFormData(prev => ({ ...prev, brandStyle: { ...(prev.brandStyle || {}), [key]: value, source: 'manual' } }));
   const clearBrand = () => setFormData(prev => ({ ...prev, brandStyle: null }));
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBusiness) return;
     const updatedBusiness = {
@@ -75,8 +75,12 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
         ...formData,
         competitors: formData.competitors.filter(c => c.trim() !== ''),
     };
-    updateBusiness(updatedBusiness);
-    alert('Business information saved successfully!');
+    try {
+        await updateBusiness(updatedBusiness);
+        alert('Business information saved successfully!');
+    } catch (e: any) {
+        alert(e?.message || 'Could not save. Please try again.');
+    }
   };
 
   // 1 AI competitive analysis per business per calendar month (UTC); the server enforces it, this only explains it
@@ -96,7 +100,8 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
         ...formData,
         competitors: formData.competitors.filter(c => c.trim() !== ''),
     };
-    await updateBusiness(updatedBusiness);
+    try { await updateBusiness(updatedBusiness); }
+    catch (e: any) { alert(e?.message || 'Could not save. Please try again.'); return; }
 
     setIsAnalysisModalOpen(true);
     setIsAnalysisComplete(false);
@@ -305,7 +310,7 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
                     </div>
                     <button
                         type="button"
-                        onClick={() => updateBusiness({ ...selectedBusiness, autoSchedule: !formData.autoSchedule})}
+                        onClick={() => updateBusiness({ ...selectedBusiness, autoSchedule: !formData.autoSchedule}).catch((e: any) => alert(e?.message || 'Could not save.'))}
                         className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${
                             formData.autoSchedule ? 'bg-orange-500' : 'bg-gray-200'
                         }`}
@@ -325,7 +330,7 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
                     </div>
                     <button
                         type="button"
-                        onClick={() => updateBusiness({ ...selectedBusiness, skipImageGeneration: !formData.skipImageGeneration})}
+                        onClick={() => updateBusiness({ ...selectedBusiness, skipImageGeneration: !formData.skipImageGeneration}).catch((e: any) => alert(e?.message || 'Could not save.'))}
                         className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${
                             formData.skipImageGeneration ? 'bg-orange-500' : 'bg-gray-200'
                         }`}
