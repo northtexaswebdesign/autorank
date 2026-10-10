@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { needsSourcePass, sourceStats, stripFences, isNonContentUrl, lintArticle, extractFaq, buildJsonLd, finalizeForPublish, collectSearchUrls, verifyLinks, isSafePublicUrl, keywordBudget, normalizeUrl, dropTitleH1, researchBriefBlock } from '../supabase/functions/_shared/articleQuality.ts';
+import { needsSourcePass, sourceStats, stripFences, isNonContentUrl, lintArticle, extractFaq, buildJsonLd, finalizeForPublish, collectSearchUrls, verifyLinks, isSafePublicUrl, keywordBudget, normalizeUrl, dropTitleH1, researchBriefBlock, stripSourcesSection, OLDEST_SOURCE_YEAR } from '../supabase/functions/_shared/articleQuality.ts';
 
 const kw = 'heavy duty wheelchair drink holder';
 const para = (n: number) => '<p>' + 'word '.repeat(n) + '</p>';
@@ -102,13 +102,13 @@ test('stripFences keeps HTML that contains brackets', () => {
 test('flags unlinked Sources entries, stretched sources and unlinked CTAs', () => {
   const html = '<h1>T</h1><p>That notice concerns electromagnetic interference, not canes. It shows caution.</p><p>Check out our catalog to see these solutions, or message us.</p><h2>Sources</h2><ul><li>FDA, Notice, 1995</li><li><a href="https://fda.gov/x">FDA</a></li></ul>';
   const codes = lintArticle(html, { keyword: kw, ownUrl: 'https://shop.com' }).issues.map(i => i.code);
-  for (const c of ['unlinked-source', 'stretched-source', 'unlinked-cta', 'no-internal-links']) assert.ok(codes.includes(c), c);
+  for (const c of ['stretched-source', 'unlinked-cta', 'no-internal-links']) assert.ok(codes.includes(c), c);
 });
 
 test('a linked CTA and linked sources pass', () => {
   const html = '<h1>T</h1><p>See <a href="https://shop.com/cane-holders/">SnapIt cane holders</a>. Check out our catalog at <a href="https://shop.com/shop/">the shop</a>.</p><h2>Sources</h2><ul><li><a href="https://fda.gov/x">FDA</a>, 2024</li></ul>';
   const codes = lintArticle(html, { keyword: kw, ownUrl: 'https://shop.com' }).issues.map(i => i.code);
-  for (const c of ['unlinked-source', 'unlinked-cta', 'no-internal-links']) assert.ok(!codes.includes(c), c);
+  for (const c of ['unlinked-cta', 'no-internal-links']) assert.ok(!codes.includes(c), c);
 });
 
 test('dropTitleH1 removes the leading title H1 and demotes any other H1', () => {
@@ -119,4 +119,23 @@ test('dropTitleH1 removes the leading title H1 and demotes any other H1', () => 
 test('researchBriefBlock is empty without research', () => {
     assert.equal(researchBriefBlock(''), '');
     assert.match(researchBriefBlock('GAPS: x'), /RESEARCH BRIEF[\s\S]*GAPS: x/);
+});
+
+test('stripSourcesSection removes a trailing Sources list but keeps the FAQ', () => {
+    const out = stripSourcesSection('<h2>FAQ</h2><h3>Q?</h3><p>A.</p><h2>Sources</h2><ul><li>x</li></ul>');
+    assert.equal(out, '<h2>FAQ</h2><h3>Q?</h3><p>A.</p>');
+});
+
+test('flags citations older than the recency limit, but not laws or standards', () => {
+    const old = OLDEST_SOURCE_YEAR - 2;
+    const html = `<h1>T</h1><p>A ${old} <a href="https://news.example.com/a">report</a> says so.</p><p>The ADA standard (1990) <a href="https://ada.gov/x">applies</a>.</p>`;
+    const issues = lintArticle(html, { keyword: 'x', ownUrl: 'https://me.com' }).issues;
+    const old_ = issues.find(i => i.code === 'old-source');
+    assert.ok(old_ && /1 citation/.test(old_.message));
+    const fresh = `<h1>T</h1><p>A ${OLDEST_SOURCE_YEAR} <a href="https://news.example.com/a">report</a> says so.</p>`;
+    assert.ok(!lintArticle(fresh, { keyword: 'x' }).issues.some(i => i.code === 'old-source'));
+});
+
+test('flags a Sources list at the end', () => {
+    assert.ok(lintArticle('<h1>T</h1><p>x</p><h2>Sources</h2><ul><li>a</li></ul>', { keyword: 'x' }).issues.some(i => i.code === 'sources-list'));
 });

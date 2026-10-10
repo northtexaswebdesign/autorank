@@ -2,7 +2,7 @@ import { BusinessInfo, Keyword, ContentCluster, CompetitorAnalysis, CmsIntegrati
 import { uploadImageFromBase64 } from '../utils/imageStorage.ts';
 
 import { callClaude, callClaudeDetailed, callCover, verifyArticleLinks, reserveCompetitorAnalysis, releaseCompetitorAnalysis } from './claudeClient.ts';
-import { SOURCE_RULES, TRUST_RULES, STRUCTURE_RULES, INTERNAL_LINK_RULES, ARTICLE_SEARCHES, keywordRules, buildRepairPrompt, buildSourcePassPrompt, needsSourcePass, sourceStats, stripFences, lintArticle, finalizeForPublish, FOCUS_RULES, RESEARCH_SEARCHES, ARTICLE_SEARCHES_WITH_BRIEF, buildResearchPrompt, researchBriefBlock, dropTitleH1, type LintIssue } from '../supabase/functions/_shared/articleQuality.ts';
+import { SOURCE_RULES, TRUST_RULES, STRUCTURE_RULES, INTERNAL_LINK_RULES, ARTICLE_SEARCHES, keywordRules, buildRepairPrompt, buildSourcePassPrompt, needsSourcePass, sourceStats, stripFences, lintArticle, finalizeForPublish, FOCUS_RULES, RESEARCH_SEARCHES, ARTICLE_SEARCHES_WITH_BRIEF, buildResearchPrompt, researchBriefBlock, dropTitleH1, stripSourcesSection, type LintIssue } from '../supabase/functions/_shared/articleQuality.ts';
 
 // Articles get one branded cover (1080x1080 JPEG under 200 KB, made by /api/cover) as the featured/first image.
 // It uses the business's brand style, else colours read from its website, else a look Claude picks for the topic.
@@ -384,7 +384,7 @@ export const analyzeCompetitors = async (
  */
 const polishArticle = async (html: string, keyword: string, business: BusinessInfo, searchUrls: string[], meta: { metaTitle?: string; metaDescription?: string }) => {
     const lintOpts = { keyword, ownUrl: business.url, imagesAllowed: !(business.skipImageGeneration || !IMAGES_ENABLED) ? undefined : false, ...meta };
-    let content = html;
+    let content = stripSourcesSection(html);
     let urls = [...searchUrls];
     const notes: string[] = [];
     const verify = async (candidate: string) => {
