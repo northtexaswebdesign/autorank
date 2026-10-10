@@ -147,13 +147,16 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
 
     /** Every keyword the business already targets (keyword lists and articles), so research never repeats one. */
     const targetedKeywords = () => [...new Set([...suggestedKeywords, ...queuedKeywords].map(k => k.keyword).concat(scheduledPosts.map(p => p.keyword)).filter(Boolean))];
+    const normKeyword = (k: string) => k.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+    const isTargeted = (k: string) => { const n = normKeyword(k); return !n || targetedKeywords().some(t => normKeyword(t) === n); };
 
     const contextValue: AppContextType = {
         selectedBusiness, 
         updateBusiness: async (info) => {
             // competitorAnalyzedAt is server-managed (monthly limit); never written from the browser
             const { competitorAnalyzedAt: _serverManaged, ...editable } = info;
-            await supabase.from('businesses').update(camelToSnake(editable)).eq('id', info.id);
+            const { error } = await supabase.from('businesses').update(camelToSnake(editable)).eq('id', info.id);
+            if (error) throw new Error(`Could not save: ${error.message}`);
             setSelectedBusiness(info);
         },
         createBusiness: async (info) => {
@@ -169,6 +172,7 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
         queuedKeywords, 
         addKeyword: async (kw) => {
             if (!selectedBusiness) return;
+            if (isTargeted(kw.keyword)) return; // already in a keyword list or an article
             const payload = camelToSnake({ ...kw, businessId: selectedBusiness.id });
             const { data } = await supabase.from('keywords').insert(payload).select().single();
             if (data) {
@@ -358,7 +362,11 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
         },
         addKeywordsToQueue: async (kws) => {
             if (!selectedBusiness) return;
-            const { data } = await supabase.from('keywords').insert(kws.map(k => camelToSnake({ ...k, businessId: selectedBusiness.id, isQueued: true }))).select();
+            // skip keywords already targeted (and repeats within this batch)
+            const seen = new Set(targetedKeywords().map(normKeyword));
+            const fresh = kws.filter(k => { const n = normKeyword(k.keyword); if (!n || seen.has(n)) return false; seen.add(n); return true; });
+            if (!fresh.length) return;
+            const { data } = await supabase.from('keywords').insert(fresh.map(k => camelToSnake({ ...k, businessId: selectedBusiness.id, isQueued: true }))).select();
             if (data) setQueuedKeywords(prev => [...snakeToCamel<Keyword[]>(data), ...prev]);
         },
         toggleKeywordStar: async (kw) => {
@@ -377,18 +385,26 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
             const post = scheduledPosts.find(p => p.id === id);
             if (post) {
                 await contextValue.deleteScheduledPost(id);
-                await contextValue.addKeyword({ keyword: post.keyword, opportunity: KeywordOpportunity.Medium, isQueued: true });
+                // back to the content plan, unless the keyword is already in a keyword list
+                // (not addKeyword: this closure still sees the post just deleted and would skip it)
+                const n = normKeyword(post.keyword);
+                if (selectedBusiness && ![...suggestedKeywords, ...queuedKeywords].some(k => normKeyword(k.keyword) === n)) {
+                    const { data } = await supabase.from('keywords').insert(camelToSnake({ keyword: post.keyword, opportunity: KeywordOpportunity.Medium, isQueued: true, businessId: selectedBusiness.id })).select().single();
+                    if (data) setQueuedKeywords(p => [snakeToCamel<Keyword>(data), ...p]);
+                }
             }
         },
         updateCmsIntegration: async (integration) => {
             if (!selectedBusiness) return;
             const payload = camelToSnake({ ...integration, businessId: selectedBusiness.id, platform: 'wordpress' });
             if (cmsIntegration) {
-                await supabase.from('cms_integrations').update(payload).eq('id', cmsIntegration.id);
+                const { error } = await supabase.from('cms_integrations').update(payload).eq('id', cmsIntegration.id);
+                if (error) throw new Error(`Could not save: ${error.message}`);
                 setCmsIntegration({ ...cmsIntegration, ...integration });
             } else {
-                const { data } = await supabase.from('cms_integrations').insert(payload).select().single();
-                if (data) setCmsIntegration(snakeToCamel<CmsIntegration>(data));
+                const { data, error } = await supabase.from('cms_integrations').insert(payload).select().single();
+                if (error || !data) throw new Error(`Could not save: ${error?.message || 'no row returned'}`);
+                setCmsIntegration(snakeToCamel<CmsIntegration>(data));
             }
         },
         updateUserProfile: async (profile) => {

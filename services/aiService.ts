@@ -67,9 +67,10 @@ const parseArticleResponse = (text: string, defaultKeyword: string, businessName
             if (contentMatch && contentMatch[1]) {
                 let rawContent = contentMatch[1];
                 
-                const nextKeyIndex = rawContent.indexOf('","metaTitle"');
-                if (nextKeyIndex !== -1) {
-                    rawContent = rawContent.substring(0, nextKeyIndex);
+                // the article ends where the next field starts (with or without spaces after the comma)
+                const nextKey = rawContent.search(/"\s*,\s*"(metaTitle|metaDescription|slug)"\s*:/);
+                if (nextKey !== -1) {
+                    rawContent = rawContent.substring(0, nextKey);
                 } else {
                     if (rawContent.endsWith('"')) {
                         rawContent = rawContent.substring(0, rawContent.length - 1);
@@ -78,11 +79,16 @@ const parseArticleResponse = (text: string, defaultKeyword: string, businessName
                     }
                 }
                 
-                parsedData.articleContent = rawContent
-                    .replace(/\\n/g, '\n')
-                    .replace(/\\"/g, '"')
-                    .replace(/\\\\/g, '\\')
-                    .replace(/\\t/g, '\t');
+                // decode JSON escapes (\n, \", \uXXXX...) the proper way, falling back to the common ones
+                try { parsedData.articleContent = JSON.parse(`"${rawContent}"`); }
+                catch {
+                    parsedData.articleContent = rawContent
+                        .replace(/\\u([0-9a-fA-F]{4})/g, (_m, h) => String.fromCharCode(parseInt(h, 16)))
+                        .replace(/\\n/g, '\n')
+                        .replace(/\\"/g, '"')
+                        .replace(/\\\\/g, '\\')
+                        .replace(/\\t/g, '\t');
+                }
             }
             
             const titleMatch = text.match(/"metaTitle"\s*:\s*"([^"]*)/);
