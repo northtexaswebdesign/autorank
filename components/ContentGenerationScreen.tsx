@@ -225,7 +225,9 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
             if (!selectedBusiness.skipImageGeneration) {
                 setGenerationProgress({ value: 70, text: 'Creating unique images...' });
                 try {
-                    images = await generateArticleImages(post.keyword, selectedBusiness, undefined, fullArticleData.metaTitle);
+                    const made = await generateArticleImages(post.keyword, selectedBusiness, undefined, fullArticleData.metaTitle, fullArticleData.articleContent);
+                    images = made.images;
+                    if (made.content) fullArticleData.articleContent = made.content; // now holds the in-article image placeholders
                 } catch (e) { console.error("Image generation failed", e); }
             } else {
                 setGenerationProgress({ value: 85, text: 'Finalizing text content...' });

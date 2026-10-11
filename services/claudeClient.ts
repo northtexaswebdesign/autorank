@@ -53,19 +53,28 @@ export const verifyArticleLinks = async (html: string, ownUrl: string, searchUrl
 export interface CoverImage { base64: string; alt: string; width: number; height: number; bytes: number; layout: string; brandStyle?: Record<string, unknown> | null; }
 
 /** Designs a branded 1080x1080 cover (JPEG under 200 KB). `variant` > 0 gives a different layout. */
-export const callCover = async (req: { title: string; keyword: string; businessId?: string; businessName: string; businessUrl?: string; description?: string; brandStyle?: unknown; variant?: number }): Promise<CoverImage> => {
+const postCover = async (payload: unknown, label: string): Promise<any> => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error('You must be signed in to use AI features.');
     const res = await fetch('/api/cover', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify(req),
+        body: JSON.stringify(payload),
     });
     let data: any = null;
     try { data = await res.json(); } catch { /* non-JSON error page */ }
-    if (!res.ok) throw new Error(data?.error || `Cover image request failed (${res.status}).`);
-    return data as CoverImage;
+    if (!res.ok) throw new Error(data?.error || `${label} request failed (${res.status}).`);
+    return data;
 };
+
+export const callCover = async (req: { title: string; keyword: string; businessId?: string; businessName: string; businessUrl?: string; description?: string; brandStyle?: unknown; variant?: number }): Promise<CoverImage> =>
+    postCover(req, 'Cover image') as Promise<CoverImage>;
+
+export interface InlineImage { base64: string; alt: string; heading: string; kind: string; caption?: string; creditUrl?: string; }
+
+/** Up to two in-article images (a photo and an infographic) for the article's H2 sections. */
+export const callInlineImages = async (req: { title: string; keyword: string; businessId?: string; businessName: string; businessUrl?: string; description?: string; brandStyle?: unknown; sections: { heading: string; text: string }[] }): Promise<InlineImage[]> =>
+    ((await postCover({ ...req, mode: 'inline' }, 'Article images')).images || []) as InlineImage[];
 
 export interface StockPhoto { base64: string; alt: string; width: number; height: number; bytes: number; photographer?: string; photographerUrl?: string; pexelsUrl?: string; }
 

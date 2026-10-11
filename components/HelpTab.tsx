@@ -109,7 +109,7 @@ export const HelpTab: React.FC = () => {
             <Point title="Main competitors.">Up to three competitor websites. They are used for the competitive report (step 2).</Point>
             <Point title="Language and sitemap.">Choose the language articles are written in. Adding your sitemap URL lets Autorank link new articles to your existing pages.</Point>
             <Point title="Master Auto-Schedule.">The on/off switch for automatic writing and publishing. It saves as soon as you flip it. It's off for new businesses, so turn it on when your calendar is ready.</Point>
-            <Point title="Cover images.">Every article gets a branded cover. Under <Ui>Brand Style for Cover Images</Ui> set your colors, fonts and logo, or leave it empty and Autorank reads them from your website. Turn on <Ui>Skip Image Generation</Ui> if you only want text.</Point>
+            <Point title="Images.">Every article gets a branded cover and up to two images inside the article: a stock photo picked to match a section, and a graphic (steps, a checklist or a comparison) made from that section's own text. Under <Ui>Brand Style for Cover Images</Ui> set your colors, fonts and logo, or leave it empty and Autorank reads them from your website. Turn on <Ui>Skip Image Generation</Ui> if you only want text.</Point>
             <Point title="Connect WordPress.">In <strong className="font-semibold text-stone-900">Integrations</strong>, enter your site URL, username and an Application Password (WordPress admin → Users → Profile → Application Passwords). Click <Ui>Test</Ui> to check it, then <Ui>Save</Ui>. Without this, nothing can be published.</Point>
           </Points>
           <Note>Click <Ui>Save Settings</Ui> at the bottom of Business profile after changing the profile, language, competitors or brand style.</Note>
@@ -148,9 +148,9 @@ export const HelpTab: React.FC = () => {
         <Section id="autopublish" icon={<NavPlugIcon />} step="Step 5" title="Auto-publishing"
           lead={<>With <Ui>Master Auto-Schedule</Ui> on and WordPress connected, Autorank checks your calendar every 2 hours and handles every post whose date has arrived.</>}>
           <Points>
-            <Point title="Not written yet?">It's researched and written first (1 credit), then given a GEO score, meta title and description, and a cover image.</Point>
+            <Point title="Not written yet?">It's researched and written first (1 credit), then given a GEO score, meta title and description, a cover image and up to two in-article images.</Point>
             <Point title="Already a draft?">It's published as you left it.</Point>
-            <Point title="On WordPress.">Each article goes out with its featured image, a "Last updated" line and structured data (Article and FAQ) for search engines.</Point>
+            <Point title="On WordPress.">Each article goes out with its featured image, its in-article images (photos with a credit line), a "Last updated" line and structured data (Article and FAQ) for search engines.</Point>
             <Point title="If something fails.">It tries again on the next runs. After 3 failed attempts the post goes back to draft and the error is in the Activity log. Fix it, then publish from the editor or drag the post to a new date.</Point>
           </Points>
         </Section>
@@ -158,10 +158,10 @@ export const HelpTab: React.FC = () => {
         <Section id="editor" icon={<NavArticleIcon />} title="The article editor"
           lead={<>Open any post from the calendar or the Articles tab. If it isn't written yet, click <Ui>Generate Article with AI</Ui> and it's saved as a draft when done.</>}>
           <Points>
-            <Point title="What you get.">A 1,500–2,000 word article built from research on the top results: a key takeaways summary, answer-first sections, an FAQ, cited sources (links that don't work or weren't found in research are removed), links to your own pages, a GEO score, meta title, description and URL slug, and a branded cover.</Point>
+            <Point title="What you get.">A 1,500–2,000 word article built from research on the top results: a key takeaways summary, answer-first sections, an FAQ, cited sources (links that don't work or weren't found in research are removed), links to your own pages, a GEO score, meta title, description and URL slug, a branded cover and up to two in-article images.</Point>
             <Point title="Edit it yourself.">Click <Ui>Manual Edit</Ui> to change the text directly, then <Ui>Save Changes</Ui>. The GEO score and meta are refreshed when you save.</Point>
             <Point title="Improve it with AI.">The <Ui>Optimization Roadmap</Ui> lists what to improve. Add your own direction under <Ui>Advanced Instructions</Ui> (for example "mention our Dallas service area"), then click <Ui>Rewrite with AI Intelligence</Ui>.</Point>
-            <Point title="Images and meta.">Under Featured Image you can upload your own, make a new cover with <Ui>AI Generate</Ui>, download it, or <Ui>Sync image to WordPress</Ui>. Under Meta Settings, edit the title, description and slug or click <Ui>Auto-fill with AI</Ui>.</Point>
+            <Point title="Images and meta.">Under Featured Image you can upload your own, make a new cover with <Ui>AI Generate</Ui> (each click gives a different photo or design), download it, or <Ui>Sync image to WordPress</Ui>. Under Meta Settings, edit the title, description and slug or click <Ui>Auto-fill with AI</Ui>.</Point>
             <Point title="Publish now.">Click <Ui>Publish to WordPress</Ui> to go live straight away. Once live, the button becomes <Ui>Update Live Article</Ui> and the live link appears at the top.</Point>
           </Points>
           <Note>We recommend reading every article before it goes live and adding what only you know: your experience, prices, photos and local details. That's what makes content worth citing.</Note>

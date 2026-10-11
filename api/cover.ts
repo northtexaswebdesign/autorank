@@ -196,7 +196,7 @@ const TEXT_CYCLE: Layout[] = ['editorial', 'steps', 'bold', 'minimal', 'centered
 export const PHOTO_LAYOUTS = new Set<Layout>(PHOTO_CYCLE);
 
 const suits = (l: Layout, s: CoverSpec): boolean => {
-  if (PHOTO_LAYOUTS.has(l)) return !!s.photo && (l !== 'window' && l !== 'callout' || s.points.length >= 3);
+  if (PHOTO_LAYOUTS.has(l)) return !!s.photo;
   if (l === 'number') return !!s.bigNumber;
   if (l === 'question') return /\?\s*$/.test(s.headline);
   if (l === 'steps') return (s.kind === 'howto' || s.kind === 'list') && s.points.length >= 3;
@@ -270,32 +270,13 @@ const headlineUp = (s: CoverSpec, t: Tokens, fill: string, x: number, baseline: 
 };
 
 const editorial = (s: CoverSpec, t: Tokens, b: Brandmark) => {
-  const h = fit(s.headline, t.heading, 880, 4, 112, 52, 380);
-  const lh = h.size * 1.06;
-  const top = 190;
-  const bottom = top + h.size * 0.8 + (h.lines.length - 1) * lh + h.size * 0.28;
-  const pts = s.points.slice(0, 4);
-  const cardH = 24 + 22 + 96 + 20 + pts.length * 43 + 14;
-  const cardY = bottom + 50;
-  const cy = Math.min(cardY, 1030 - cardH - 10);
-  const rows = pts.map((p, i) => {
-    const ry = cy + 24 + 22 + 96 + 20 + i * 43;
-    return `<rect x="604" y="${ry}" width="28" height="28" rx="8" fill="${t.accentSoft}"/>` +
-      `<path d="M611 ${ry + 14} l5 5 l9 -10" stroke="${t.accent}" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` +
-      `<text x="646" y="${ry + 22}" font-family="${t.body}" font-weight="400" font-size="21" fill="${mix(t.text, '#FFFFFF', 0.25)}">${esc(p.slice(0, 26))}</text>`;
-  }).join('');
+  const h = fit(s.headline, t.heading, 880, 4, 112, 56, 420);
+  const light = { ...t, dark: t.bg, onDark: t.text };
   return `
   <rect width="${SIZE}" height="${SIZE}" fill="${t.bg}"/>
-  <circle cx="930" cy="130" r="360" fill="${t.accentSoft}"/>
+  ${decorSvg(s.decor || 'rings', light)}
   ${tagPill(s.tag, t, 80, 80, t.text, t.bg)}
-  ${headlineSvg(h.lines, s.highlight, 80, top + h.size * 0.8, h.size, t, t.text)}
-  <g transform="rotate(3 800 ${cy + cardH / 2})">
-    <rect x="580" y="${cy + 12}" width="420" height="${cardH}" rx="20" fill="#000" opacity="0.08"/>
-    <rect x="580" y="${cy}" width="420" height="${cardH}" rx="20" fill="${t.surface}"/>
-    <circle cx="610" cy="${cy + 26}" r="5.5" fill="${t.accentSoft}"/><circle cx="628" cy="${cy + 26}" r="5.5" fill="${t.accentSoft}"/><circle cx="646" cy="${cy + 26}" r="5.5" fill="${t.accentSoft}"/>
-    <rect x="604" y="${cy + 46}" width="372" height="96" rx="14" fill="${t.accent}"/>
-    ${rows}
-  </g>
+  ${headlineSvg(h.lines, s.highlight, 80, 200 + h.size * 0.8, h.size, t, t.text)}
   ${logoSvg(b, t, 80, 1080 - 64 - 93, 440, 93, false)}`;
 };
 
@@ -353,37 +334,14 @@ const bold = (s: CoverSpec, t: Tokens, b: Brandmark) => {
 };
 
 const centered = (s: CoverSpec, t: Tokens, b: Brandmark) => {
-  const h = fit(s.headline, t.heading, 860, 5, 100, 52, 400);
-  const lh = h.size * 1.06;
-  const top = 230;
-  const bottom = top + h.size * 0.8 + (h.lines.length - 1) * lh + h.size * 0.28;
-  // chips, wrapped into centred rows
-  const chips = s.points.slice(0, 4).map(p => p.slice(0, 26));
-  const widths = chips.map(c => textW(c, 24, t.body, false) + 56);
-  const rowsOut: { c: string; w: number }[][] = [[]];
-  let rowW = 0;
-  chips.forEach((c, i) => {
-    if (rowW + widths[i] > 900 && rowsOut[rowsOut.length - 1].length) { rowsOut.push([]); rowW = 0; }
-    rowsOut[rowsOut.length - 1].push({ c, w: widths[i] }); rowW += widths[i] + 16;
-  });
-  const cy0 = Math.max(bottom + 60, 700);
-  const chipSvg = rowsOut.map((row, ri) => {
-    const total = row.reduce((a, r) => a + r.w, 0) + (row.length - 1) * 16;
-    let x = SIZE / 2 - total / 2;
-    return row.map(r => {
-      const out = `<rect x="${x}" y="${cy0 + ri * 66}" width="${r.w}" height="52" rx="26" fill="${t.surface}"/>` +
-        `<circle cx="${x + 26}" cy="${cy0 + ri * 66 + 26}" r="7" fill="${t.accent}"/>` +
-        `<text x="${x + 44}" y="${cy0 + ri * 66 + 34}" font-family="${t.body}" font-size="24" fill="${t.text}">${esc(r.c)}</text>`;
-      x += r.w + 16; return out;
-    }).join('');
-  }).join('');
+  const h = fit(s.headline, t.heading, 860, 5, 104, 52, 460);
+  const y0 = 540 - (h.lines.length * h.size * 1.06) / 2 + h.size * 0.8;
   return `
   <rect width="${SIZE}" height="${SIZE}" fill="${t.accentSoft}"/>
   <circle cx="-40" cy="-40" r="330" fill="${t.accent}" opacity="0.22"/>
   <circle cx="1120" cy="1120" r="380" fill="${t.accent}" opacity="0.22"/>
   ${tagPill(s.tag, t, SIZE / 2, 100, t.text, t.surface, 'middle')}
-  ${headlineSvg(h.lines, s.highlight, SIZE / 2, top + h.size * 0.8, h.size, t, t.text, 'middle')}
-  ${chipSvg}
+  ${headlineSvg(h.lines, s.highlight, SIZE / 2, y0, h.size, t, t.text, 'middle')}
   ${logoSvg(b, t, SIZE / 2, 1080 - 64 - 93, 440, 93, false, 'middle')}`;
 };
 
@@ -487,13 +445,7 @@ const duotone = (s: CoverSpec, t: Tokens, b: Brandmark) => {
 const window_ = (s: CoverSpec, t: Tokens, b: Brandmark) => {
   const h = fit(s.headline, t.heading, 920, 3, 80, 46, 250);
   const arch = 'M560 700 V300 A220 220 0 0 1 1000 300 V700 Z';
-  const dots = Array.from({ length: 24 }, (_, i) => `<circle cx="${96 + (i % 6) * 26}" cy="${560 + Math.floor(i / 6) * 26}" r="5" fill="${t.accent}" opacity="0.55"/>`).join('');
-  const rows = s.points.slice(0, 4).map((p, i) => {
-    const y = 270 + i * 64;
-    return `<circle cx="96" cy="${y - 9}" r="15" fill="${t.accent}"/>` +
-      `<path d="M89 ${y - 9} l5 5 l9 -10" stroke="${t.onAccent}" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` +
-      `<text x="126" y="${y}" font-family="${t.body}" font-size="27" fill="${t.text}">${esc(p.slice(0, 24))}</text>`;
-  }).join('');
+  const dots = Array.from({ length: 48 }, (_, i) => `<circle cx="${96 + (i % 8) * 34}" cy="${300 + Math.floor(i / 8) * 34}" r="6" fill="${t.accent}" opacity="${0.25 + (i % 8) * 0.08}"/>`).join('');
   return `
   <defs><clipPath id="arch"><path d="${arch}"/></clipPath></defs>
   <rect width="${SIZE}" height="${SIZE}" fill="${t.accentSoft}"/>
@@ -501,38 +453,23 @@ const window_ = (s: CoverSpec, t: Tokens, b: Brandmark) => {
   <g clip-path="url(#arch)"><rect x="560" y="80" width="440" height="620" fill="${t.dark}"/>${photoImage(s.photo!, 560, 80, 440, 620)}</g>
   ${dots}
   ${logoSvg(b, t, 80, 64, 300, 80, false)}
-  ${tagPill(s.tag, t, 80, 172, t.text, t.surface)}
-  ${rows}
+  ${tagPill(s.tag, t, 80, 190, t.text, t.surface)}
   ${headlineSvg(h.lines, s.highlight, 80, 770 + h.size * 0.8, h.size, t, t.text)}`;
 };
 
 /** Full-bleed photo, headline at the top, a tilted card of key points in the corner. */
 const callout = (s: CoverSpec, t: Tokens, b: Brandmark) => {
   const h = fit(s.headline, t.heading, 920, 3, 92, 50, 300);
-  const pts = s.points.slice(0, 3);
-  const cardH = 40 + 30 + 20 + pts.length * 58 + 20;
-  const cy = SIZE - 70 - cardH;
-  const rows = pts.map((p, i) => {
-    const y = cy + 40 + 30 + 20 + i * 58 + 20;
-    return `<rect x="604" y="${y - 24}" width="30" height="30" rx="9" fill="${t.accentSoft}"/>` +
-      `<path d="M611 ${y - 9} l5 5 l9 -10" stroke="${t.accent}" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` +
-      `<text x="650" y="${y}" font-family="${t.body}" font-size="25" fill="${t.text}">${esc(p.slice(0, 24))}</text>`;
-  }).join('');
   return `
   <defs><linearGradient id="shade" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="${t.dark}" stop-opacity="0.94"/><stop offset="0.45" stop-color="${t.dark}" stop-opacity="0.6"/><stop offset="0.75" stop-color="${t.dark}" stop-opacity="0.15"/><stop offset="1" stop-color="${t.dark}" stop-opacity="0.3"/>
+    <stop offset="0" stop-color="${t.dark}" stop-opacity="0.94"/><stop offset="0.45" stop-color="${t.dark}" stop-opacity="0.6"/><stop offset="0.75" stop-color="${t.dark}" stop-opacity="0.15"/><stop offset="1" stop-color="${t.dark}" stop-opacity="0.45"/>
   </linearGradient></defs>
   <rect width="${SIZE}" height="${SIZE}" fill="${t.dark}"/>
   ${photoBox(s.photo!, 'ph', 0, 0, SIZE, SIZE)}
   <rect width="${SIZE}" height="${SIZE}" fill="url(#shade)"/>
   ${tagPill(s.tag, t, 80, 72, t.accent, t.onAccent)}
   ${headlineSvg(h.lines, s.highlight, 80, 170 + h.size * 0.8, h.size, { ...t, accent: overlayAccent(t) }, '#FFFFFF')}
-  <g transform="rotate(-2 800 ${cy + cardH / 2})">
-    <rect x="580" y="${cy + 12}" width="420" height="${cardH}" rx="20" fill="#000" opacity="0.2"/>
-    <rect x="580" y="${cy}" width="420" height="${cardH}" rx="20" fill="${t.surface}"/>
-    <text x="604" y="${cy + 58}" font-family="${t.body}" font-weight="700" font-size="20" letter-spacing="2.5" fill="${t.accent}">KEY POINTS</text>
-    ${rows}
-  </g>
+  <rect x="0" y="${SIZE - 14}" width="${SIZE}" height="14" fill="${t.accent}"/>
   ${logoSvg(b, t, 80, SIZE - 64 - 80, 300, 80, true)}`;
 };
 
