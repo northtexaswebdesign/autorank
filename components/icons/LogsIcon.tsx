@@ -1,5 +1,6 @@
-
 import React from 'react';
+
+// Part of the app's single icon family: 24px grid, 1.9px stroke, round caps and joins (see NavIcons.tsx).
 
 export const LogsIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg
@@ -9,14 +10,12 @@ export const LogsIcon: React.FC<{ className?: string }> = ({ className }) => (
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2"
+    strokeWidth="1.9"
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
+    aria-hidden="true"
   >
-    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-    <line x1="8" y1="12" x2="16" y2="12"></line>
-    <line x1="8" y1="8" x2="12" y2="8"></line>
-    <line x1="8" y1="16" x2="14" y2="16"></line>
+    <path d="M21 12h-3.5l-2.5 7.5L9 4.5 6.5 12H3" />
   </svg>
 );

@@ -499,7 +499,7 @@ const AppInner: React.FC = () => {
                             )}
                         </div>
                     ) : (
-                        <div className="px-5 py-6 md:px-9 md:py-8 max-w-[1280px]">
+                        <div className="px-5 py-6 md:px-9 md:py-8 w-full max-w-[1760px] mx-auto">
                             {renderTab()}
                         </div>
                     )}

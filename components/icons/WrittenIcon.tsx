@@ -1,5 +1,6 @@
-//- unused
 import React from 'react';
+
+// Part of the app's single icon family: 24px grid, 1.9px stroke, round caps and joins (see NavIcons.tsx).
 
 export const WrittenIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg
@@ -9,13 +10,12 @@ export const WrittenIcon: React.FC<{ className?: string }> = ({ className }) => 
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    strokeWidth="2"
+    strokeWidth="1.9"
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
+    aria-hidden="true"
   >
-    <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
-    <line x1="16" y1="8" x2="2" y2="22" />
-    <line x1="17.5" y1="15" x2="9" y2="15" />
+    <path d="M13 20h7" /><path d="M14.5 5.5l4 4" /><path d="M4 20l1-4.5L15.5 5a2.1 2.1 0 0 1 3 3L8 18.5z" />
   </svg>
 );

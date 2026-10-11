@@ -244,7 +244,7 @@ export const AdminUsersTab: React.FC = () => {
     }), [users]);
 
     return (
-        <div className="mx-auto max-w-7xl">
+        <div className="w-full">
             <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
                     <h1 className="font-serif text-4xl md:text-[44px] leading-none tracking-[-0.01em] text-stone-900">Users</h1>

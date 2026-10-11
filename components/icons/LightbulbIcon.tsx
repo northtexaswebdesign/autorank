@@ -1,26 +1,21 @@
-
 import React from 'react';
 
+// Part of the app's single icon family: 24px grid, 1.9px stroke, round caps and joins (see NavIcons.tsx).
+
 export const LightbulbIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg 
-        xmlns="http://www.w3.org/2000/svg" 
-        width="24" 
-        height="24" 
-        viewBox="0 0 24 24" 
-        fill="none" 
-        stroke="currentColor" 
-        strokeWidth="2" 
-        strokeLinecap="round" 
-        strokeLinejoin="round" 
-        className={className}
-    >
-        <path d="M15.09 16.05A6.49 6.49 0 0 1 9 20c-3.31 0-6-2.69-6-6a6.5 6.5 0 0 1 10.39-5.44" />
-        <path d="M12 2a7 7 0 0 0-2.43 13.61" />
-        <path d="M12 2l.34 2.04" />
-        <path d="M15.91 3.91l-1.03 1.79" />
-        <path d="M19.06 7.06l-2.04.34" />
-        <path d="M19.06 12l-2.04-.34" />
-        <path d="M15.91 20.09l-1.03-1.79" />
-        <path d="M5.04 7.06l2.04.34" />
-    </svg>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.9"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M9.5 17.5h5" /><path d="M10.5 20.5h3" /><path d="M12 3.5a6 6 0 0 0-3.6 10.8c.7.5 1.1 1.3 1.1 2.2v1h5v-1c0-.9.4-1.7 1.1-2.2A6 6 0 0 0 12 3.5z" />
+  </svg>
 );
