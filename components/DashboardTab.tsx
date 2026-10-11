@@ -53,8 +53,8 @@ const RecentArticleCard: React.FC<{ post: ScheduledPost; index: number }> = ({ p
     const inner = (
         <>
             {img
-                ? <img src={img} alt="" loading="lazy" className="aspect-square w-full object-cover rounded-xl border border-[#E7E4DC] shadow-[0_1px_2px_rgba(28,27,25,0.06)] transition-transform duration-300 group-hover:-translate-y-0.5" />
-                : <CoverFallback title={post.metaTitle || post.keyword} look={index} className="aspect-square shadow-[0_1px_2px_rgba(28,27,25,0.06)] transition-transform duration-300 group-hover:-translate-y-0.5" />}
+                ? <img src={img} alt="" loading="lazy" className="aspect-[4/3] w-full object-cover rounded-xl border border-[#E7E4DC] shadow-[0_1px_2px_rgba(28,27,25,0.06)] transition-transform duration-300 group-hover:-translate-y-0.5" />
+                : <CoverFallback title={post.metaTitle || post.keyword} look={index} className="aspect-[4/3] shadow-[0_1px_2px_rgba(28,27,25,0.06)] transition-transform duration-300 group-hover:-translate-y-0.5" />}
             <span className="flex flex-col gap-0.5 min-w-0">
                 <span className="text-[13px] font-medium text-stone-900 truncate">{post.metaTitle || post.keyword}</span>
                 <span className="flex items-center gap-1.5 text-xs text-stone-500">

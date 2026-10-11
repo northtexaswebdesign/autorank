@@ -23,6 +23,8 @@ import { AccountSettingsTab } from './components/AccountSettingsTab.tsx';
 import { DashboardTab } from './components/DashboardTab.tsx';
 import { AdminUsersTab, isOwnerEmail } from './components/AdminUsersTab.tsx';
 import { toYYYYMMDD } from './utils/dateUtils.ts';
+import { needsCard as profileNeedsCard, trialOver as profileTrialOver } from './utils/plan.ts';
+import { StartTrialScreen } from './components/StartTrialScreen.tsx';
 import { HamburgerIcon } from './components/icons/HamburgerIcon.tsx';
 import { SparklesIcon } from './components/icons/SparklesIcon.tsx';
 
@@ -150,6 +152,8 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
     const normKeyword = (k: string) => k.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
     const isTargeted = (k: string) => { const n = normKeyword(k); return !n || targetedKeywords().some(t => normKeyword(t) === n); };
 
+    // a trial ends after its 3 articles or on its end date, whichever comes first
+    const trialOver = profileTrialOver(userProfile);
     const contextValue: AppContextType = {
         selectedBusiness, 
         updateBusiness: async (info) => {
@@ -415,11 +419,16 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
         cachePlanData: async (data) => {
             if (selectedBusiness) await contextValue.updateBusiness({ ...selectedBusiness, planData: data });
         },
-        isLocked: userProfile?.planStatus === 'expired' ||
-            (userProfile?.planStatus === 'trial' && (userProfile.trialArticlesCreated ?? 0) >= 3) ||
+        isLocked: userProfile?.planStatus === 'expired' || trialOver ||
             (userProfile?.planStatus === 'paid' && (userProfile.creditsRemaining ?? 0) <= 0),
-        isTrialExpired: userProfile?.planStatus === 'trial' && (userProfile.trialArticlesCreated ?? 0) >= 3,
+        isTrialExpired: trialOver,
         isSubscriptionExpired: userProfile?.planStatus === 'expired',
+        needsCard: profileNeedsCard(userProfile),
+        refreshProfile: async () => {
+            if (!user) return;
+            const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+            if (data) setProfile(snakeToCamel<UserProfile>(data));
+        },
         cmsIntegration,
         activityLogs
     };
@@ -428,7 +437,7 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
 };
 
 const AppInner: React.FC = () => {
-    const { activeTab, setActiveTab, setEditingPost, editingPost, selectedBusiness, createBusiness, userProfile, isLoadingEditingPost, editingPostId, loading } = useApp();
+    const { activeTab, setActiveTab, setEditingPost, editingPost, selectedBusiness, createBusiness, userProfile, isLoadingEditingPost, editingPostId, loading, needsCard } = useApp();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     if (loading) {
@@ -442,6 +451,8 @@ const AppInner: React.FC = () => {
         );
     }
 
+    // new trials add a card first ($0 today, $97/month after 5 days unless cancelled)
+    if (needsCard) return <StartTrialScreen />;
     if (!selectedBusiness) return <OnboardingModal onComplete={createBusiness} />;
     // the Admin tab is shown only to the owner; the server checks the signed-in email again on every call
     const isOwner = isOwnerEmail(userProfile?.email);
@@ -488,7 +499,7 @@ const AppInner: React.FC = () => {
                             )}
                         </div>
                     ) : (
-                        <div className="px-5 py-6 md:px-9 md:py-8 max-w-[1280px]">
+                        <div className="px-5 py-6 md:px-9 md:py-8 w-full max-w-[1760px] mx-auto">
                             {renderTab()}
                         </div>
                     )}

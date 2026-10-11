@@ -28,11 +28,15 @@ import { isIP } from 'node:net';
 // ---------------- plan / credit rules ----------------
 const TRIAL_ARTICLE_LIMIT = 3;
 const CREDITS_PER_ARTICLE = 1;
+// a card-on-file trial stays open a day past its end, while Stripe collects the first payment (same as utils/plan.ts)
+const CARD_TRIAL_GRACE_MS = 24 * 3600_000;
 
 interface Profile {
   plan_status: 'trial' | 'paid' | 'expired' | null;
   credits_remaining: number | null;
   trial_articles_created: number | null;
+  trial_end_date?: string | null;
+  stripe_customer_id?: string | null;
 }
 
 // (tsconfig is not strict, so a flat shape narrows more reliably than a discriminated union)
@@ -42,7 +46,8 @@ type Decision = { ok: boolean; message?: string };
  * Pure entitlement rules.
  *  - expired: nothing allowed.
  *  - paid:    "heavy" calls (smart model or web search) need credits left; light calls are free.
- *  - trial:   heavy calls allowed until TRIAL_ARTICLE_LIMIT articles have been created.
+ *  - trial:   heavy calls allowed until TRIAL_ARTICLE_LIMIT articles have been created; nothing after trial_end_date.
+ *             A new trial (end date, no Stripe customer) must add a card first: no heavy calls until it has.
  */
 const decide = (profile: Profile | null, heavy: boolean): Decision => {
   if (!profile) return { ok: false, message: 'Account not found.' };
@@ -53,6 +58,15 @@ const decide = (profile: Profile | null, heavy: boolean): Decision => {
       }
       return { ok: true };
     case 'trial':
+      if (profile.trial_end_date) {
+        if (heavy && !profile.stripe_customer_id) {
+          return { ok: false, message: 'Add a card to start your free trial (you are not charged today).' };
+        }
+        const grace = profile.stripe_customer_id ? CARD_TRIAL_GRACE_MS : 0;
+        if (new Date(profile.trial_end_date).getTime() + grace < Date.now()) {
+          return { ok: false, message: 'Your free trial has ended. Please upgrade to continue.' };
+        }
+      }
       if (heavy && (profile.trial_articles_created ?? 0) >= TRIAL_ARTICLE_LIMIT) {
         return { ok: false, message: `You have used your ${TRIAL_ARTICLE_LIMIT} free trial articles. Please upgrade to continue.` };
       }
@@ -71,7 +85,7 @@ const getAdmin = (): SupabaseClient | null => {
 };
 
 const loadProfile = async (db: SupabaseClient, userId: string): Promise<Profile | null> => {
-  const { data } = await db.from('profiles').select('plan_status, credits_remaining, trial_articles_created').eq('id', userId).maybeSingle();
+  const { data } = await db.from('profiles').select('plan_status, credits_remaining, trial_articles_created, trial_end_date, stripe_customer_id').eq('id', userId).maybeSingle();
   return (data as Profile) ?? null;
 };
 

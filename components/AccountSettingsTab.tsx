@@ -74,6 +74,8 @@ export const AccountSettingsTab: React.FC = () => {
     
     let planNameText = 'Loading...';
     const isPaid = userProfile?.planStatus === 'paid';
+    // a trial with a card on file turns into the $97 plan by itself, so it gets no second checkout button
+    const isCardTrial = userProfile?.planStatus === 'trial' && !!userProfile?.stripeCustomerId;
 
     if (userProfile) {
         if (isPaid) {
@@ -160,7 +162,13 @@ export const AccountSettingsTab: React.FC = () => {
                                 )}
                             </div>
 
-                            {!isPaid && (
+                            {isCardTrial && (
+                                <p className="mt-6 rounded-lg bg-stone-50 border border-stone-200 px-5 py-4 text-sm text-stone-700">
+                                    Your Standard plan ($97/month) starts on <strong>{formatDate(userProfile?.trialEndDate)}</strong> using the card you added. Cancel before then from Manage Your Subscription and you won't be charged.
+                                </p>
+                            )}
+
+                            {!isPaid && !isCardTrial && (
                                 <div className="mt-12">
                                     <div className="text-center mb-8">
                                         <h3 className="text-2xl font-bold text-stone-900 mb-2">Upgrade to Unlock Full Potential</h3>
@@ -182,7 +190,7 @@ export const AccountSettingsTab: React.FC = () => {
                                             
                                             <div className="my-8">
                                                 <div className="flex items-baseline gap-1">
-                                                    <span className="text-5xl font-black text-stone-900">$499</span>
+                                                    <span className="text-5xl font-black text-stone-900">$97</span>
                                                     <span className="text-stone-500 font-bold">/ month</span>
                                                 </div>
                                             </div>
@@ -209,7 +217,7 @@ export const AccountSettingsTab: React.FC = () => {
                                 </div>
                             )}
 
-                            {isPaid && (
+                            {(isPaid || isCardTrial) && (
                                 <div className="mt-8 flex justify-center">
                                      <a 
                                         href="https://billing.stripe.com/p/login/6oUaEYaKcaYu6NC7nddfG00"

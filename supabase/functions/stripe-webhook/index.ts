@@ -14,6 +14,8 @@
 //   existing customer id (so a stranger cannot attach their subscription to someone else's account).
 // - Dates come from Stripe's billing period when available.
 // - Optional secret STRIPE_MIN_AMOUNT_CENTS: a checkout paying less than this does not upgrade the account.
+// - A checkout that starts a Stripe trial ($0 today, card on file) keeps the account on 'trial' until the trial
+//   ends; the first $97 invoice after it (invoice.payment_succeeded) turns it into 'paid' with 30 credits.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@13.10.0?target=deno";
@@ -61,15 +63,21 @@ const updateProfile = async (id: string, values: Record<string, unknown>) => {
   if (error) throw error;
 };
 
-/** The billing period end of a subscription, if Stripe can tell us. */
-const subscriptionPeriodEnd = async (subscriptionId?: string | null): Promise<Date | null> => {
-  if (!subscriptionId) return null;
+/** The subscription's status, trial end and billing period end, if Stripe can tell us. */
+const readSubscription = async (subscriptionId?: string | null): Promise<{ status: string | null; trialEnd: Date | null; periodEnd: Date | null }> => {
+  const none = { status: null, trialEnd: null, periodEnd: null };
+  if (!subscriptionId) return none;
   try {
     const sub = await stripe.subscriptions.retrieve(subscriptionId);
-    return sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+    return {
+      status: sub.status ?? null,
+      trialEnd: sub.trial_end ? new Date(sub.trial_end * 1000) : null,
+      periodEnd: sub.current_period_end ? new Date(sub.current_period_end * 1000) : null,
+    };
   } catch (e: any) {
-    console.error("Could not read subscription period:", e.message);
-    return null;
+    console.error("Could not read subscription:", e.message);
+    // a trial checkout pays $0; without the subscription we cannot tell it from a paid one, so let Stripe retry
+    throw e;
   }
 };
 
@@ -80,7 +88,10 @@ const handleEvent = async (event: any) => {
       const customerId = (session.customer as string) || null;
       const email = session.customer_details?.email;
 
-      if (MIN_AMOUNT_CENTS && (session.amount_total ?? 0) < MIN_AMOUNT_CENTS) {
+      const sub = await readSubscription(session.subscription as string);
+      const trialing = sub.status === "trialing" && !!sub.trialEnd;
+
+      if (!trialing && MIN_AMOUNT_CENTS && (session.amount_total ?? 0) < MIN_AMOUNT_CENTS) {
         console.error(`Checkout ${session.id} paid ${session.amount_total} cents, below STRIPE_MIN_AMOUNT_CENTS; not upgrading.`);
         return;
       }
@@ -102,8 +113,26 @@ const handleEvent = async (event: any) => {
         return;
       }
 
+      if (trialing) {
+        // card on file, nothing charged yet: start (or keep) the free trial until Stripe's trial end
+        const { data: current, error } = await supabase.from("profiles").select("plan_status").eq("id", userId).maybeSingle();
+        if (error) throw error;
+        if (current?.plan_status === "paid") {
+          console.log(`User ${userId} is already paid; trial checkout ${session.id} only links the customer.`);
+          if (customerId) await updateProfile(userId, { stripe_customer_id: customerId });
+          return;
+        }
+        await updateProfile(userId, {
+          plan_status: "trial",
+          trial_end_date: sub.trialEnd!.toISOString(),
+          ...(customerId ? { stripe_customer_id: customerId } : {}),
+        });
+        console.log(`Started trial for user ${userId} until ${sub.trialEnd!.toISOString()}.`);
+        return;
+      }
+
       const start = new Date();
-      const end = (await subscriptionPeriodEnd(session.subscription as string)) ?? addDays(start, 30);
+      const end = sub.periodEnd ?? addDays(start, 30);
       // subscription_start_date first: a database trigger resets end date and credits when it changes,
       // so the real values are written in a second update.
       await updateProfile(userId, { subscription_start_date: start.toISOString() });
