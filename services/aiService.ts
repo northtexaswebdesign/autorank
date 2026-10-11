@@ -422,7 +422,7 @@ const polishArticle = async (html: string, keyword: string, business: BusinessIn
     const errors = issues.filter(i => i.severity === 'error');
     if (errors.length) {
         try {
-            const fixed = stripFences(await callClaude({ tier: 'smart', maxTokens: 16000, messages: [{ role: 'user', content: buildRepairPrompt(content, errors) }] }));
+            const fixed = stripFences(await callClaude({ tier: 'fast', maxTokens: 16000, messages: [{ role: 'user', content: buildRepairPrompt(content, errors) }] }));
             if (fixed.length > content.length * 0.7 && /<h[12]/i.test(fixed)) {
                 // the repair must not introduce links; re-check against the same search results
                 content = await verify(fixed).catch(() => fixed);
@@ -577,7 +577,7 @@ export const generateArticleImages = async (
 export const analyzeArticleForGEO = async (content: string, keyword: string) => {
     try {
         const responseText = await callClaude({
-            tier: 'smart',
+            tier: 'fast',
             maxTokens: 2000,
             messages: [{ role: 'user', content: `Analyze this article for keyword "${keyword}" based on GEO (Generative Engine Optimization) principles. Give a geoScore from 0-100 and a list of specific, actionable feedback items.
             Content: ${content}` }],

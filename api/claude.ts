@@ -494,6 +494,9 @@ export async function POST(request: Request): Promise<Response> {
           ...(useSchema ? { format: { type: 'json_schema', schema: body.schema } } : {}),
         },
         ...(tools.length ? { tools } : {}),
+        // with web search/fetch, the results are re-read on every step of the request (and on pause_turn resumes):
+        // caching makes those re-reads ~10x cheaper. One-shot calls without tools would only pay the write premium.
+        ...(tools.length ? { cache_control: { type: 'ephemeral' } } : {}),
       } as Anthropic.MessageStreamParams);
       final = await stream.finalMessage();
       inputTokens += final.usage.input_tokens;
