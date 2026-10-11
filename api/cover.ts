@@ -12,7 +12,7 @@ import path from 'node:path';
  * Cover flow:  brand style (saved on the business, else read from its website, else none)
  *        -> Claude writes a small design spec (tag, short headline, key points, article kind, stock-photo
  *           searches, and a palette when there is no brand)
- *        -> Pexels candidates for those searches; Claude looks at the thumbnails, picks the one that fits the
+ *        -> stock photo candidates (Pixabay, else Pexels) for those searches; Claude looks at the thumbnails, picks the one that fits the
  *           article best and says where its subject is (so crops keep it)
  *        -> a photo layout (rotating per business so neighbouring posts differ) that frames the photo with the
  *           brand: colour panels, duotone, shapes, key points. Text-only layouts are the fallback when no photo
@@ -169,7 +169,7 @@ export type Layout = 'photo' | 'panel' | 'duotone' | 'window' | 'callout' | 'spl
 export type ArticleKind = 'howto' | 'list' | 'cost' | 'comparison' | 'question' | 'guide';
 
 /** A stock photo ready to draw: JPEG data URI, its width/height ratio, and where its subject is (0..1). */
-export interface Photo { uri: string; ratio: number; focus: { x: number; y: number }; credit?: { name: string; url: string; pageUrl: string } }
+export interface Photo { uri: string; ratio: number; focus: { x: number; y: number }; credit?: { name: string; url: string; pageUrl: string; source: string } }
 
 export interface CoverSpec {
   layout: Layout;
@@ -607,23 +607,38 @@ const toDataUri = async (logoUrl: string): Promise<{ uri: string; ratio?: number
   return { uri: `data:${got.type};base64,${got.bytes.toString('base64')}`, ratio: ratio && isFinite(ratio) ? ratio : undefined };
 };
 
-// ---------------- stock photos (Pexels): search, let Claude pick, download ----------------
-export interface Candidate { id: number; thumb: string; original: string; ratio: number; photographer: string; photographerUrl: string; pageUrl: string }
+// ---------------- stock photos (Pixabay, else Pexels): search, let Claude pick, download ----------------
+// Both licenses allow editing photos into covers; we download and re-host them (neither wants hotlinking).
+export interface Candidate { id: string; thumb: string; download: string; ratio: number; photographer: string; photographerUrl: string; pageUrl: string; source: 'Pixabay' | 'Pexels' }
 
-const pexelsHost = (u: string) => { try { return new URL(u).hostname === 'images.pexels.com'; } catch { return false; } };
+const hostIs = (u: unknown, ...hosts: string[]) => { try { const h = new URL(String(u)).hostname; return hosts.some(x => h === x || h.endsWith('.' + x)); } catch { return false; } };
 
-/** Pexels results for several searches (most specific first), without duplicates, at most `max`. */
+type Search = (q: string, orientation: 'square' | 'landscape') => Promise<Candidate[]>;
+
+const pixabaySearch = (key: string): Search => async (q, orientation) => {
+  const res = await fetch(`https://pixabay.com/api/?key=${encodeURIComponent(key)}&q=${encodeURIComponent(q.slice(0, 100))}&image_type=photo&orientation=${orientation === 'landscape' ? 'horizontal' : 'all'}&safesearch=true&per_page=8`, { signal: AbortSignal.timeout(8000) }).catch(() => null);
+  if (!res?.ok) return [];
+  const data = await res.json().catch(() => null);
+  return ((data?.hits || []) as any[])
+    .filter(p => p.imageWidth >= 1000 && hostIs(p.largeImageURL, 'pixabay.com') && hostIs(p.webformatURL, 'pixabay.com'))
+    .map(p => ({ id: `pb${p.id}`, thumb: p.webformatURL, download: p.largeImageURL, ratio: p.imageWidth / p.imageHeight, photographer: String(p.user || ''), photographerUrl: p.user_id ? `https://pixabay.com/users/${encodeURIComponent(p.user)}-${p.user_id}/` : '', pageUrl: String(p.pageURL || ''), source: 'Pixabay' as const }));
+};
+
+const pexelsSearch = (key: string): Search => async (q, orientation) => {
+  const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&orientation=${orientation}&per_page=8`, { headers: { Authorization: key }, signal: AbortSignal.timeout(8000) }).catch(() => null);
+  if (!res?.ok) return [];
+  const data = await res.json().catch(() => null);
+  return ((data?.photos || []) as any[])
+    .filter(p => p.width >= 1000 && hostIs(p.src?.original, 'images.pexels.com') && hostIs(p.src?.medium, 'images.pexels.com'))
+    .map(p => { const u = new URL(p.src.original); return { id: `px${p.id}`, thumb: p.src.medium, download: `${u.origin}${u.pathname}?auto=compress&cs=tinysrgb&w=1400`, ratio: p.width / p.height, photographer: String(p.photographer || ''), photographerUrl: String(p.photographer_url || ''), pageUrl: String(p.url || ''), source: 'Pexels' as const }; });
+};
+
+/** Stock photo results for several searches (most specific first), without duplicates, at most `max`. */
 export const findCandidates = async (queries: string[], orientation: 'square' | 'landscape', max = 12): Promise<Candidate[]> => {
-  const key = process.env.PEXELS_API_KEY;
-  if (!key) return [];
-  const search = async (q: string) => {
-    const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&orientation=${orientation}&per_page=8`, { headers: { Authorization: key }, signal: AbortSignal.timeout(8000) }).catch(() => null);
-    if (!res?.ok) return [];
-    const data = await res.json().catch(() => null);
-    return ((data?.photos || []) as any[]).filter(p => p.width >= 1000 && pexelsHost(p.src?.original) && pexelsHost(p.src?.medium));
-  };
-  const lists = await Promise.all(queries.filter(q => q.trim()).slice(0, 3).map(search));
-  const seen = new Set<number>();
+  const search = process.env.PIXABAY_API_KEY ? pixabaySearch(process.env.PIXABAY_API_KEY) : process.env.PEXELS_API_KEY ? pexelsSearch(process.env.PEXELS_API_KEY) : null;
+  if (!search) return [];
+  const lists = await Promise.all(queries.filter(q => q.trim()).slice(0, 3).map(q => search(q, orientation)));
+  const seen = new Set<string>();
   const out: Candidate[] = [];
   // interleave the lists so every search gets a turn before any gets a second one
   for (let i = 0; i < 8 && out.length < max; i++) {
@@ -631,7 +646,7 @@ export const findCandidates = async (queries: string[], orientation: 'square' | 
       const p = list[i];
       if (!p || seen.has(p.id) || out.length >= max) continue;
       seen.add(p.id);
-      out.push({ id: p.id, thumb: p.src.medium, original: p.src.original, ratio: p.width / p.height, photographer: String(p.photographer || ''), photographerUrl: String(p.photographer_url || ''), pageUrl: String(p.url || '') });
+      out.push(p);
     }
   }
   return out;
@@ -676,10 +691,9 @@ export const stockPhoto = async (claude: Anthropic, queries: string[], orientati
   const pick = await pickPhoto(claude, cands, purpose);
   if (!pick) return undefined;
   const c = cands[pick.index];
-  const u = new URL(c.original);
-  const img = await safeFetch(`${u.origin}${u.pathname}?auto=compress&cs=tinysrgb&w=1400`, 1_500_000, /^image\/jpe?g$/);
+  const img = await safeFetch(c.download, 1_500_000, /^image\/jpe?g$/);
   if (!img?.bytes.length) return undefined;
-  return { uri: `data:image/jpeg;base64,${img.bytes.toString('base64')}`, ratio: c.ratio, focus: pick.focus, credit: { name: c.photographer, url: c.photographerUrl, pageUrl: c.pageUrl } };
+  return { uri: `data:image/jpeg;base64,${img.bytes.toString('base64')}`, ratio: c.ratio, focus: pick.focus, credit: { name: c.photographer, url: c.photographerUrl, pageUrl: c.pageUrl, source: c.source } };
 };
 
 // ---------------- reading a brand from the website ----------------
@@ -1042,13 +1056,14 @@ export async function POST(request: Request): Promise<Response> {
       if (sections.length < 2) return json(200, { images: [], brandStyle: detected });
       const tokens = brandTokens(brand);
       const plan = await planInline(claude, { title, keyword, about, sections });
+      console.log('inline plan', JSON.stringify({ title, sections: sections.length, plan: plan.map(p => `${p.kind}@${p.section}`) }));
       const images = (await Promise.all(plan.map(async (item) => {
         try {
           if (item.kind === 'photo') {
             const photo = await stockPhoto(claude, item.photoQueries, 'landscape', `a photo inside the article "${title}" (keyword "${keyword}") by ${about}, for its section "${sections[item.section].heading}".`, variant);
             if (!photo) return null;
             const jpg = svgToJpeg(inlinePhotoSvg(photo), INLINE_W);
-            return { base64: jpg.toString('base64'), alt: item.alt, heading: sections[item.section].heading, kind: item.kind, caption: photo.credit?.name ? `Photo: ${photo.credit.name} / Pexels` : undefined, creditUrl: photo.credit?.pageUrl || undefined };
+            return { base64: jpg.toString('base64'), alt: item.alt, heading: sections[item.section].heading, kind: item.kind, caption: photo.credit?.name ? `Photo: ${photo.credit.name} / ${photo.credit.source}` : undefined, creditUrl: photo.credit?.pageUrl || undefined };
           }
           const jpg = svgToJpeg(infographicSvg(item, tokens, businessName), INLINE_W);
           return { base64: jpg.toString('base64'), alt: item.alt, heading: sections[item.section].heading, kind: item.kind };

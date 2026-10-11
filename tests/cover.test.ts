@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import jpeg from 'jpeg-js';
-import { chooseLayout, coverCrop, cleanPlan, overlayAccent, buildTokens, buildSvg, svgToJpeg, infographicSvg, PHOTO_CYCLE, DECORS, type CoverSpec, type Photo } from '../api/cover.ts';
+import { findCandidates, chooseLayout, coverCrop, cleanPlan, overlayAccent, buildTokens, buildSvg, svgToJpeg, infographicSvg, PHOTO_CYCLE, DECORS, type CoverSpec, type Photo } from '../api/cover.ts';
 
 // a real (small) JPEG, so the photo layouts render through resvg
 const w = 300, h = 200, px = Buffer.alloc(w * h * 4);
@@ -53,4 +53,19 @@ test('every layout and pattern renders a JPEG under 200 KB', () => {
   for (const decor of DECORS) assert.ok(svgToJpeg(buildSvg(spec({ layout: 'bold', decor }), tokens, { name: 'B' })).length <= 200_000);
   const g = infographicSvg({ section: 0, kind: 'steps', kicker: 'Step by step', title: 'Install', alt: 'a', photoQueries: [], columns: [], rows: [], items: [{ title: 'Prep', body: 'Clean the glass.' }, { title: 'Cut', body: 'Shrink to fit.' }, { title: 'Cure', body: 'A few days.' }] }, tokens, 'B');
   assert.ok(svgToJpeg(g, 1200).length <= 200_000);
+});
+
+test('findCandidates uses Pixabay when its key is set, keeping big photos from its own CDN', async () => {
+  const original = globalThis.fetch;
+  process.env.PIXABAY_API_KEY = 'k';
+  const hit = (id: number, w: number, host = 'cdn.pixabay.com') => ({ id, imageWidth: w, imageHeight: w / 1.5, webformatURL: `https://${host}/t${id}.jpg`, largeImageURL: `https://${host}/l${id}.jpg`, user: 'Ann', user_id: 9, pageURL: `https://pixabay.com/photos/${id}/` });
+  const urls: string[] = [];
+  globalThis.fetch = (async (url: string) => { urls.push(String(url)); return { ok: true, json: async () => ({ hits: [hit(1, 1920), hit(2, 640), hit(3, 1920, 'evil.example'), hit(1, 1920)] }) }; }) as any;
+  try {
+    const c = await findCandidates(['window tint', 'car window'], 'landscape');
+    assert.deepEqual(c.map(x => x.id), ['pb1']);
+    assert.equal(c[0].download, 'https://cdn.pixabay.com/l1.jpg');
+    assert.equal(c[0].source, 'Pixabay');
+    assert.ok(urls[0].includes('orientation=horizontal') && urls[0].includes('q=window%20tint'));
+  } finally { globalThis.fetch = original; delete process.env.PIXABAY_API_KEY; }
 });
