@@ -53,6 +53,8 @@ export interface GeneratedImage {
     base64?: string;
     url?: string; // New field for Storage URL
     prompt: string;
+    caption?: string;   // shown under an in-article image (e.g. the photo credit)
+    creditUrl?: string; // link for the caption (the photo's page)
 }
 
 export interface PostImages {

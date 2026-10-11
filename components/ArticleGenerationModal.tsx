@@ -1,6 +1,7 @@
 import { publishDateOnPublish } from '../utils/dateUtils.ts';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ScheduledPost, AppTab, PostImages } from '../types.ts';
+import { figureHtml, replaceImagePlaceholder } from '../supabase/functions/_shared/inlineImages.ts';
 import { Modal } from './Modal.tsx';
 import { generateFullArticle, generateArticleImages, analyzeArticleForGEO, rewriteArticle, publishToWordPress, generateMetaData } from '../services/aiService.ts';
 import { uploadArticleContent } from '../utils/contentStorage.ts';
@@ -17,11 +18,7 @@ const renderProcessedArticle = (content: string = '', images: PostImages | null 
   
   if (images?.inlineImages) {
     images.inlineImages.forEach((image, index) => {
-      const placeholder = new RegExp(`(?:<p>)?\\[IMAGE_${index + 2}\\](?:<\/p>)?`, 'g');
-      const imageSrc = image.url || '';
-      if (imageSrc) {
-        processedContent = processedContent.replace(placeholder, `<img src="${imageSrc}" alt="${image.prompt}" />`);
-      }
+      if (image.url) processedContent = replaceImagePlaceholder(processedContent, index + 2, figureHtml(image.url, image.prompt, image.caption, image.creditUrl));
     });
   }
   
@@ -94,7 +91,9 @@ export const ArticleGenerationModal: React.FC<{
       let images = null;
       if (!selectedBusiness.skipImageGeneration) {
           try { 
-              images = await generateArticleImages(localPost.keyword, selectedBusiness, undefined, fullData.metaTitle); 
+              const made = await generateArticleImages(localPost.keyword, selectedBusiness, undefined, fullData.metaTitle, fullData.articleContent);
+              images = made.images;
+              if (made.content) fullData.articleContent = made.content; // now holds the in-article image placeholders
           } catch (imageError) { 
               console.error("Image generation failed:", imageError); 
           }

@@ -1,7 +1,8 @@
 import { BusinessInfo, Keyword, ContentCluster, CompetitorAnalysis, CmsIntegration, ScheduledPost, PostImages, GeneratedImage, ContentBrief, KeywordOpportunity } from "../types.ts";
 import { uploadImageFromBase64 } from '../utils/imageStorage.ts';
+import { articleSections, insertImagePlaceholders, figureHtml, replaceImagePlaceholder } from '../supabase/functions/_shared/inlineImages.ts';
 
-import { callClaude, callClaudeDetailed, callCover, verifyArticleLinks, reserveCompetitorAnalysis, releaseCompetitorAnalysis } from './claudeClient.ts';
+import { callClaude, callClaudeDetailed, callCover, callInlineImages, verifyArticleLinks, reserveCompetitorAnalysis, releaseCompetitorAnalysis } from './claudeClient.ts';
 import { findExistingWpPost, slugFromUrl } from '../supabase/functions/_shared/wordpress.ts';
 import { SOURCE_RULES, TRUST_RULES, STRUCTURE_RULES, INTERNAL_LINK_RULES, ARTICLE_SEARCHES, keywordRules, buildRepairPrompt, buildSourcePassPrompt, needsSourcePass, sourceStats, stripFences, lintArticle, finalizeForPublish, FOCUS_RULES, RESEARCH_SEARCHES, ARTICLE_SEARCHES_WITH_BRIEF, buildResearchPrompt, researchBriefBlock, dropTitleH1, stripSourcesSection, type LintIssue } from '../supabase/functions/_shared/articleQuality.ts';
 
@@ -536,20 +537,41 @@ export const generateFullArticle = async (
     };
 };
 
+/**
+ * The cover plus up to two in-article images (a photo and an infographic). When `content` is given, the in-article
+ * images get [IMAGE_2]/[IMAGE_3] placeholders in it; use the returned content. In-article images never block the cover.
+ */
 export const generateArticleImages = async (
     keyword: string,
     business: BusinessInfo,
     onProgress?: (progress: { value: number; text: string }) => void,
-    title?: string
-): Promise<PostImages> => {
-    onProgress?.({ value: 10, text: "Designing the cover image..." });
-    const cover = await callCover({ title: title || keyword, keyword, businessId: business.id, businessName: business.name, businessUrl: business.url, description: business.description, brandStyle: business.brandStyle });
+    title?: string,
+    content?: string
+): Promise<{ images: PostImages; content?: string }> => {
+    onProgress?.({ value: 10, text: "Designing the images..." });
+    const base = { title: title || keyword, keyword, businessId: business.id, businessName: business.name, businessUrl: business.url, description: business.description, brandStyle: business.brandStyle };
+    const sections = content ? articleSections(content) : [];
+    const [cover, inline] = await Promise.all([
+        callCover(base),
+        sections.length >= 2 ? callInlineImages({ ...base, sections }).catch(e => { console.error('In-article images failed', e); return []; }) : Promise.resolve([]),
+    ]);
 
-    onProgress?.({ value: 50, text: "Uploading cover image..." });
+    onProgress?.({ value: 50, text: "Uploading images..." });
     const url = await uploadImageFromBase64(cover.base64, 'covers');
     if (!url) throw new Error('The cover image could not be uploaded to storage. Please try again.');
+    const images: PostImages = { featureImage: { url, prompt: cover.alt } };
 
-    return { featureImage: { url, prompt: cover.alt } };
+    let html = content;
+    if (html && inline.length) {
+        const uploaded = (await Promise.all(inline.map(async img => {
+            const u = await uploadImageFromBase64(img.base64, 'inline').catch(() => null);
+            return u ? { ...img, url: u } : null;
+        }))).filter(Boolean) as (typeof inline[number] & { url: string })[];
+        const placed = insertImagePlaceholders(html, uploaded.map((img, i) => ({ heading: img.heading, n: i + 2 })));
+        html = placed.html;
+        images.inlineImages = uploaded.map(img => ({ url: img.url, prompt: img.alt, caption: img.caption, creditUrl: img.creditUrl }));
+    }
+    return { images, content: html };
 };
 
 export const analyzeArticleForGEO = async (content: string, keyword: string) => {
@@ -716,9 +738,8 @@ export const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPos
             const placeholder = `[IMAGE_${i + 2}]`;
             const wpImg = await uploadImageToWP(auth, cms.url, img, `inline-image-${i + 1}.jpg`);
             if (wpImg) {
-                const imgTag = `<img src="${wpImg.url}" alt="${altAttr(img.prompt, post.keyword)}" class="wp-inline-image" style="width:100%; height:auto; border-radius:8px; margin:2rem 0;" />`;
-                // Global regex to replace all occurrences of this specific placeholder
-                finalContent = finalContent.replace(new RegExp(`\\[IMAGE_${i + 2}\\]`, 'g'), imgTag);
+                // a <figure> (with the photo credit as caption) replaces the placeholder and its <p>
+                finalContent = replaceImagePlaceholder(finalContent, i + 2, figureHtml(wpImg.url, img.prompt || post.keyword, img.caption, img.creditUrl));
             }
         }
     }

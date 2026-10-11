@@ -1,6 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { ScheduledPost } from '../types.ts';
+import { figureHtml, replaceImagePlaceholder } from '../supabase/functions/_shared/inlineImages.ts';
 
 interface ArticleRendererProps {
   post: ScheduledPost;
@@ -32,11 +33,8 @@ export const ArticleRenderer: React.FC<ArticleRendererProps> = ({ post }) => {
     // Process inline images (IMAGE_2+) if they exist in old articles
     if (post.images?.inlineImages) {
         post.images.inlineImages.forEach((img, idx) => {
-            const placeholder = `[IMAGE_${idx + 2}]`;
             const src = img.url || (img.base64 ? `data:image/jpeg;base64,${img.base64}` : '');
-            if (src) {
-                content = content.replace(new RegExp(`\\${placeholder}`, 'g'), `<img src="${src}" alt="${img.prompt || ''}" style="max-width:100%; border-radius:8px; margin:20px 0; display:block;" />`);
-            }
+            if (src) content = replaceImagePlaceholder(content, idx + 2, figureHtml(src, img.prompt || '', img.caption, img.creditUrl));
         });
     }
 

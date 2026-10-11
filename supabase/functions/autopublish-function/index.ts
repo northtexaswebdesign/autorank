@@ -14,6 +14,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Anthropic from 'npm:@anthropic-ai/sdk';
 import { SOURCE_RULES, TRUST_RULES, STRUCTURE_RULES, INTERNAL_LINK_RULES, ARTICLE_SEARCHES, keywordRules, buildRepairPrompt, buildSourcePassPrompt, needsSourcePass, sourceStats, stripFences, collectSearchUrls, verifyLinks, lintArticle, finalizeForPublish, FOCUS_RULES, RESEARCH_SEARCHES, ARTICLE_SEARCHES_WITH_BRIEF, buildResearchPrompt, researchBriefBlock, dropTitleH1 } from '../_shared/articleQuality.ts';
 import { findExistingWpPost, slugFromUrl } from '../_shared/wordpress.ts';
+import { articleSections, insertImagePlaceholders, figureHtml, replaceImagePlaceholder } from '../_shared/inlineImages.ts';
 
 const Deno = (globalThis as any).Deno;
 
@@ -306,6 +307,44 @@ const getCover = async (post: ScheduledPost, business: BusinessInfo): Promise<{ 
     return { bytes, alt: data.alt || post.keyword };
 };
 
+type InlineForPost = { n: number; bytes: Uint8Array; alt: string; caption?: string; creditUrl?: string };
+
+// In-article images: the ones the app saved on the post (their [IMAGE_n] placeholders are in the content), else
+// up to two new ones from /api/cover (placeholders are added to the content). Best effort: [] on any failure.
+const getInlineForPost = async (post: ScheduledPost, business: BusinessInfo, content: string): Promise<{ content: string; images: InlineForPost[] }> => {
+    const saved = ((post as any).images?.inlineImages || []) as { url?: string; prompt?: string; caption?: string; creditUrl?: string }[];
+    if (saved.length) {
+        const images = (await Promise.all(saved.map(async (img, i) => {
+            if (!img.url || !content.includes(`[IMAGE_${i + 2}]`)) return null;
+            const res = await fetch(img.url).catch(() => null);
+            return res?.ok ? { n: i + 2, bytes: new Uint8Array(await res.arrayBuffer()), alt: img.prompt || post.keyword, caption: img.caption, creditUrl: img.creditUrl } : null;
+        }))).filter(Boolean) as InlineForPost[];
+        return { content, images };
+    }
+    const secret = Deno.env.get('CRON_SECRET');
+    const sections = articleSections(content);
+    if (!secret || sections.length < 2 || /\[IMAGE_[2-9]\]/.test(content)) return { content, images: [] };
+    const appUrl = (Deno.env.get('APP_URL') || 'https://autorank-umber.vercel.app').replace(/\/$/, '');
+    const res = await fetch(`${appUrl}/api/cover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-cron-secret': secret },
+        body: JSON.stringify({
+            mode: 'inline', title: post.metaTitle || post.keyword, keyword: post.keyword, businessId: business.id, businessName: business.name,
+            businessUrl: business.url, description: business.description, brandStyle: business.brandStyle ?? undefined, sections,
+        }),
+    });
+    if (!res.ok) throw new Error(`Inline images request failed (${res.status}).`);
+    const list = ((await res.json()).images || []) as { base64: string; alt: string; heading: string; caption?: string; creditUrl?: string }[];
+    const placed = insertImagePlaceholders(content, list.map((img, i) => ({ heading: img.heading, n: i + 2 })));
+    const images = list.map((img, i) => {
+        const bin = atob(img.base64);
+        const bytes = new Uint8Array(bin.length);
+        for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
+        return { n: i + 2, bytes, alt: img.alt || post.keyword, caption: img.caption, creditUrl: img.creditUrl };
+    }).filter(img => placed.placed.includes(img.n));
+    return { content: placed.html, images };
+};
+
 // Use the image the app already attached to the post (stored in Supabase storage), else make a cover, else a stock photo.
 const getPhotoForPost = async (post: ScheduledPost, business: BusinessInfo): Promise<{ bytes: Uint8Array; alt: string } | null> => {
     const existing = (post as any).images?.featureImage;
@@ -364,6 +403,16 @@ const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost, busi
         }
     } catch (photoError: any) {
         console.error('Photo step failed, publishing without image:', photoError.message);
+    }
+    try {
+        const inline = await getInlineForPost(post, business, content);
+        content = inline.content;
+        for (const img of inline.images) {
+            const media = await uploadMedia(baseApiUrl, credentials, img.bytes, `${slug}-${img.n}.jpg`, img.alt);
+            content = replaceImagePlaceholder(content, img.n, figureHtml(media.url, img.alt, img.caption, img.creditUrl));
+        }
+    } catch (inlineError: any) {
+        console.error('In-article images failed, publishing without them:', inlineError.message);
     }
     content = content.replace(/<p>\s*\[IMAGE_\d+\]\s*<\/p>/g, '').replace(/\[IMAGE_\d+\]/g, '');
     content = finalizeForPublish(content, {

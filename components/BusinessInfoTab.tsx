@@ -326,7 +326,7 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
                 <div className="pt-4 border-t border-stone-100 flex items-center justify-between">
                     <div>
                         <p className="font-medium text-stone-800">Skip Image Generation</p>
-                        <p className="text-sm text-stone-500">When enabled, AI will only generate text content and skip creating unique images.</p>
+                        <p className="text-sm text-stone-500">When enabled, AI only writes the text: no cover and no in-article images.</p>
                     </div>
                     <button
                         type="button"
@@ -348,7 +348,7 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
                 <div>
                     <h2 className="font-serif text-[26px] leading-tight text-stone-900">Brand Style for Cover Images</h2>
                     <p className="text-sm text-stone-500 mt-1 max-w-2xl">
-                        Every article gets a cover image in your brand style. Leave this empty and we read the colors and logo from your website the first time an image is made. If that finds nothing, the AI picks a look that fits the article.
+                        Every article gets a cover image and in-article graphics in your brand style. Leave this empty and we read the colors and logo from your website the first time an image is made. If that finds nothing, the AI picks a look that fits the article.
                     </p>
                     {brand.source === 'auto' && (
                         <p className="text-xs text-emerald-700 mt-2">These values were read from your website. Edit any of them to override.</p>
