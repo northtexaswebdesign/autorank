@@ -10,16 +10,12 @@ import path from 'node:path';
  * Article images: branded covers (1080x1080 JPEG) and in-article images (1200 wide), each under 200 KB.
  *
  * Cover flow:  brand style (saved on the business, else read from its website, else none)
- *        -> Claude writes a small design spec (tag, short headline, key points, article kind, stock-photo
- *           searches, and a palette when there is no brand)
- *        -> stock photo candidates (Pixabay, else Pexels) for those searches; Claude looks at the thumbnails, picks the one that fits the
- *           article best and says where its subject is (so crops keep it)
- *        -> a photo layout (rotating per business so neighbouring posts differ) that frames the photo with the
- *           brand: colour panels, duotone, shapes, key points. Text-only layouts are the fallback when no photo
- *           fits or PEXELS_API_KEY is not set. -> SVG -> resvg -> JPEG.
- * Inline flow (body.mode = 'inline'): Claude reads the article's sections and plans up to two images: a photo
- *        for a visual section (picked the same way) and an infographic (steps, comparison or checklist) built
- *        only from facts in that section's text.
+ *        -> Claude writes a small design spec (tag, short headline, article kind, and a palette when there is
+ *           no brand) -> a text layout with a brand pattern, rotating per business so neighbouring posts differ
+ *           -> SVG -> resvg -> JPEG. No stock photos: a search can match the wrong thing ("drilling" finds a
+ *           power drill). The photo layouts and stockPhoto() (Pixabay, else Pexels) are kept for a future opt-in.
+ * Inline flow (body.mode = 'inline'): Claude reads the article's sections and plans up to two infographics
+ *        (steps, comparison or checklist), each built only from facts in that section's text.
  * Claude never writes raw SVG: the layouts are ours, so the result is always clean and on brand. Nothing is
  * drawn per industry: the photo carries the subject, the brand carries the look.
  *
@@ -192,7 +188,7 @@ export interface CoverSpec {
  * A layout is skipped when the article does not suit it.
  */
 export const PHOTO_CYCLE: Layout[] = ['panel', 'duotone', 'window', 'callout', 'photo', 'split', 'frame'];
-const TEXT_CYCLE: Layout[] = ['editorial', 'steps', 'bold', 'minimal', 'centered', 'question', 'number'];
+const TEXT_CYCLE: Layout[] = ['editorial', 'bold', 'minimal', 'centered', 'question', 'number'];
 export const PHOTO_LAYOUTS = new Set<Layout>(PHOTO_CYCLE);
 
 const suits = (l: Layout, s: CoverSpec): boolean => {
@@ -803,12 +799,11 @@ A cover is read in one second, like a magazine cover, so be short and punchy. Ru
 - points: 3 or 4 concrete takeaways, each at most 22 characters.
 - bigNumber: the leading number if the title starts with a count (for example "7"), else empty.
 - kind: howto (steps or a process), list (a numbered list), cost (prices or budgets), comparison (X vs Y, options), question (the title asks something), or guide (anything else).
-- photoQueries: 3 stock photo searches of 2 to 4 words, most specific first, that find a realistic, attractive photo of the subject for this business's customers (real people, places or objects you could photograph; no screens full of text, no abstract ideas, no logos). The last one broader, so it always finds something. For example ["contractor measuring roof", "roofer on house", "house roof"].
 - alt: SEO alt text under 125 characters describing the cover.
 ${p.hasBrand ? 'The brand colours are fixed, so leave the palette fields empty.' : `The business has no brand style, so choose one that fits this topic and industry${p.variant ? ' (try something different from a typical choice)' : ''}: primary = a confident accent colour, secondary = a light tint of it, background = a light background, text = a dark headline colour readable on the background (all hex), headingFont and bodyFont from: ${FONT_NAMES.join(', ')}.`}` }],
     output_config: {
       effort: 'low',
-      format: { type: 'json_schema', schema: { type: 'object', properties: { tag: { type: 'string' }, headline: { type: 'string' }, highlight: { type: 'string' }, points: { type: 'array', items: { type: 'string' } }, bigNumber: { type: 'string' }, kind: { type: 'string', enum: ['howto', 'list', 'cost', 'comparison', 'question', 'guide'] }, photoQueries: { type: 'array', items: { type: 'string' } }, alt: { type: 'string' }, primary: { type: 'string' }, secondary: { type: 'string' }, background: { type: 'string' }, text: { type: 'string' }, headingFont: { type: 'string' }, bodyFont: { type: 'string' } }, required: ['tag', 'headline', 'highlight', 'points', 'bigNumber', 'kind', 'photoQueries', 'alt', 'primary', 'secondary', 'background', 'text', 'headingFont', 'bodyFont'], additionalProperties: false } },
+      format: { type: 'json_schema', schema: { type: 'object', properties: { tag: { type: 'string' }, headline: { type: 'string' }, highlight: { type: 'string' }, points: { type: 'array', items: { type: 'string' } }, bigNumber: { type: 'string' }, kind: { type: 'string', enum: ['howto', 'list', 'cost', 'comparison', 'question', 'guide'] }, alt: { type: 'string' }, primary: { type: 'string' }, secondary: { type: 'string' }, background: { type: 'string' }, text: { type: 'string' }, headingFont: { type: 'string' }, bodyFont: { type: 'string' } }, required: ['tag', 'headline', 'highlight', 'points', 'bigNumber', 'kind', 'alt', 'primary', 'secondary', 'background', 'text', 'headingFont', 'bodyFont'], additionalProperties: false } },
     },
   } as any);
   const o = JSON.parse(res.content.filter(b => b.type === 'text').map((b: any) => b.text).join(''));
@@ -821,7 +816,7 @@ ${p.hasBrand ? 'The brand colours are fixed, so leave the palette fields empty.'
     highlight: String(o.highlight || '').trim(),
     points: (Array.isArray(o.points) ? o.points : []).map((x: any) => String(x).trim()).filter(Boolean).slice(0, 4),
     bigNumber: String(o.bigNumber || '').trim() || undefined,
-    photoQueries: (() => { const q = (Array.isArray(o.photoQueries) ? o.photoQueries : []).map((x: any) => String(x).trim().slice(0, 60)).filter(Boolean).slice(0, 3); return q.length ? q : [p.keyword.slice(0, 60)]; })(),
+    photoQueries: [],
     alt: String(o.alt || p.title).trim().slice(0, 125),
     palette: primary ? { primary, secondary: cleanHex(o.secondary), background: cleanHex(o.background) || '#F7F7F7', text: cleanHex(o.text) || '#1A1A1A', headingFont: pickFont(o.headingFont, 'Inter'), bodyFont: pickFont(o.bodyFont, 'Inter') } : undefined,
   };
@@ -851,8 +846,8 @@ export const cleanPlan = (raw: any[], sectionCount: number): InlinePlan[] => {
     const section = Number(r?.section);
     const kind = r?.kind;
     if (!Number.isInteger(section) || section < 0 || section >= sectionCount) continue;
-    if (!['photo', 'steps', 'comparison', 'checklist'].includes(kind)) continue;
-    if (out.some(o => o.section === section || (o.kind === 'photo') === (kind === 'photo'))) continue;
+    if (!['steps', 'comparison', 'checklist'].includes(kind)) continue; // graphics only: no stock photos
+    if (out.some(o => o.section === section)) continue;
     const items = (Array.isArray(r.items) ? r.items : []).map((i: any) => ({ title: str(i?.title, 40), body: str(i?.body, 90) })).filter((i: { title: string }) => i.title);
     const columns = (Array.isArray(r.columns) ? r.columns : []).map((c: any) => str(c, 22)).filter(Boolean).slice(0, 4);
     const rows = (Array.isArray(r.rows) ? r.rows : []).map((x: any) => ({ label: str(x?.label, 24), values: (Array.isArray(x?.values) ? x.values : []).map((v: any) => str(v, 26)) }))
@@ -877,20 +872,18 @@ const planInline = async (claude: Anthropic, p: { title: string; keyword: string
   const res = await claude.messages.create({
     model: MODEL_FAST,
     max_tokens: 2000,
-    messages: [{ role: 'user', content: `Plan up to two images inside a blog article, to make it easier to follow.
+    messages: [{ role: 'user', content: `Plan up to two infographics inside a blog article, to make it easier to follow.
 Article: "${p.title}" (keyword "${p.keyword}") by ${p.about}.
 Its sections (number, heading, start of the text):
 
 ${list}
 
-Choose at most one of each, in different sections, and skip the summary, FAQ and conclusion sections:
-- one photo for a section whose subject is something you can photograph (a place, a product, people doing the work). photoQueries: 3 stock photo searches of 2 to 4 words, most specific first, the last broader.
-- one infographic, only when a section's own text already holds the content: steps (3 to 5 steps of a process, in order), checklist (3 to 6 things to check, bring or do) or comparison (2 to 4 options compared on 2 to 5 points; every row has one value per option). Copy facts from the text; never add numbers, prices, laws or claims that are not in it. Short words: item titles under 32 characters, item bodies under 80, table cells under 24. kicker: 1 to 3 words like "Step by step" or "Quick comparison"; title: what the graphic shows, under 60 characters.
+Choose at most two infographics, in different sections (preferably of different kinds), and skip the summary, FAQ and conclusion sections. Only when a section's own text already holds the content: steps (3 to 5 steps of a process, in order), checklist (3 to 6 things to check, bring or do) or comparison (2 to 4 options compared on 2 to 5 points; every row has one value per option). Copy facts from the text; never add numbers, prices, laws or claims that are not in it. Short words: item titles under 32 characters, item bodies under 80, table cells under 24. kicker: 1 to 3 words like "Step by step" or "Quick comparison"; title: what the graphic shows, under 60 characters.
 Leave the fields a kind does not use empty. alt: SEO alt text under 125 characters describing the image. Plain words, no em dashes. Return an empty list when nothing fits.` }],
     output_config: {
       effort: 'low',
       format: { type: 'json_schema', schema: { type: 'object', properties: { images: { type: 'array', items: { type: 'object', properties: {
-        section: { type: 'integer' }, kind: { type: 'string', enum: ['photo', 'steps', 'comparison', 'checklist'] }, kicker: { type: 'string' }, title: { type: 'string' }, alt: { type: 'string' },
+        section: { type: 'integer' }, kind: { type: 'string', enum: ['steps', 'comparison', 'checklist'] }, kicker: { type: 'string' }, title: { type: 'string' }, alt: { type: 'string' },
         photoQueries: { type: 'array', items: { type: 'string' } },
         items: { type: 'array', items: { type: 'object', properties: { title: { type: 'string' }, body: { type: 'string' } }, required: ['title', 'body'], additionalProperties: false } },
         columns: { type: 'array', items: { type: 'string' } },
@@ -1059,12 +1052,6 @@ export async function POST(request: Request): Promise<Response> {
       console.log('inline plan', JSON.stringify({ title, sections: sections.length, plan: plan.map(p => `${p.kind}@${p.section}`) }));
       const images = (await Promise.all(plan.map(async (item) => {
         try {
-          if (item.kind === 'photo') {
-            const photo = await stockPhoto(claude, item.photoQueries, 'landscape', `a photo inside the article "${title}" (keyword "${keyword}") by ${about}, for its section "${sections[item.section].heading}".`, variant);
-            if (!photo) return null;
-            const jpg = svgToJpeg(inlinePhotoSvg(photo), INLINE_W);
-            return { base64: jpg.toString('base64'), alt: item.alt, heading: sections[item.section].heading, kind: item.kind, caption: photo.credit?.name ? `Photo: ${photo.credit.name} / ${photo.credit.source}` : undefined, creditUrl: photo.credit?.pageUrl || undefined };
-          }
           const jpg = svgToJpeg(infographicSvg(item, tokens, businessName), INLINE_W);
           return { base64: jpg.toString('base64'), alt: item.alt, heading: sections[item.section].heading, kind: item.kind };
         } catch (e: any) {
@@ -1079,8 +1066,8 @@ export async function POST(request: Request): Promise<Response> {
     const spec = await designSpec(claude, { title, keyword, businessName, description, hasBrand: !!brand, variant });
     if (spec.points.length < 3) spec.points = ['Clear next steps', 'Local focus', 'Proven approach'].slice(0, 3);
 
-    // 3. a stock photo Claude picked for this article; without one the cover uses a text layout
-    spec.photo = await stockPhoto(claude, spec.photoQueries, 'square', `the cover image of the article "${title}" (keyword "${keyword}") by ${about}.`, variant).catch(() => undefined);
+    // No stock photos: a search can match the wrong thing ("drilling" finds a power drill), so covers are
+    // brand typography and patterns only. The photo layouts and stockPhoto() stay for a future opt-in.
 
     // layout: rotate per business (its article count), so neighbouring covers differ
     let n = Math.abs(hashCode(title));

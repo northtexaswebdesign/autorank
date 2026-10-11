@@ -11,9 +11,9 @@ const photo: Photo = { uri: `data:image/jpeg;base64,${Buffer.from(jpeg.encode({ 
 const spec = (extra: Partial<CoverSpec> = {}): CoverSpec => ({ layout: 'editorial', kind: 'guide', tag: 'Window Tint', headline: 'Mobile Window Tinting in Burleson TX', highlight: 'Mobile', points: [], photoQueries: [], alt: 'x', ...extra });
 const tokens = buildTokens({ primary: '#E0892B', background: '#F4F2EE', text: '#1B2430' }, 'Montserrat', 'DM Sans');
 
-test('chooseLayout rotates through photo layouts when there is a photo, text layouts otherwise', () => {
+test('chooseLayout uses text layouts without a photo, never the bulleted steps layout', () => {
   assert.deepEqual(Array.from({ length: PHOTO_CYCLE.length }, (_, n) => chooseLayout(spec({ photo }), n)), PHOTO_CYCLE);
-  for (let n = 0; n < 10; n++) assert.ok(!PHOTO_CYCLE.includes(chooseLayout(spec(), n)));
+  for (let n = 0; n < 10; n++) { const l = chooseLayout(spec({ kind: 'howto', points: ['a', 'b', 'c'] }), n); assert.ok(!PHOTO_CYCLE.includes(l) && l !== 'steps'); }
   assert.notEqual(chooseLayout(spec({ headline: 'Do I need a permit' }), 5), 'question'); // no question mark
 });
 
@@ -31,17 +31,19 @@ test('overlayAccent stays readable on the dark overlay', () => {
   assert.notEqual(overlayAccent(dark), dark.accent);
 });
 
-test('cleanPlan keeps one photo and one valid graphic in different sections', () => {
+test('cleanPlan keeps up to two valid infographics in different sections, and no photos', () => {
   const base = { kicker: 'k', title: 'T', alt: 'alt', photoQueries: [], items: [], columns: [], rows: [] };
+  const three = [{ title: 'a', body: '' }, { title: 'b', body: '' }, { title: 'c', body: '' }];
   const plan = cleanPlan([
-    { ...base, section: 1, kind: 'photo', photoQueries: ['car window tint'] },
-    { ...base, section: 1, kind: 'steps', items: [{ title: 'a', body: '' }, { title: 'b', body: '' }, { title: 'c', body: '' }] }, // same section
+    { ...base, section: 1, kind: 'photo', photoQueries: ['car window tint'] }, // photos are off
+    { ...base, section: 1, kind: 'steps', items: three },
+    { ...base, section: 1, kind: 'checklist', items: three }, // same section
     { ...base, section: 2, kind: 'checklist', items: [{ title: 'a', body: '' }] }, // too few items
     { ...base, section: 3, kind: 'comparison', columns: ['A', 'B'], rows: [{ label: 'x', values: ['1', '2'] }, { label: 'y', values: ['1'] }, { label: 'z', values: ['3', '4'] }] },
-    { ...base, section: 4, kind: 'photo', photoQueries: ['x'] }, // second photo
-    { ...base, section: 99, kind: 'steps' },
+    { ...base, section: 4, kind: 'steps', items: three }, // a third graphic
+    { ...base, section: 99, kind: 'steps', items: three },
   ], 6);
-  assert.deepEqual(plan.map(p => [p.section, p.kind]), [[1, 'photo'], [3, 'comparison']]);
+  assert.deepEqual(plan.map(p => [p.section, p.kind]), [[1, 'steps'], [3, 'comparison']]);
   assert.equal(plan[1].rows.length, 2); // the row with a missing value is dropped
 });
 
