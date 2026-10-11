@@ -117,6 +117,7 @@ const askWithSearch = async (prompt: string, maxTokens: number, opts: { model?: 
             messages,
             output_config: { effort: opts.effort ?? 'medium' },
             tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: opts.searches ?? ARTICLE_SEARCHES }],
+            cache_control: { type: 'ephemeral' }, // search results are re-read on every step; cached re-reads are ~10x cheaper
         } as any);
         message = await stream.finalMessage();
         collectSearchUrls(message.content as any[]).forEach(u => urls.add(u));
@@ -207,7 +208,7 @@ Output only the HTML of the article.`;
     if (errors.length) {
         try {
             const repair = await getClient().messages.create({
-                model: MODEL_ARTICLE, max_tokens: 12000,
+                model: MODEL_LIGHT, max_tokens: 12000,
                 messages: [{ role: 'user', content: buildRepairPrompt(checked, errors) }],
                 output_config: { effort: 'low' },
             } as any);

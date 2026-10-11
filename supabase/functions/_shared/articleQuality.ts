@@ -22,7 +22,7 @@ export const keywordRules = (keyword: string, words = 1800): string => `KEYWORD 
     - Cover the topic's related questions and subtopics (the terms people also search for) so the article is complete without repeating the phrase.`;
 
 /** Searches an article may use: a few to study competing pages, the rest reserved for finding sources. */
-export const ARTICLE_SEARCHES = 10;
+export const ARTICLE_SEARCHES = 5;
 export const MIN_SOURCES = 3;
 
 /** Outside sources must be this recent: published or updated this year or last year. */
@@ -78,7 +78,7 @@ export const FOCUS_RULES = `TOPIC FOCUS:
 
 /** Searches for the gap-research step (cheap model), and for the writer when it already has the brief. */
 export const RESEARCH_SEARCHES = 3;
-export const ARTICLE_SEARCHES_WITH_BRIEF = 6;
+export const ARTICLE_SEARCHES_WITH_BRIEF = 5;
 
 /** Prompt for the gap-research step: study the top results and write a private brief for the writer. */
 export const buildResearchPrompt = (keyword: string, businessName: string, businessDescription: string): string => `You are an SEO researcher. Search for "${keyword}" and study the top 5-8 organic results (skip ads; a forum or Reddit thread in the results is a useful signal of what people still ask). Do not write the article. Write a private brief for the writer, plain text, under 450 words, with these parts:
