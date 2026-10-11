@@ -14,7 +14,7 @@ Every article gets a branded 1080x1080 cover and up to two in-article images (12
 `api/cover.ts`. Brand style: the one saved on the business (Business Info tab), else colors/fonts/logo read from its
 website (saved back as `businesses.brand_style`), else a look Claude picks for the topic. Fonts live in `assets/fonts`
 (bundled into the function via `vercel.json`).
-- Cover: brand typography with one of 8 brand patterns, rotating per business. No bullet lists and no stock
+- Cover: Sonnet writes the cover text; brand typography with one of 8 brand patterns, rotating per business. No bullet lists and no stock
   photos: a photo search can match the wrong thing ("drilling" finds a power drill). The photo layouts and the
   Pixabay/Pexels picker in `api/cover.ts` are kept, unused, for a future opt-in.
 - In-article (`mode: 'inline'`): Claude reads the H2 sections and plans up to two infographics (steps, checklist or

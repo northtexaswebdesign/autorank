@@ -29,6 +29,8 @@ const SIZE = 1080;
 const MAX_BYTES = 200_000;
 const MAX_BODY_BYTES = 40_000;
 const MODEL_FAST = process.env.CLAUDE_MODEL_FAST || 'claude-haiku-5-5';
+// the writing steps (cover text, in-article graphics plan) use the same model as the articles
+const MODEL_SMART = process.env.CLAUDE_MODEL_SMART || 'claude-sonnet-5-5';
 
 // ---------------- brand style ----------------
 export interface BrandStyle {
@@ -785,7 +787,7 @@ const sanitizeBrand = (b: any): BrandStyle | null => {
 // ---------------- Claude: the design spec ----------------
 const designSpec = async (claude: Anthropic, p: { title: string; keyword: string; businessName: string; description: string; hasBrand: boolean; variant: number }): Promise<CoverSpec> => {
   const res = await claude.messages.create({
-    model: MODEL_FAST,
+    model: MODEL_SMART,
     max_tokens: 2500, // room for adaptive thinking before the JSON
     messages: [{ role: 'user', content: `Write the text for the cover image of a blog article.
 Article title: "${p.title}"
@@ -870,8 +872,8 @@ export const cleanPlan = (raw: any[], sectionCount: number): InlinePlan[] => {
 const planInline = async (claude: Anthropic, p: { title: string; keyword: string; about: string; sections: { heading: string; text: string }[] }): Promise<InlinePlan[]> => {
   const list = p.sections.map((s, i) => `[${i}] ${s.heading}\n${s.text}`).join('\n\n');
   const res = await claude.messages.create({
-    model: MODEL_FAST,
-    max_tokens: 2000,
+    model: MODEL_SMART,
+    max_tokens: 4000,
     messages: [{ role: 'user', content: `Plan up to two infographics inside a blog article, to make it easier to follow.
 Article: "${p.title}" (keyword "${p.keyword}") by ${p.about}.
 Its sections (number, heading, start of the text):
