@@ -786,7 +786,7 @@ const sanitizeBrand = (b: any): BrandStyle | null => {
 const designSpec = async (claude: Anthropic, p: { title: string; keyword: string; businessName: string; description: string; hasBrand: boolean; variant: number }): Promise<CoverSpec> => {
   const res = await claude.messages.create({
     model: MODEL_FAST,
-    max_tokens: 900,
+    max_tokens: 2500, // room for adaptive thinking before the JSON
     messages: [{ role: 'user', content: `Write the text for the cover image of a blog article.
 Article title: "${p.title}"
 Target keyword: "${p.keyword}"
@@ -1025,6 +1025,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const claude = new Anthropic();
+  let stage = 'brand';
   try {
     // 1. brand: saved on the business, else read from its website (and saved for next time)
     let brand = sanitizeBrand(body.brandStyle);
@@ -1048,6 +1049,7 @@ export async function POST(request: Request): Promise<Response> {
         .filter((x: { heading: string }) => x.heading);
       if (sections.length < 2) return json(200, { images: [], brandStyle: detected });
       const tokens = brandTokens(brand);
+      stage = 'plan';
       const plan = await planInline(claude, { title, keyword, about, sections });
       console.log('inline plan', JSON.stringify({ title, sections: sections.length, plan: plan.map(p => `${p.kind}@${p.section}`) }));
       const images = (await Promise.all(plan.map(async (item) => {
@@ -1063,12 +1065,14 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // 2. design spec from Claude
+    stage = 'design text';
     const spec = await designSpec(claude, { title, keyword, businessName, description, hasBrand: !!brand, variant });
     if (spec.points.length < 3) spec.points = ['Clear next steps', 'Local focus', 'Proven approach'].slice(0, 3);
 
     // No stock photos: a search can match the wrong thing ("drilling" finds a power drill), so covers are
     // brand typography and patterns only. The photo layouts and stockPhoto() stay for a future opt-in.
 
+    stage = 'layout';
     // layout: rotate per business (its article count), so neighbouring covers differ
     let n = Math.abs(hashCode(title));
     if (businessId && db) {
@@ -1078,6 +1082,7 @@ export async function POST(request: Request): Promise<Response> {
     spec.layout = chooseLayout(spec, n + variant);
     spec.decor = DECORS[Math.abs(n + variant + hashCode(title)) % DECORS.length];
 
+    stage = 'render';
     // 4. tokens: brand colours/fonts, else the palette Claude chose, else a neutral default
     const tokens = brandTokens(brand, spec.palette);
     const logo = brand?.logoUrl ? await toDataUri(brand.logoUrl).catch(() => undefined) : undefined;
@@ -1086,8 +1091,10 @@ export async function POST(request: Request): Promise<Response> {
 
     return json(200, { base64: jpg.toString('base64'), alt: spec.alt, width: SIZE, height: SIZE, bytes: jpg.length, layout: spec.layout, brandStyle: detected, photoCredit: spec.photo?.credit });
   } catch (err: any) {
-    console.error('cover error', err?.message);
-    return json(502, { error: body.mode === 'inline' ? 'Could not generate article images.' : 'Could not generate a cover image.' });
+    console.error('cover error', stage, err?.status ?? '', err?.message);
+    // say which step failed and why, so a failure can be diagnosed from the app (no secrets are in these messages)
+    const why = String(err?.message || 'unknown error').replace(/\s+/g, ' ').slice(0, 200);
+    return json(502, { error: `${body.mode === 'inline' ? 'Could not generate article images' : 'Could not generate a cover image'} (${stage}: ${why}).` });
   }
 }
 
