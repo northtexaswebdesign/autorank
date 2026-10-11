@@ -343,6 +343,9 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
             const url = await uploadImageFromBase64(base64, 'manual');
             const updatedImages: PostImages = { ...post.images, featureImage: { url: url || undefined, base64: url ? undefined : base64, prompt: post.keyword } };
             await handleUpdatePost({ images: updatedImages });
+        } catch (e: any) {
+            console.error('Cover generation failed', e);
+            alert(`The cover image could not be made: ${e?.message || 'unknown error'}`);
         } finally {
             setIsGeneratingImages(false);
         }
