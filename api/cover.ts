@@ -181,6 +181,7 @@ export interface CoverSpec {
   bigNumber?: string;
   photoQueries: string[];
   photo?: Photo; // set when a fitting stock photo was found
+  decor?: Decor; // background pattern for the bold layout
   alt: string;
   palette?: { primary: string; secondary?: string; background: string; text: string; headingFont?: string; bodyFont?: string };
 }
@@ -298,26 +299,56 @@ const editorial = (s: CoverSpec, t: Tokens, b: Brandmark) => {
   ${logoSvg(b, t, 80, 1080 - 64 - 93, 440, 93, false)}`;
 };
 
+/** Brand-coloured background patterns for the bold cover; one per article, rotating, so covers do not repeat. */
+export const DECORS = ['orbs', 'rings', 'stripes', 'halftone', 'waves', 'layers', 'arcs', 'grid'] as const;
+export type Decor = typeof DECORS[number];
+
+const decorSvg = (d: Decor, t: Tokens): string => {
+  const a = t.accent;
+  switch (d) {
+    case 'rings':
+      return Array.from({ length: 6 }, (_, i) => `<circle cx="980" cy="980" r="${140 + i * 90}" fill="none" stroke="${a}" stroke-width="${i === 1 ? 26 : 14}" opacity="${i === 1 ? 0.9 : 0.16}"/>`).join('');
+    case 'stripes':
+      return `<g transform="rotate(-35 1000 1000)">${Array.from({ length: 7 }, (_, i) => `<rect x="${760 + i * 62}" y="700" width="${i === 3 ? 34 : 18}" height="900" rx="9" fill="${a}" opacity="${i === 3 ? 0.95 : 0.18}"/>`).join('')}</g>`;
+    case 'halftone': {
+      let out = '';
+      for (let r = 0; r < 14; r++) for (let c = 0; c < 14; c++) {
+        const k = (r + c) / 26; // bigger dots toward the bottom-right corner
+        if (k < 0.35) continue;
+        out += `<circle cx="${470 + c * 44}" cy="${470 + r * 44}" r="${(k - 0.3) * 26}" fill="${a}" opacity="0.55"/>`;
+      }
+      return out;
+    }
+    case 'waves':
+      return Array.from({ length: 7 }, (_, i) => {
+        const y = 700 + i * 52;
+        return `<path d="M-20 ${y} C 200 ${y - 70}, 380 ${y + 70}, 580 ${y} S 960 ${y - 70}, 1100 ${y}" fill="none" stroke="${a}" stroke-width="${i === 2 ? 12 : 5}" opacity="${i === 2 ? 0.9 : 0.2}"/>`;
+      }).join('');
+    case 'layers':
+      return [0, 1, 2].map(i => `<rect x="${700 + i * 64}" y="${700 + i * 64}" width="400" height="400" rx="36" fill="${i === 2 ? a : mix(a, t.dark, 0.75 - i * 0.2)}"${i === 2 ? ' opacity="0.95"' : ''}/>`).join('');
+    case 'arcs':
+      return [420, 320, 220, 120].map((r, i) => `<circle cx="1080" cy="1080" r="${r}" fill="${i % 2 ? t.dark : mix(a, t.dark, i === 0 ? 0.7 : 0.15)}"/>`).join('');
+    case 'grid': {
+      const lines = Array.from({ length: 13 }, (_, i) => `<line x1="${i * 90}" y1="0" x2="${i * 90}" y2="${SIZE}" stroke="${t.onDark}" stroke-width="1.5" opacity="0.07"/><line x1="0" y1="${i * 90}" x2="${SIZE}" y2="${i * 90}" stroke="${t.onDark}" stroke-width="1.5" opacity="0.07"/>`).join('');
+      return lines + `<rect x="810" y="720" width="180" height="180" fill="${a}"/><rect x="720" y="900" width="90" height="90" fill="${a}" opacity="0.35"/><rect x="990" y="630" width="90" height="90" fill="${a}" opacity="0.35"/>`;
+    }
+    default:
+      return `<circle cx="960" cy="100" r="420" fill="${a}" opacity="0.22"/><circle cx="60" cy="1040" r="320" fill="${a}" opacity="0.10"/>`;
+  }
+};
+
+/** Dark brand background with a pattern, a large headline and the logo (no bullet list: a cover is read in a second). */
 const bold = (s: CoverSpec, t: Tokens, b: Brandmark) => {
-  const h = fit(s.headline, t.heading, 900, 5, 108, 52, 420);
-  const lh = h.size * 1.06;
-  const top = 190;
-  const bottom = top + h.size * 0.95 + (h.lines.length - 1) * lh + h.size * 0.28;
-  const pts = s.points.slice(0, 4);
-  const py = bottom + 70;
-  const rows = pts.map((p, i) =>
-    `<circle cx="96" cy="${py + i * 62 - 9}" r="9" fill="${t.accent}"/>` +
-    `<text x="124" y="${py + i * 62}" font-family="${t.body}" font-weight="400" font-size="34" fill="${mix(t.onDark, t.dark, 0.18)}">${esc(p.slice(0, 34))}</text>`).join('');
+  const h = fit(s.headline, t.heading, 880, 4, 112, 56, 420);
+  const top = 200;
   const num = s.bigNumber ? `<text x="1040" y="1040" font-family="${t.heading}" font-weight="700" font-size="520" text-anchor="end" fill="${t.accent}" opacity="0.14">${esc(s.bigNumber.slice(0, 3))}</text>` : '';
   return `
   <rect width="${SIZE}" height="${SIZE}" fill="${t.dark}"/>
-  <circle cx="960" cy="100" r="420" fill="${t.accent}" opacity="0.22"/>
-  <circle cx="60" cy="1040" r="320" fill="${t.accent}" opacity="0.10"/>
+  ${decorSvg(s.decor || 'orbs', t)}
   ${num}
   ${tagPill(s.tag, t, 80, 80, t.accent, t.onAccent)}
   <rect x="80" y="${top - 6}" width="64" height="8" rx="4" fill="${t.accent}"/>
   ${headlineSvg(h.lines, s.highlight, 80, top + h.size * 0.95, h.size, t, t.onDark)}
-  ${rows}
   ${logoSvg(b, t, 80, 1080 - 64 - 93, 440, 93, true)}`;
 };
 
@@ -1106,6 +1137,7 @@ export async function POST(request: Request): Promise<Response> {
       if (typeof count === 'number') n = count;
     }
     spec.layout = chooseLayout(spec, n + variant);
+    spec.decor = DECORS[Math.abs(n + variant + hashCode(title)) % DECORS.length];
 
     // 4. tokens: brand colours/fonts, else the palette Claude chose, else a neutral default
     const tokens = brandTokens(brand, spec.palette);
