@@ -50,3 +50,7 @@ export const getPostsForDate = (date: Date, posts: ScheduledPost[]): ScheduledPo
         return isSameDay(date, postDate);
     });
 };
+
+/** When a post goes live before its planned date, the date becomes the moment it was published (so it never shows as published in the future). */
+export const publishDateOnPublish = (plannedIso: string | undefined): { publishDate?: string } =>
+    plannedIso && new Date(plannedIso).getTime() > Date.now() ? { publishDate: new Date().toISOString() } : {};

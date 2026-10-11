@@ -13,7 +13,7 @@ import { ChevronDownIcon } from './icons/ChevronDownIcon.tsx';
 import { CopyIcon } from './icons/CopyIcon.tsx';
 import { DownloadIcon } from './icons/DownloadIcon.tsx';
 import { RefreshIcon } from './icons/RefreshIcon.tsx';
-import { toYYYYMMDD, fromYYYYMMDD } from '../utils/dateUtils.ts';
+import { toYYYYMMDD, fromYYYYMMDD, publishDateOnPublish } from '../utils/dateUtils.ts';
 import { uploadImageFromBase64 } from '../utils/imageStorage.ts';
 import { ArticleRenderer } from './ArticleRenderer.tsx';
 import { GeoScoreCircularProgress } from './GeoScoreCircularProgress.tsx';
@@ -299,7 +299,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
                 slug: localSlug
             };
             const result = await publishToWordPress(cmsIntegration, { ...postToPublish, articleContent: currentContent }, selectedBusiness);
-            await handleUpdatePost({ publishedUrl: result.url, published_url: result.url, slug: result.slug, wpPostId: result.wpPostId, status: 'published', metaTitle: localMetaTitle, meta_title: localMetaTitle, metaDescription: localMetaDescription, meta_description: localMetaDescription } as any);
+            await handleUpdatePost({ publishedUrl: result.url, published_url: result.url, slug: result.slug, wpPostId: result.wpPostId, status: 'published', ...publishDateOnPublish(post.publishDate), metaTitle: localMetaTitle, meta_title: localMetaTitle, metaDescription: localMetaDescription, meta_description: localMetaDescription } as any);
             logActivity(`Published to WP: ${post.keyword}`, 'success');
         } catch (error: any) {
             alert(`Publishing failed: ${error.message || 'Unknown error'}`);
