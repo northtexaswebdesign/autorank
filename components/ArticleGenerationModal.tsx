@@ -1,3 +1,4 @@
+import { publishDateOnPublish } from '../utils/dateUtils.ts';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ScheduledPost, AppTab, PostImages } from '../types.ts';
 import { Modal } from './Modal.tsx';
@@ -161,7 +162,7 @@ export const ArticleGenerationModal: React.FC<{
       const postToPublish = { ...localPost, metaTitle, meta_title: metaTitle, metaDescription, meta_description: metaDescription, slug };
       const contentWithImages = renderProcessedArticle(rawContent, localPost.images);
       const result = await publishToWordPress(cmsIntegration, { ...postToPublish, articleContent: contentWithImages }, selectedBusiness);
-      const updates = { publishedUrl: result.url, published_url: result.url, slug: result.slug, status: 'published' as const };
+      const updates = { publishedUrl: result.url, published_url: result.url, slug: result.slug, wpPostId: result.wpPostId, status: 'published' as const, ...publishDateOnPublish(localPost.publishDate) };
       setLocalPost({ ...localPost, ...updates });
       await updateScheduledPost(localPost.id, updates);
     } catch (error) {
