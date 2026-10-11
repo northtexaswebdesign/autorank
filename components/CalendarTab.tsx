@@ -32,11 +32,12 @@ const PostCard: React.FC<{ post: ScheduledPost }> = React.memo(({ post }) => {
         setEditingPost(post);
     }
 
+    // the mark fills in as the article progresses: hollow ring (not written) -> amber dot (written) -> green check (published)
     const IN_PROGRESS = { label: 'Writing', dot: 'bg-accent animate-pulse', card: 'bg-white border-[#ECE9E2]' };
     const statusConfig: { [key in ScheduledPost['status']]: { label: string; dot: string; card: string } } = {
-        'scheduled': { label: 'Scheduled', dot: 'bg-blue-600', card: 'bg-[#F3F7FE] border-[#DCE6F7]' },
+        'scheduled': { label: 'Not written yet, written and published on this date', dot: 'border-[1.5px] border-stone-400 bg-transparent', card: 'bg-white border-dashed border-stone-300' },
         'published': { label: 'Published', dot: 'bg-green-600', card: 'bg-white border-[#ECE9E2]' },
-        'draft': { label: 'Written, publishes on this date', dot: 'bg-stone-400', card: 'bg-[#F7F6F3] border-[#ECE9E2]' },
+        'draft': { label: 'Written, publishes on this date', dot: 'bg-amber-500', card: 'bg-[#FDF7EC] border-[#F1E3C6]' },
         'generating-text': IN_PROGRESS,
         'generating-images': IN_PROGRESS,
         'analyzing': IN_PROGRESS,
@@ -57,7 +58,13 @@ const PostCard: React.FC<{ post: ScheduledPost }> = React.memo(({ post }) => {
             className={`group relative rounded-lg border px-2 py-1.5 cursor-pointer text-xs transition-colors hover:border-stone-400 ${currentStatus.card}`}
         >
             <div className="flex items-start gap-1.5 min-w-0">
-                <span className={`mt-[5px] w-1.5 h-1.5 rounded-full flex-shrink-0 ${currentStatus.dot}`} aria-hidden="true" />
+                {post.status === 'published' ? (
+                    <span className="mt-[3px] w-2.5 h-2.5 rounded-full flex-shrink-0 bg-green-600 flex items-center justify-center" aria-hidden="true">
+                        <svg viewBox="0 0 10 10" className="w-2 h-2"><path d="M2.2 5.2l1.8 1.8 3.8-4" fill="none" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    </span>
+                ) : (
+                    <span className={`mt-[4px] w-2 h-2 rounded-full flex-shrink-0 ${currentStatus.dot}`} aria-hidden="true" />
+                )}
                 <span className="sr-only">{currentStatus.label}:</span>
                 <p className="font-medium text-stone-800 leading-snug line-clamp-2 break-words">{post.keyword}</p>
             </div>
@@ -293,7 +300,8 @@ export const CalendarTab: React.FC = () => {
         return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     });
     const publishedThisMonth = thisMonth.filter(p => p.status === 'published').length;
-    const scheduledThisMonth = thisMonth.filter(p => p.status !== 'published').length; // dated drafts publish on their date too
+    const writtenThisMonth = thisMonth.filter(p => p.status === 'draft').length; // written, publishes on its date
+    const notWrittenThisMonth = thisMonth.filter(p => p.status !== 'published' && p.status !== 'draft').length;
 
     return (
         <div className="flex flex-col h-full">
@@ -319,8 +327,9 @@ export const CalendarTab: React.FC = () => {
 
             <section aria-label="This month" className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 mb-4 rounded-2xl bg-[#F7F6F3] border border-[#ECE9E2] shadow-[inset_0_1px_0_#fff,0_1px_2px_rgba(28,27,25,0.05)] text-[13px] flex-shrink-0">
                 <span className="font-semibold text-stone-900">This month</span>
-                <span className="flex items-center gap-2 text-stone-600"><span className="w-2 h-2 rounded-full bg-green-600" />Published <span className="font-semibold text-stone-900 tabular-nums">{publishedThisMonth}</span></span>
-                <span className="flex items-center gap-2 text-stone-600"><span className="w-2 h-2 rounded-full bg-blue-600" />Scheduled <span className="font-semibold text-stone-900 tabular-nums">{scheduledThisMonth}</span></span>
+                <span className="flex items-center gap-2 text-stone-600"><span className="w-2 h-2 rounded-full border-[1.5px] border-stone-400" />Not written <span className="font-semibold text-stone-900 tabular-nums">{notWrittenThisMonth}</span></span>
+                <span className="flex items-center gap-2 text-stone-600"><span className="w-2 h-2 rounded-full bg-amber-500" />Written <span className="font-semibold text-stone-900 tabular-nums">{writtenThisMonth}</span></span>
+                <span className="flex items-center gap-2 text-stone-600"><span className="w-2.5 h-2.5 rounded-full bg-green-600 flex items-center justify-center"><svg viewBox="0 0 10 10" className="w-2 h-2" aria-hidden="true"><path d="M2.2 5.2l1.8 1.8 3.8-4" fill="none" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg></span>Published <span className="font-semibold text-stone-900 tabular-nums">{publishedThisMonth}</span></span>
             </section>
 
             <div ref={calendarContainerRef} className="bg-white border border-[#ECE9E2] rounded-2xl shadow-[0_1px_2px_rgba(28,27,25,0.05)] overflow-y-auto flex-grow">

@@ -139,7 +139,7 @@ export const HelpTab: React.FC = () => {
           lead={<>Fill the calendar in one click. <Ui>Autofill from content plan</Ui> schedules your approved keywords; <Ui>Autofill from all keywords</Ui> schedules your whole Recommended list.</>}>
           <Points>
             <Point title="How dates are picked.">One article per day, starting tomorrow at 9:00 your time, skipping days that already have a post. Scheduled keywords leave the planner.</Point>
-            <Point title="Reading the calendar.">A blue dot means scheduled (not written yet), grey means written and waiting for its date, a pulsing dot means Autorank is writing it now, and green means published. The bar at the top counts this month's published and scheduled posts.</Point>
+            <Point title="Reading the calendar.">The mark fills in as an article moves along: a hollow ring on a dashed card means not written yet (Autorank writes and publishes it on that date), an amber dot means written and waiting for its date, a pulsing dot means Autorank is writing it now, and a green check means published. The bar at the top counts this month's posts in each state.</Point>
             <Point title="Change the plan.">Drag a post to another day; if that day is taken, the two swap. Click a post to open it in the editor, or use the trash icon to take it off the calendar (its keyword goes back to your Content Plan).</Point>
           </Points>
           <Note>Want to review before anything goes live? Open upcoming posts and click <Ui>Generate Article with AI</Ui> ahead of time. Written drafts are published exactly as you left them on their date.</Note>
