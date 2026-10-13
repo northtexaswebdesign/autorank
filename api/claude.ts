@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 /**
  * Server-side proxy to the Claude API. The browser never sees ANTHROPIC_API_KEY.
@@ -140,17 +141,30 @@ const SEARCH_PER_ARTICLE = 4;
 const FREE_FAST_PER_DAY = 200;
 const FAST_PER_ARTICLE = 20;
 
-const meterUsage = async (db: SupabaseClient, userId: string, kind: 'article' | 'article_refund' | 'smart' | 'search' | 'fast'): Promise<Decision> => {
+// Output tokens a user may get from smart-model calls that take no article credit (rewrites, source passes,
+// keyword and competitor research), per UTC day. Counting calls alone let one "free" call write a whole article;
+// this measures what the model actually wrote. A rewrite with its source pass is roughly 15-25k tokens.
+const FREE_SMART_OUT_PER_DAY = 30_000;
+const SMART_OUT_PER_ARTICLE = 40_000;
+
+const addOutputTokens = async (db: SupabaseClient, userId: string, tokens: number) => {
+  const { error } = await db.rpc('add_ai_output_tokens', { p_user: userId, p_tokens: Math.round(tokens) });
+  if (error) console.error('output token meter failed', error.message);
+};
+
+const meterUsage = async (db: SupabaseClient, userId: string, kind: 'article' | 'article_refund' | 'smart' | 'search' | 'fast', opts: { exempt?: boolean } = {}): Promise<Decision> => {
   const { data, error } = await db.rpc('bump_ai_usage', { p_user: userId, p_kind: kind });
   if (error || !Array.isArray(data) || !data[0]) {
     console.error('usage meter failed', error?.message); // fail open: a metering outage must not block paying users
     return { ok: true };
   }
-  const u = data[0] as { articles: number; smart: number; search: number; fast?: number };
+  const u = data[0] as { articles: number; smart: number; search: number; fast?: number; smart_out?: number };
   if (kind === 'smart' && u.smart > FREE_SMART_PER_DAY + SMART_PER_ARTICLE * u.articles)
     return { ok: false, message: 'Daily limit for AI rewrites reached. It resets at midnight UTC, or write a new article to unlock more.' };
   if (kind === 'search' && u.search > FREE_SEARCH_PER_DAY + SEARCH_PER_ARTICLE * u.articles)
     return { ok: false, message: 'Daily limit for AI research reached. It resets at midnight UTC.' };
+  if (kind === 'smart' && !opts.exempt && (u.smart_out ?? 0) >= FREE_SMART_OUT_PER_DAY + SMART_OUT_PER_ARTICLE * u.articles)
+    return { ok: false, message: 'Daily AI allowance for rewrites and research reached. It resets at midnight UTC, or write a new article to unlock more.' };
   if (kind === 'fast' && (u.fast ?? 0) > FREE_FAST_PER_DAY + FAST_PER_ARTICLE * u.articles)
     return { ok: false, message: 'Daily limit for AI requests reached. It resets at midnight UTC.' };
   return { ok: true };
@@ -372,6 +386,27 @@ const monthStart = (d = new Date()) => new Date(Date.UTC(d.getUTCFullYear(), d.g
 const nextMonthStart = (d = new Date()) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
 const RELEASE_WINDOW_MS = 30 * 60_000;
 
+// The research calls of a reserved analysis carry a signed ticket, so they don't use the user's daily allowance.
+// Calls without one are ordinary calls and count against it, so skipping the reservation buys nothing.
+const TICKET_TTL_MS = 30 * 60_000;
+const TICKET_MAX_TOKENS = 3000; // research answers are short; a ticket never pays for article-length output
+const ticketSecret = () => process.env.AI_TICKET_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const signTicket = (userId: string, businessId: string, exp: number) =>
+  createHmac('sha256', ticketSecret()).update(`competitor|${userId}|${businessId}|${exp}`).digest('base64url');
+const issueCompetitorTicket = (userId: string, businessId: string) => {
+  const exp = Date.now() + TICKET_TTL_MS;
+  return `${businessId}.${exp}.${signTicket(userId, businessId, exp)}`;
+};
+const validCompetitorTicket = (ticket: unknown, userId: string): boolean => {
+  if (typeof ticket !== 'string' || !ticketSecret()) return false;
+  const [businessId, expRaw, sig] = ticket.split('.');
+  const exp = Number(expRaw);
+  if (!businessId || !sig || !Number.isFinite(exp) || exp < Date.now()) return false;
+  const expected = Buffer.from(signTicket(userId, businessId, exp));
+  const given = Buffer.from(sig);
+  return expected.length === given.length && timingSafeEqual(expected, given);
+};
+
 const handleCompetitorQuota = async (body: any, userId: string, db: SupabaseClient): Promise<Response> => {
   const businessId = String(body.businessId || '');
   if (!/^[0-9a-f-]{36}$/i.test(businessId)) return json(400, { error: 'businessId is required.' });
@@ -410,7 +445,7 @@ const handleCompetitorQuota = async (body: any, userId: string, db: SupabaseClie
       nextAvailable: next.toISOString(),
     });
   }
-  return json(200, { ok: true, previous: row.competitor_analyzed_at ?? null });
+  return json(200, { ok: true, previous: row.competitor_analyzed_at ?? null, ticket: issueCompetitorTicket(userId, businessId) });
 };
 
 export async function POST(request: Request): Promise<Response> {
@@ -452,6 +487,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!db) return json(500, { error: 'Billing is not configured on the server (SUPABASE_SERVICE_ROLE_KEY).' });
   const heavy = body.tier === 'smart' || body.webSearch === true || body.webFetch === true;
   let refund: (() => Promise<void>) | null = null;
+  let competitorResearch = false;
   if (body.kind === 'article') {
     const reservation = await reserveArticle(db, userId);
     if (!reservation.ok) return json(402, { error: reservation.message });
@@ -461,7 +497,9 @@ export async function POST(request: Request): Promise<Response> {
   } else {
     const decision = decide(await loadProfile(db, userId), heavy);
     if (!decision.ok) return json(402, { error: decision.message });
-    const metered = await meterUsage(db, userId, !heavy ? 'fast' : body.tier === 'smart' ? 'smart' : 'search');
+    // research for a reserved competitor analysis: short answers, paid for by the monthly analysis
+    competitorResearch = validCompetitorTicket(body.competitorTicket, userId) && (Number(body.maxTokens) || 8000) <= TICKET_MAX_TOKENS;
+    const metered = await meterUsage(db, userId, !heavy ? 'fast' : body.tier === 'smart' ? 'smart' : 'search', { exempt: competitorResearch });
     if (!metered.ok) return json(429, { error: metered.message });
   }
 
@@ -514,6 +552,9 @@ export async function POST(request: Request): Promise<Response> {
       if (final.stop_reason !== 'pause_turn') break;
       messages.push({ role: 'assistant', content: final.content });
     }
+
+    // what a credit-free smart call wrote counts toward the daily allowance (checked before the next call)
+    if (body.tier === 'smart' && body.kind !== 'article' && !competitorResearch) await addOutputTokens(db, userId, outputTokens);
 
     if (!final) { await refund?.(); return json(502, { error: 'No response from model.' }); }
     if (final.stop_reason === 'refusal') { await refund?.(); return json(422, { error: 'The model declined this request.' }); }

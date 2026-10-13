@@ -305,7 +305,7 @@ Reply with ONLY this JSON, no other text: {"pillar":"...","clusters":["...","...
 const MAX_COMPETITORS = 6;
 
 /** Researches one competitor with its own search budget. Never throws; an unverified result says so. */
-const researchCompetitor = async (business: BusinessInfo, url: string): Promise<CompetitorAnalysis['analysis'][number]> => {
+const researchCompetitor = async (business: BusinessInfo, url: string, competitorTicket?: string): Promise<CompetitorAnalysis['analysis'][number]> => {
     const unverified = (why: string) => ({ url, strengths: [], weaknesses: [], contentStrategySummary: `Could not research this competitor (${why}). Try again, or check the site directly.` });
     const request = () => callClaudeDetailed({
         tier: 'smart',
@@ -314,6 +314,7 @@ const researchCompetitor = async (business: BusinessInfo, url: string): Promise<
         webFetch: true,
         maxFetches: 4,
         maxTokens: 3000,
+        competitorTicket,
         messages: [{ role: 'user', content: `Research one competitor of ${business.name} (${business.description}): ${url}
 
 First open the site itself with web fetch: the homepage, then up to 3 of its own pages linked from there (services, blog or resources, about). Then use web search (at most 3 searches) for anything the pages don't show, such as how often it publishes or how it ranks. Look at what the site actually publishes: topics covered, content formats, how it presents products or services, and how well it appears to target search and AI answers. Base every point on what you found. If the site could not be opened, say that plainly in the summary (for example "the site did not load") and only use what search found.
@@ -348,14 +349,14 @@ export const analyzeCompetitors = async (
     if (!competitors.length) throw new Error('Add at least one competitor URL in Business Info, then run the analysis again.');
 
     onProgress({ value: 5, text: "Checking this month's analysis limit..." });
-    const { previous } = await reserveCompetitorAnalysis(business.id); // throws with the next available date if used
+    const { previous, ticket } = await reserveCompetitorAnalysis(business.id); // throws with the next available date if used
 
     try {
         onProgress({ value: 10, text: "Scanning competitor domains..." });
         // One request per competitor so each gets its own search budget (a single shared budget ran out after ~2 sites).
         let done = 0;
         const analysis = await Promise.all(competitors.map(async (url) => {
-            const result = await researchCompetitor(business, url);
+            const result = await researchCompetitor(business, url, ticket);
             onProgress({ value: 10 + Math.round((++done / competitors.length) * 70), text: `Researched ${done} of ${competitors.length} competitors...` });
             return result;
         }));
@@ -369,6 +370,7 @@ export const analyzeCompetitors = async (
             const text = await callClaude({
                 tier: 'smart',
                 maxTokens: 1500,
+                competitorTicket: ticket,
                 messages: [{ role: 'user', content: `${business.name} (${business.description}) targets ${business.audience}. Here is research on its competitors:\n${JSON.stringify(researched)}\n\nGive 4-6 specific, actionable content-strategy recommendations that exploit these competitors' gaps. Use only what the research says.` }],
                 schema: { type: 'object', properties: { recommendations: { type: 'array', items: { type: 'string' } } }, required: ['recommendations'], additionalProperties: false },
             });

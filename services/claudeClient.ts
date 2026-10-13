@@ -16,6 +16,8 @@ export interface ClaudeRequest {
     maxFetches?: number;
     /** 'article' = a new article; uses one credit / free trial article */
     kind?: 'article';
+    /** from reserveCompetitorAnalysis: the research calls of that analysis don't use the daily AI allowance */
+    competitorTicket?: string;
     schema?: Record<string, unknown>;
 }
 
@@ -83,7 +85,7 @@ export const callStockPhoto = async (keyword: string, businessName: string, vari
     post({ action: 'photo', keyword, businessName, variant });
 
 /** Reserves this business's one AI competitive analysis for the month. Throws (with the next available date) if it is used up. */
-export const reserveCompetitorAnalysis = async (businessId: string): Promise<{ previous: string | null }> =>
+export const reserveCompetitorAnalysis = async (businessId: string): Promise<{ previous: string | null; ticket?: string }> =>
     post({ action: 'competitor-quota', op: 'reserve', businessId });
 
 /** Gives the monthly analysis back (used when every research step failed). Best effort. */
