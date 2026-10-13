@@ -999,6 +999,29 @@ const rateLimited = (key: string) => {
   return recent.length > 20;
 };
 
+// Each cover or in-article image plan is a Sonnet call. An article makes two (cover + images), regenerating a cover
+// one more, so the cap only stops scripted loops. Kept in step with api/claude.ts (no shared imports, see top).
+const FREE_COVERS_PER_DAY = 10;
+const COVERS_PER_ARTICLE = 4;
+const CARD_TRIAL_GRACE_MS = 24 * 3600_000;
+
+/** null when this user may make a cover now, else the response to send. */
+const coverAllowed = async (db: SupabaseClient, userId: string): Promise<{ status: number; error: string } | null> => {
+  const { data: profile } = await db.from('profiles').select('plan_status, trial_end_date, stripe_customer_id').eq('id', userId).maybeSingle();
+  if (!profile || !['trial', 'paid'].includes(profile.plan_status)) return { status: 402, error: 'Your plan has expired. Please upgrade to continue.' };
+  if (profile.plan_status === 'trial' && profile.trial_end_date) {
+    // no credit check: the cover is made right after an article has used its credit, often the last one
+    if (!profile.stripe_customer_id) return { status: 402, error: 'Add a card to start your free trial (you are not charged today).' };
+    if (new Date(profile.trial_end_date).getTime() + CARD_TRIAL_GRACE_MS < Date.now()) return { status: 402, error: 'Your free trial has ended. Please upgrade to continue.' };
+  }
+  const { data, error } = await db.rpc('bump_ai_usage', { p_user: userId, p_kind: 'cover' });
+  if (error || !Array.isArray(data) || !data[0]) { console.error('usage meter failed', error?.message); return null; } // fail open
+  const u = data[0] as { articles: number; cover?: number };
+  if ((u.cover ?? 0) > FREE_COVERS_PER_DAY + COVERS_PER_ARTICLE * u.articles)
+    return { status: 429, error: 'Daily limit for cover images reached. It resets at midnight UTC, or write a new article to unlock more.' };
+  return null;
+};
+
 export async function POST(request: Request): Promise<Response> {
   if (!process.env.ANTHROPIC_API_KEY) return json(500, { error: 'ANTHROPIC_API_KEY is not configured on the server.' });
   const auth = await authenticate(request);
@@ -1022,8 +1045,8 @@ export async function POST(request: Request): Promise<Response> {
   const db = getAdmin();
   // a signed-in user needs an active plan (same rule as stock photos); the auto-publisher is already gated
   if (auth.userId && db) {
-    const { data: profile } = await db.from('profiles').select('plan_status').eq('id', auth.userId).maybeSingle();
-    if (!profile || !['trial', 'paid'].includes(profile.plan_status)) return json(402, { error: 'Your plan has expired. Please upgrade to continue.' });
+    const blocked = await coverAllowed(db, auth.userId);
+    if (blocked) return json(blocked.status, { error: blocked.error });
   }
 
   const claude = new Anthropic();

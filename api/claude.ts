@@ -135,18 +135,24 @@ const FREE_SMART_PER_DAY = 16;
 const SMART_PER_ARTICLE = 12;
 const FREE_SEARCH_PER_DAY = 40;
 const SEARCH_PER_ARTICLE = 4;
+// cheap-model calls without tools (meta, alt text, GEO score, repairs, chat): an article uses a handful, so this
+// only stops scripted loops
+const FREE_FAST_PER_DAY = 200;
+const FAST_PER_ARTICLE = 20;
 
-const meterUsage = async (db: SupabaseClient, userId: string, kind: 'article' | 'smart' | 'search'): Promise<Decision> => {
+const meterUsage = async (db: SupabaseClient, userId: string, kind: 'article' | 'article_refund' | 'smart' | 'search' | 'fast'): Promise<Decision> => {
   const { data, error } = await db.rpc('bump_ai_usage', { p_user: userId, p_kind: kind });
   if (error || !Array.isArray(data) || !data[0]) {
     console.error('usage meter failed', error?.message); // fail open: a metering outage must not block paying users
     return { ok: true };
   }
-  const u = data[0] as { articles: number; smart: number; search: number };
+  const u = data[0] as { articles: number; smart: number; search: number; fast?: number };
   if (kind === 'smart' && u.smart > FREE_SMART_PER_DAY + SMART_PER_ARTICLE * u.articles)
     return { ok: false, message: 'Daily limit for AI rewrites reached. It resets at midnight UTC, or write a new article to unlock more.' };
   if (kind === 'search' && u.search > FREE_SEARCH_PER_DAY + SEARCH_PER_ARTICLE * u.articles)
     return { ok: false, message: 'Daily limit for AI research reached. It resets at midnight UTC.' };
+  if (kind === 'fast' && (u.fast ?? 0) > FREE_FAST_PER_DAY + FAST_PER_ARTICLE * u.articles)
+    return { ok: false, message: 'Daily limit for AI requests reached. It resets at midnight UTC.' };
   return { ok: true };
 };
 // ------------------------------------------------------
@@ -449,15 +455,14 @@ export async function POST(request: Request): Promise<Response> {
   if (body.kind === 'article') {
     const reservation = await reserveArticle(db, userId);
     if (!reservation.ok) return json(402, { error: reservation.message });
-    refund = reservation.refund ?? null;
     await meterUsage(db, userId, 'article');
+    // a refunded article must not keep the extra daily allowance an article unlocks
+    refund = async () => { await reservation.refund?.(); await meterUsage(db, userId, 'article_refund'); };
   } else {
     const decision = decide(await loadProfile(db, userId), heavy);
     if (!decision.ok) return json(402, { error: decision.message });
-    if (heavy) {
-      const metered = await meterUsage(db, userId, body.tier === 'smart' ? 'smart' : 'search');
-      if (!metered.ok) return json(429, { error: metered.message });
-    }
+    const metered = await meterUsage(db, userId, !heavy ? 'fast' : body.tier === 'smart' ? 'smart' : 'search');
+    if (!metered.ok) return json(429, { error: metered.message });
   }
 
   const maxTokens = Math.min(Math.max(Number(body.maxTokens) || 8000, 256), MAX_TOKENS_CAP);
