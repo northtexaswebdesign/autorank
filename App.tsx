@@ -154,11 +154,15 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
 
     // a trial ends after its 3 articles or on its end date, whichever comes first
     const trialOver = profileTrialOver(userProfile);
+    // Work started before a sign-out (an article save, an activity log) can finish after another account signs in.
+    // The shared client then carries the new account's login, so the write would hit rows that account can't see.
+    const stillSignedIn = async () => (await supabase.auth.getSession()).data.session?.user.id === user.id;
     const contextValue: AppContextType = {
         selectedBusiness, 
         updateBusiness: async (info) => {
             // competitorAnalyzedAt is server-managed (monthly limit); never written from the browser
             const { competitorAnalyzedAt: _serverManaged, ...editable } = info;
+            if (!(await stillSignedIn())) return;
             const { error } = await supabase.from('businesses').update(camelToSnake(editable)).eq('id', info.id);
             if (error) throw new Error(`Could not save: ${error.message}`);
             setSelectedBusiness(info);
@@ -218,6 +222,7 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
                 snaked.article_content = article_content;
             }
 
+            if (!(await stillSignedIn())) return null;
             const { data, error } = await supabase.from('posts').update(snaked).eq('id', id).select().single();
             if (error) {
                 console.error("Error updating post:", error);
@@ -274,7 +279,7 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
         editingPostId,
         userProfile,
         logActivity: async (message, status) => {
-            if (!selectedBusiness) return;
+            if (!selectedBusiness || !(await stillSignedIn())) return;
             const { data } = await supabase.from('activity_logs').insert(camelToSnake({
                 createdAt: new Date().toISOString(),
                 jobName: 'UI Action',
@@ -517,6 +522,10 @@ export const App: React.FC = () => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
         return () => subscription.unsubscribe();
     }, []);
+    const userId = session?.user.id;
+    // cached articles belong to the account that opened them
+    useEffect(() => { sessionCache.clear(); }, [userId]);
     if (!session) return <LoginPage />;
-    return <AppProvider session={session}><AppInner /></AppProvider>;
+    // a new account gets a fresh provider, never the previous account's state
+    return <AppProvider key={userId} session={session}><AppInner /></AppProvider>;
 };
