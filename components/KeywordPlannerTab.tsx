@@ -358,6 +358,9 @@ export const KeywordPlannerTab: React.FC<KeywordPlannerTabProps> = ({ setActiveT
     }, [currentPage, memoizedKeywords]);
     
     const totalPages = Math.ceil(memoizedKeywords.length / KEYWORDS_PER_PAGE);
+    useEffect(() => {
+        if (currentPage > Math.max(totalPages, 1)) setCurrentPage(Math.max(totalPages, 1));
+    }, [currentPage, totalPages]);
     
     const filterMetadata = {
         all: { title: "All Keywords", description: "This is your complete keyword library, including recommended, planned and starred keywords." },

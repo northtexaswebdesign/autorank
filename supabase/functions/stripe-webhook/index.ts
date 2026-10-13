@@ -150,6 +150,8 @@ const handleEvent = async (event: any) => {
       const invoice = event.data.object;
       // the first invoice of a new subscription arrives together with checkout.session.completed, which handles it
       if (invoice.billing_reason === "subscription_create") return;
+      // a $0 invoice (e.g. a plan change during the trial) is not a payment and must not make the account paid
+      if (!(invoice.amount_paid > 0)) { console.log(`Invoice ${invoice.id} paid nothing (${invoice.billing_reason}); no change.`); return; }
       const customerId = (invoice.customer as string) || null;
 
       let user = await profileByCustomer(customerId);
@@ -168,13 +170,23 @@ const handleEvent = async (event: any) => {
 
       const periodEnd = invoice.lines?.data?.[0]?.period?.end;
       const end = periodEnd ? new Date(periodEnd * 1000) : addDays(new Date(), 30);
-      await updateProfile(user.id, { plan_status: "paid", credits_remaining: MONTHLY_CREDITS, subscription_end_date: end.toISOString() });
+      // credits refill once per billing period; a mid-cycle proration invoice keeps the credits left
+      const refill = invoice.billing_reason !== "subscription_update";
+      await updateProfile(user.id, { plan_status: "paid", ...(refill ? { credits_remaining: MONTHLY_CREDITS } : {}), subscription_end_date: end.toISOString() });
       console.log(`Renewed user ${user.id} until ${end.toISOString()}.`);
       return;
     }
 
     case "customer.subscription.deleted": {
-      const user = await profileByCustomer(event.data.object.customer as string);
+      const customerId = event.data.object.customer as string;
+      const user = await profileByCustomer(customerId);
+      // ending an old or duplicate subscription must not expire someone who still has one running
+      const others = user ? await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 20 }) : null;
+      const stillActive = others?.data.some((s: any) => s.id !== event.data.object.id && ["active", "trialing", "past_due"].includes(s.status));
+      if (stillActive) {
+        console.log(`Subscription ${event.data.object.id} ended, but customer ${customerId} has another active one; no change.`);
+        return;
+      }
       if (user) {
         await updateProfile(user.id, { plan_status: "expired" });
         console.log(`Subscription ended for user ${user.id}.`);

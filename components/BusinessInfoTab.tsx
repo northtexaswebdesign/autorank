@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AppTab, BusinessInfo } from '../types.ts';
 import { useApp } from '../context/AppContext.tsx';
 import { InputField } from './common/InputField.tsx';
@@ -38,8 +37,16 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
   const [migrationStatus, setMigrationStatus] = useState<'idle' | 'scanning' | 'migrating' | 'done'>('idle');
   const [migrationProgress, setMigrationProgress] = useState({ current: 0, total: 0 });
 
+  const pendingToggle = useRef<'autoSchedule' | 'skipImageGeneration' | null>(null);
   useEffect(() => {
     if (selectedBusiness) {
+      if (pendingToggle.current) {
+        // a toggle was just saved: take its value, keep whatever else was typed but not saved yet
+        const field = pendingToggle.current;
+        pendingToggle.current = null;
+        setFormData(prev => ({ ...prev, [field]: selectedBusiness[field] }));
+        return;
+      }
       const competitorUrls = Array.from({ length: 3 }, (_, i) => selectedBusiness.competitors?.[i] || '');
       setFormData({
           ...selectedBusiness,
@@ -50,6 +57,15 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
       });
     }
   }, [selectedBusiness]);
+
+  // a toggle saves right away; unsaved edits in the form are kept (the sync effect above would reset them)
+  const saveToggle = async (field: 'autoSchedule' | 'skipImageGeneration') => {
+    if (!selectedBusiness) return;
+    pendingToggle.current = field;
+    try {
+      await updateBusiness({ ...selectedBusiness, [field]: !formData[field] });
+    } catch (e: any) { pendingToggle.current = null; alert(e?.message || 'Could not save.'); }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -101,7 +117,7 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
         competitors: formData.competitors.filter(c => c.trim() !== ''),
     };
     try { await updateBusiness(updatedBusiness); }
-    catch (e: any) { alert(e?.message || 'Could not save. Please try again.'); return; }
+    catch (e: any) { alert(e?.message || 'Could not save. Please try again.'); setIsAnalyzing(false); return; }
 
     setIsAnalysisModalOpen(true);
     setIsAnalysisComplete(false);
@@ -310,7 +326,7 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
                     </div>
                     <button
                         type="button"
-                        onClick={() => updateBusiness({ ...selectedBusiness, autoSchedule: !formData.autoSchedule}).catch((e: any) => alert(e?.message || 'Could not save.'))}
+                        onClick={() => saveToggle('autoSchedule')}
                         className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${
                             formData.autoSchedule ? 'bg-brand-500' : 'bg-gray-200'
                         }`}
@@ -330,7 +346,7 @@ export const BusinessInfoTab: React.FC<BusinessInfoTabProps> = ({ setActiveTab }
                     </div>
                     <button
                         type="button"
-                        onClick={() => updateBusiness({ ...selectedBusiness, skipImageGeneration: !formData.skipImageGeneration}).catch((e: any) => alert(e?.message || 'Could not save.'))}
+                        onClick={() => saveToggle('skipImageGeneration')}
                         className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${
                             formData.skipImageGeneration ? 'bg-brand-500' : 'bg-gray-200'
                         }`}

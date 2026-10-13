@@ -600,9 +600,11 @@ export const analyzeArticleForGEO = async (content: string, keyword: string) => 
 };
 
 export const rewriteArticle = async (content: string, keyword: string, feedback: string[], business: BusinessInfo) => {
+    // in-article images are saved separately and matched by number, so their placeholders must survive the rewrite
+    const keptPlaceholders = [...new Set(content.match(/\[IMAGE_\d+\]/g) || [])];
     const imageInstruction = (business.skipImageGeneration || !IMAGES_ENABLED) 
         ? "5. STRICTLY NO IMAGES: Do NOT include any <img> tags, markdown images, image placeholders, base64 images, or data URIs in the HTML. The content must be 100% text only."
-        : "5. IMAGES: You MUST include exactly one image placeholder in the format <p>[IMAGE_1]</p> near the beginning of the article. Do NOT include any actual <img> tags, markdown images, base64 images, or external image URLs.";
+        : `5. IMAGES: Keep ${keptPlaceholders.length ? `every image placeholder from the current content (${keptPlaceholders.join(', ')}), each in its own <p> and next to the section it illustrates` : 'exactly one image placeholder in the format <p>[IMAGE_1]</p> near the beginning of the article'}. Do NOT include any actual <img> tags, markdown images, base64 images, or external image URLs.`;
 
     const { text: responseText, sources: searchUrls } = await callClaudeDetailed({
         tier: 'smart',
@@ -630,7 +632,7 @@ export const rewriteArticle = async (content: string, keyword: string, feedback:
 
         Return a JSON object with the following structure:
         {
-            "articleContent": "The HTML content of the rewritten article. ${(business.skipImageGeneration || !IMAGES_ENABLED) ? 'Do NOT include any images.' : 'Must include <p>[IMAGE_1]</p>.'} Must include an AI-optimized summary at the beginning and an FAQ section at the end.",
+            "articleContent": "The HTML content of the rewritten article. ${(business.skipImageGeneration || !IMAGES_ENABLED) ? 'Do NOT include any images.' : `Must include ${keptPlaceholders.length ? keptPlaceholders.map(p => `<p>${p}</p>`).join(', ') : '<p>[IMAGE_1]</p>'}.`} Must include an AI-optimized summary at the beginning and an FAQ section at the end.",
             "metaTitle": "SEO optimized meta title (around 60 characters)",
             "metaDescription": "SEO optimized meta description (around 150 characters)",
             "slug": "url-friendly-slug"
