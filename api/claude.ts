@@ -153,7 +153,7 @@ const addOutputTokens = async (db: SupabaseClient, userId: string, tokens: numbe
 };
 
 const meterUsage = async (db: SupabaseClient, userId: string, kind: 'article' | 'article_refund' | 'smart' | 'search' | 'fast', opts: { exempt?: boolean } = {}): Promise<Decision> => {
-  const { data, error } = await db.rpc('bump_ai_usage', { p_user: userId, p_kind: kind });
+  const { data, error } = await db.rpc('bump_ai_usage_v2', { p_user: userId, p_kind: kind });
   if (error || !Array.isArray(data) || !data[0]) {
     console.error('usage meter failed', error?.message); // fail open: a metering outage must not block paying users
     return { ok: true };

@@ -6,16 +6,15 @@
 -- 4. smart_out: output tokens of smart-model calls that take no article credit (rewrites, source passes, research).
 --    Counting calls was not enough: one such call can be asked to write a whole article, so the daily allowance is
 --    measured in what the model actually wrote.
--- api/claude.ts and api/cover.ts fail open when this function errors, so deploying the code first is safe.
+-- api/claude.ts and api/cover.ts fail open when these functions error, so deploying the code first is safe.
 
 alter table public.ai_usage add column if not exists fast integer not null default 0;
 alter table public.ai_usage add column if not exists cover integer not null default 0;
 alter table public.ai_usage add column if not exists smart_out integer not null default 0;
 
--- the returned columns change, so the function has to be dropped and created again
-drop function if exists public.bump_ai_usage(uuid, text);
-
-create function public.bump_ai_usage(p_user uuid, p_kind text)
+-- a new name instead of replacing bump_ai_usage: its returned columns change (that needs a drop), and the API
+-- version already deployed keeps calling the old one until the new code is live
+create or replace function public.bump_ai_usage_v2(p_user uuid, p_kind text)
 returns table(articles integer, smart integer, search integer, fast integer, cover integer, smart_out integer)
 language plpgsql
 security definer
@@ -39,7 +38,7 @@ begin
     where u.user_id = p_user and u.day = (now() at time zone 'utc')::date;
 end;
 $$;
-revoke execute on function public.bump_ai_usage(uuid, text) from public, anon, authenticated;
+revoke execute on function public.bump_ai_usage_v2(uuid, text) from public, anon, authenticated;
 
 -- Adds the output tokens of a finished smart-model call to today's total (UTC).
 create or replace function public.add_ai_output_tokens(p_user uuid, p_tokens integer)

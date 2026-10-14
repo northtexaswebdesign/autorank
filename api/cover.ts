@@ -1014,7 +1014,7 @@ const coverAllowed = async (db: SupabaseClient, userId: string): Promise<{ statu
     if (!profile.stripe_customer_id) return { status: 402, error: 'Add a card to start your free trial (you are not charged today).' };
     if (new Date(profile.trial_end_date).getTime() + CARD_TRIAL_GRACE_MS < Date.now()) return { status: 402, error: 'Your free trial has ended. Please upgrade to continue.' };
   }
-  const { data, error } = await db.rpc('bump_ai_usage', { p_user: userId, p_kind: 'cover' });
+  const { data, error } = await db.rpc('bump_ai_usage_v2', { p_user: userId, p_kind: 'cover' });
   if (error || !Array.isArray(data) || !data[0]) { console.error('usage meter failed', error?.message); return null; } // fail open
   const u = data[0] as { articles: number; cover?: number };
   if ((u.cover ?? 0) > FREE_COVERS_PER_DAY + COVERS_PER_ARTICLE * u.articles)
