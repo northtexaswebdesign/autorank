@@ -426,7 +426,8 @@ const publishToWordPress = async (cms: CmsIntegration, post: ScheduledPost, busi
     const existingId = await findExistingWpPost(baseApiUrl, `Basic ${credentials}`, {
         wpPostId: post.wpPostId,
         slug: slugFromUrl(post.publishedUrl) || slug,
-        lookUpSlug: !!post.publishedUrl || (post.publishAttempts ?? 0) > 0,
+        // only for an article we published before: on a mere retry, a post with this slug may be the client's own
+        lookUpSlug: !!post.publishedUrl,
     });
     const response = await fetch(existingId ? `${baseApiUrl}/posts/${existingId}` : `${baseApiUrl}/posts`, {
         method: 'POST',
@@ -516,6 +517,13 @@ Deno.serve(async (req: Request) => {
                         if (res.ok) content = await res.text();
                     }
 
+                    if ((!content || !content.trim()) && postRaw.status === 'draft') {
+                        // an empty draft is one the user opened in the editor to write themselves (often dated "now");
+                        // writing and publishing it here would charge for it twice and publish it unreviewed
+                        processed--;
+                        continue;
+                    }
+
                     if (!content || !content.trim()) {
                         // writing the article here is what costs the credit (or trial article); refunded if writing fails
                         const reservation = await reserveArticle(supabaseAdmin, businessRaw.user_id);
@@ -550,7 +558,7 @@ Deno.serve(async (req: Request) => {
                     }
 
                     const { link: publishedUrl, wpPostId, featureImage } = await publishToWordPress(cms, post, business);
-                    const { error: pubErr } = await supabaseAdmin.from('posts').update({ status: 'published', published_url: publishedUrl, wp_post_id: wpPostId, publish_attempts: 0, ...(featureImage ? { images: { featureImage } } : {}) }).eq('id', post.id);
+                    const { error: pubErr } = await supabaseAdmin.from('posts').update({ status: 'published', published_url: publishedUrl, wp_post_id: wpPostId, publish_attempts: 0, ...(featureImage ? { images: { ...(postRaw.images || {}), featureImage } } : {}) }).eq('id', post.id);
                     if (pubErr) throw new Error(`Failed to update post status after publishing: ${pubErr.message}`);
                     await log(business.id, 'success', `Successfully published article: "${post.keyword}"`);
 

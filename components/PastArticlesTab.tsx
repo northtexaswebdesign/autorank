@@ -50,7 +50,8 @@ const PastArticleRow: React.FC<{ post: ScheduledPost; onView: () => void; onDele
     }
     
     const currentStatus = post.status === 'published' ? statusConfig.published : statusConfig.draft;
-    const displayDate = post.updatedAt ? new Date(post.updatedAt) : new Date(post.publishDate);
+    // a published article shows its publish date (updated_at moves whenever the meta is edited)
+    const displayDate = post.status === 'published' || !post.updatedAt ? new Date(post.publishDate) : new Date(post.updatedAt);
     const dateLabel = post.status === 'published' ? 'Published' : 'Last updated';
 
     return (
@@ -143,8 +144,15 @@ export const PastArticlesTab: React.FC = () => {
     
     const totalPages = Math.ceil(filteredPosts.length / ARTICLES_PER_PAGE);
 
+    // deleting the last item on the last page would leave "Page 3 of 2" with an empty table
+    useEffect(() => {
+        if (currentPage > Math.max(totalPages, 1)) setCurrentPage(Math.max(totalPages, 1));
+    }, [currentPage, totalPages]);
+
     const handleDelete = (post: ScheduledPost) => {
-        deleteScheduledPost(post.id);
+        const live = post.status === 'published' ? ' It stays on your website; this only removes it from Autorank.' : '';
+        if (!window.confirm(`Delete "${post.keyword}"?${live}`)) return;
+        deleteScheduledPost(post.id).catch((e: any) => alert(e?.message || 'Could not delete.'));
     };
     
     const handleFilterAll = useCallback(() => setActiveFilter('all'), []);

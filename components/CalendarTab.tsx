@@ -24,7 +24,9 @@ const PostCard: React.FC<{ post: ScheduledPost }> = React.memo(({ post }) => {
 
     const handleDelete = (e: React.MouseEvent) => {
         e.stopPropagation(); // prevent opening the editor
-        unschedulePost(post.id);
+        // a published article is live on the website; unscheduling it would re-queue its keyword and write it again
+        if (post.status === 'published') return;
+        unschedulePost(post.id).catch((err: any) => alert(err?.message || 'Could not remove it.'));
     };
     
     const handleEdit = (e: React.MouseEvent) => {
@@ -72,9 +74,11 @@ const PostCard: React.FC<{ post: ScheduledPost }> = React.memo(({ post }) => {
                 <button onClick={handleEdit} className="p-1 text-stone-500 hover:text-stone-900 transition-colors" aria-label="Edit post">
                     <SparklesIcon className="w-3.5 h-3.5" />
                 </button>
+                {post.status !== 'published' && (
                 <button onClick={handleDelete} className="p-1 text-stone-500 hover:text-red-700 transition-colors" aria-label="Remove from calendar">
                     <TrashIcon className="w-3.5 h-3.5" />
                 </button>
+                )}
             </div>
         </div>
     );
@@ -279,8 +283,17 @@ export const CalendarTab: React.FC = () => {
         if (!postToMove || postToMove.publishDate === newPublishDate) {
             return;
         }
+        // a published article keeps the date it went live
+        if (postToMove.status === 'published') {
+            alert('This article is already published, so its date can\'t be changed.');
+            return;
+        }
 
         const existingPostOnTarget = scheduledPosts.find(p => p.id !== postId && isSameDay(new Date(p.publishDate), fromYYYYMMDD(targetDateStr)));
+        if (existingPostOnTarget?.status === 'published') {
+            alert('That day already has a published article. Pick another day.');
+            return;
+        }
 
         if (existingPostOnTarget) {
             const originalDate = postToMove.publishDate;

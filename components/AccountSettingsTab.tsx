@@ -151,7 +151,7 @@ export const AccountSettingsTab: React.FC = () => {
                                 {isPaid ? (
                                     <>
                                         <div className="lg:col-span-1"><p className="text-xs text-stone-500 uppercase tracking-wider font-bold mb-1">Subscription End</p><p className="text-xl font-bold text-stone-900">{formatDate(userProfile?.subscriptionEndDate)}</p></div>
-                                        <div className="lg:col-span-1"><p className="text-xs text-stone-500 uppercase tracking-wider font-bold mb-1">Credits Used</p><p className="text-xl font-bold text-stone-900">{(30 - (userProfile?.creditsRemaining ?? 0))} / 30</p></div>
+                                        <div className="lg:col-span-1"><p className="text-xs text-stone-500 uppercase tracking-wider font-bold mb-1">Credits Used</p><p className="text-xl font-bold text-stone-900">{Math.max(0, 30 - (userProfile?.creditsRemaining ?? 0))} / 30</p></div>
                                         <div className="lg:col-span-1"><p className="text-xs text-stone-500 uppercase tracking-wider font-bold mb-1">Remaining</p><p className="text-xl font-bold text-brand-600">{userProfile?.creditsRemaining ?? 0}</p></div>
                                     </>
                                 ) : (

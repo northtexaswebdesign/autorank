@@ -5,7 +5,7 @@ import { InputField } from './common/InputField.tsx';
 import { TextareaField } from './common/TextareaField.tsx';
 
 interface OnboardingModalProps {
-  onComplete: (info: Omit<BusinessInfo, 'id'>) => void;
+  onComplete: (info: Omit<BusinessInfo, 'id'>) => Promise<unknown> | void;
 }
 
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) => {
@@ -26,11 +26,13 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
   
   const isFormFilled = formData.name && formData.url && formData.description && formData.audience;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [saving, setSaving] = useState(false);
+  // one business per account: a second click while saving would insert a second row
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isFormFilled) {
-      onComplete(formData);
-    }
+    if (!isFormFilled || saving) return;
+    setSaving(true);
+    try { await onComplete(formData); } finally { setSaving(false); }
   };
 
   return (
@@ -56,7 +58,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ onComplete }) 
           </div>
           
           <div className="flex justify-end mt-8">
-            <button type="submit" disabled={!isFormFilled} className="bg-stone-700 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-stone-800 disabled:bg-stone-400 disabled:cursor-not-allowed transition-colors shadow-sm hover:shadow-md">
+            <button type="submit" disabled={!isFormFilled || saving} className="bg-stone-700 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-stone-800 disabled:bg-stone-400 disabled:cursor-not-allowed transition-colors shadow-sm hover:shadow-md">
               Next Step
             </button>
           </div>

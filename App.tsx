@@ -1,4 +1,4 @@
-import React, { useState, createContext, useContext, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, createContext, useContext, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AppTab, BusinessInfo, Keyword, ScheduledPost, CmsIntegration, AppContextType, ActivityLog, UserProfile, KeywordOpportunity } from './types.ts';
 import { Sidebar } from './components/Sidebar.tsx';
 import { BusinessInfoTab } from './components/BusinessInfoTab.tsx';
@@ -6,6 +6,7 @@ import { KeywordPlannerTab } from './components/KeywordPlannerTab.tsx';
 import { CalendarTab } from './components/CalendarTab.tsx';
 import { CMSIntegrationTab } from './components/CMSIntegrationTab.tsx';
 import { LoginPage } from './components/LoginPage.tsx';
+import { UpdatePasswordPage } from './components/UpdatePasswordPage.tsx';
 import { OnboardingModal } from './components/OnboardingModal.tsx';
 import { supabase } from './services/supabaseClient.ts';
 import { Session } from '@supabase/supabase-js';
@@ -30,7 +31,7 @@ import { SparklesIcon } from './components/icons/SparklesIcon.tsx';
 
 import { AppContext, useApp } from './context/AppContext.tsx';
 
-const POST_COLUMNS_FOR_LIST_VIEW = 'id, business_id, keyword, publish_date, status, published_url, geo_score, meta_title, meta_description, slug, updated_at, content_url';
+const POST_COLUMNS_FOR_LIST_VIEW = 'id, business_id, keyword, publish_date, status, published_url, geo_score, meta_title, meta_description, slug, updated_at, content_url, publish_attempts, images, progress';
 
 const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = ({ children, session }) => {
     const { user } = session;
@@ -48,6 +49,9 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
     const [editingPostId, setEditingPostId] = useState<string | null>(null);
     const [editingPost, setEditingPost] = useState<ScheduledPost | null>(null);
     const [isLoadingEditingPost, setIsLoadingEditingPost] = useState(false);
+    // the article open right now; async work started for another article must not take over the editor
+    const editingPostIdRef = useRef<string | null>(null);
+    editingPostIdRef.current = editingPostId;
 
     const fetchAllData = useCallback(async () => {
         if (!user) return;
@@ -56,7 +60,7 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
             const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
             if (profileData) setProfile(snakeToCamel<UserProfile>(profileData));
 
-            const { data: businesses } = await supabase.from('businesses').select('*').eq('user_id', user.id);
+            const { data: businesses } = await supabase.from('businesses').select('*').eq('user_id', user.id).order('created_at', { ascending: true });
             const currentBusiness = businesses?.[0] ? snakeToCamel<BusinessInfo>(businesses[0]) : null;
             setSelectedBusiness(currentBusiness);
 
@@ -99,6 +103,7 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
         const loadFullArticle = async () => {
             const cached = sessionCache.get<ScheduledPost>(`post-${editingPostId}`);
             if (cached && (cached.articleContent || (cached as any).article_content || cached.contentUrl || cached.content_url)) {
+                setIsLoadingEditingPost(false); // an earlier load may have been cut short while the flag was on
                 setEditingPost(cached);
                 return;
             }
@@ -144,7 +149,7 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
         };
 
         loadFullArticle();
-        return () => { stale = true; };
+        return () => { stale = true; setIsLoadingEditingPost(false); };
     }, [editingPostId]);
 
     /** Every keyword the business already targets (keyword lists and articles), so research never repeats one. */
@@ -154,17 +159,22 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
 
     // a trial ends after its 3 articles or on its end date, whichever comes first
     const trialOver = profileTrialOver(userProfile);
+    // Work started before a sign-out (an article save, an activity log) can finish after another account signs in.
+    // The shared client then carries the new account's login, so the write would hit rows that account can't see.
+    const stillSignedIn = async () => (await supabase.auth.getSession()).data.session?.user.id === user.id;
     const contextValue: AppContextType = {
         selectedBusiness, 
         updateBusiness: async (info) => {
             // competitorAnalyzedAt is server-managed (monthly limit); never written from the browser
             const { competitorAnalyzedAt: _serverManaged, ...editable } = info;
+            if (!(await stillSignedIn())) return;
             const { error } = await supabase.from('businesses').update(camelToSnake(editable)).eq('id', info.id);
             if (error) throw new Error(`Could not save: ${error.message}`);
             setSelectedBusiness(info);
         },
         createBusiness: async (info) => {
-            const { data } = await supabase.from('businesses').insert(camelToSnake({ ...info, userId: user.id })).select().single();
+            const { data, error } = await supabase.from('businesses').insert(camelToSnake({ ...info, userId: user.id })).select().single();
+            if (error) alert(`Could not save your business: ${error.message}`);
             if (data) {
                 const bus = snakeToCamel<BusinessInfo>(data);
                 setSelectedBusiness(bus);
@@ -189,13 +199,13 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
             if (!kw.id) return;
             await supabase.from('keywords').update({ is_queued: true }).eq('id', kw.id);
             setSuggestedKeywords(p => p.filter(k => k.id !== kw.id));
-            setQueuedKeywords(p => [{ ...kw, isQueued: true }, ...p]);
+            setQueuedKeywords(p => [{ ...kw, isQueued: true }, ...p.filter(k => k.id !== kw.id)]); // a double click must not list it twice
         },
         removeKeywordFromQueue: async (kw) => {
             if (!kw.id) return;
             await supabase.from('keywords').update({ is_queued: false }).eq('id', kw.id);
             setQueuedKeywords(p => p.filter(k => k.id !== kw.id));
-            setSuggestedKeywords(p => [{ ...kw, isQueued: false }, ...p]);
+            setSuggestedKeywords(p => [{ ...kw, isQueued: false }, ...p.filter(k => k.id !== kw.id)]);
         },
         deleteKeyword: async (id) => {
             await supabase.from('keywords').delete().eq('id', id);
@@ -218,6 +228,7 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
                 snaked.article_content = article_content;
             }
 
+            if (!(await stillSignedIn())) return null;
             const { data, error } = await supabase.from('posts').update(snaked).eq('id', id).select().single();
             if (error) {
                 console.error("Error updating post:", error);
@@ -251,16 +262,16 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
                     // the server may have used a credit / trial article; refresh the counters
                     supabase.from('profiles').select('*').eq('id', user.id).single().then(({ data: pd }) => { if (pd) setProfile(snakeToCamel<UserProfile>(pd)); });
                 }
-                if (editingPostId === id) {
-                    setEditingPost(merged);
-                    sessionCache.set(`post-${id}`, merged);
-                }
+                // keep a cached copy current too, or reopening this article later shows the old date/status
+                if (existing || editingPostIdRef.current === id) sessionCache.set(`post-${id}`, merged);
+                if (editingPostIdRef.current === id) setEditingPost(merged);
                 return merged;
             }
             return null;
         },
         deleteScheduledPost: async (id) => {
-            await supabase.from('posts').delete().eq('id', id);
+            const { error } = await supabase.from('posts').delete().eq('id', id);
+            if (error) throw new Error(`Could not delete: ${error.message}`);
             setScheduledPosts(p => p.filter(post => post.id !== id));
             sessionCache.delete(`post-${id}`);
             if (editingPostId === id) setEditingPostId(null);
@@ -274,7 +285,7 @@ const AppProvider: React.FC<{ children: React.ReactNode; session: Session }> = (
         editingPostId,
         userProfile,
         logActivity: async (message, status) => {
-            if (!selectedBusiness) return;
+            if (!selectedBusiness || !(await stillSignedIn())) return;
             const { data } = await supabase.from('activity_logs').insert(camelToSnake({
                 createdAt: new Date().toISOString(),
                 jobName: 'UI Action',
@@ -512,11 +523,21 @@ const AppInner: React.FC = () => {
 
 export const App: React.FC = () => {
     const [session, setSession] = useState<Session | null>(null);
+    // the reset-password email signs the user in with a recovery session; they must choose a new password first
+    const [recovering, setRecovering] = useState(() => typeof window !== 'undefined' && /type=recovery/.test(window.location.hash));
     useEffect(() => {
         supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'PASSWORD_RECOVERY') setRecovering(true);
+            setSession(session);
+        });
         return () => subscription.unsubscribe();
     }, []);
+    const userId = session?.user.id;
+    // cached articles belong to the account that opened them
+    useEffect(() => { sessionCache.clear(); }, [userId]);
+    if (recovering && session) return <UpdatePasswordPage onComplete={() => { setRecovering(false); window.history.replaceState(null, '', window.location.pathname); }} />;
     if (!session) return <LoginPage />;
-    return <AppProvider session={session}><AppInner /></AppProvider>;
+    // a new account gets a fresh provider, never the previous account's state
+    return <AppProvider key={userId} session={session}><AppInner /></AppProvider>;
 };

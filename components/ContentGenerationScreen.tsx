@@ -47,6 +47,9 @@ const getMetricBasedSuggestions = (metrics: ArticleMetrics | null, post: Schedul
     return suggestions;
 };
 
+/** Articles being written in this tab, by post id. */
+const generatingPosts = new Set<string>();
+
 export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = ({ post, onBack }) => {
     const { selectedBusiness, cmsIntegration, updateScheduledPost, activeTab, userProfile, updateUserProfile, logActivity, isLoadingEditingPost } = useApp();
     const [metrics, setMetrics] = useState<ArticleMetrics | null>(null);
@@ -199,8 +202,8 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
             const meta = await generateMetaData(currentContent, post.keyword, selectedBusiness);
             setLocalMetaTitle(meta.metaTitle || '');
             setLocalMetaDescription(meta.metaDescription || '');
-            setLocalSlug(meta.slug || '');
-            await handleUpdatePost({ metaTitle: meta.metaTitle, meta_title: meta.metaTitle, metaDescription: meta.metaDescription, meta_description: meta.metaDescription, slug: meta.slug });
+            if (!isTrulyPublished) setLocalSlug(meta.slug || '');
+            await handleUpdatePost({ metaTitle: meta.metaTitle, meta_title: meta.metaTitle, metaDescription: meta.metaDescription, meta_description: meta.metaDescription, ...(isTrulyPublished ? {} : { slug: meta.slug }) });
         } catch (e) {
             console.error("Meta generation error:", e);
         } finally {
@@ -208,11 +211,11 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
         }
     };
 
-    // one generation at a time: a second click would start a second run and use a second credit
-    const generationInFlight = useRef(false);
+    // one generation per article at a time: a second run would use a second credit. Kept outside the component so
+    // leaving the article and opening it again while it is still being written can't start another run.
     const runFullGenerationProcess = useCallback(async () => {
-        if (!selectedBusiness || generationInFlight.current) return;
-        generationInFlight.current = true;
+        if (!selectedBusiness || generatingPosts.has(post.id)) return;
+        generatingPosts.add(post.id);
         setIsGeneratingText(true);
         setGenerationProgress({ value: 5, text: 'Warming up the content engine...' });
         await handleUpdatePost({ status: 'generating-text' });
@@ -236,7 +239,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
             setGenerationProgress({ value: 95, text: 'Saving to storage...' });
             const contentUrl = await uploadArticleContent(fullArticleData.articleContent, post.id);
 
-            await handleUpdatePost({ 
+            const saved = await handleUpdatePost({ 
                 articleContent: fullArticleData.articleContent,
                 contentUrl: contentUrl || undefined,
                 geoScore: fullArticleData.geoScore, 
@@ -247,17 +250,19 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
                 images, 
                 status: 'draft' 
             } as any);
+            // updateScheduledPost reports a failed save by returning null; without this the post stays "generating" forever
+            if (!saved) throw new Error('The article was written but could not be saved. Please try again.');
             setGenerationProgress({ value: 100, text: 'Generation successful!' });
         } catch (e) {
             console.error("Generation process failed:", e);
             alert((e as any)?.message || "Failed to generate article. Please try again.");
             await handleUpdatePost({ status: 'scheduled', publishAttempts: 0 } as any);
         } finally {
-            generationInFlight.current = false;
+            generatingPosts.delete(post.id);
             setIsGeneratingText(false);
             setGenerationProgress(null);
         }
-    }, [selectedBusiness, post.keyword, advancedInstructions, handleUpdatePost]);
+    }, [selectedBusiness, post.id, post.keyword, advancedInstructions, handleUpdatePost]);
 
     const handleRewrite = useCallback(async () => {
         if (!currentContent || !selectedBusiness) return;
@@ -277,7 +282,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
                 aiFeedback: [...(rewrittenData.qualityFeedback || []), ...(analysis.aiFeedback || [])],
                 metaTitle: rewrittenData.metaTitle,
                 metaDescription: rewrittenData.metaDescription,
-                slug: rewrittenData.slug
+                ...(isTrulyPublished ? {} : { slug: rewrittenData.slug }), // a live article keeps its URL
             } as any);
             logActivity(`Rewrote article: ${post.keyword}`, 'success');
         } catch (e) {
@@ -286,7 +291,7 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
         } finally {
             setIsRewriting(false);
         }
-    }, [currentContent, post.keyword, post.aiFeedback, advancedInstructions, selectedBusiness, handleUpdatePost, logActivity]);
+    }, [currentContent, post.keyword, post.aiFeedback, advancedInstructions, selectedBusiness, handleUpdatePost, logActivity, isTrulyPublished]);
 
     const handlePublish = useCallback(async () => {
         if (!currentContent || !cmsIntegration) return;
@@ -374,6 +379,15 @@ export const ContentGenerationScreen: React.FC<ContentGenerationScreenProps> = (
 
     // generating in another tab, or a run that was interrupted (tab closed mid-way): the status stays "generating"
     const orphanedGeneration = (post.status === 'generating-text' || post.status === 'brief-generating') && !isGeneratingText && !isLoadingEditingPost;
+    if (orphanedGeneration && generatingPosts.has(post.id)) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-stone-50">
+                <h2 className="font-serif text-[26px] leading-tight text-stone-900">This article is still being written</h2>
+                <p className="text-stone-500 mt-2 max-w-lg">It keeps going in the background. Come back in a few minutes.</p>
+                <div className="mt-6"><button onClick={onBack} className="rounded-lg border border-stone-300 px-5 py-2.5 font-semibold text-stone-700 hover:bg-stone-100">Back</button></div>
+            </div>
+        );
+    }
     if (orphanedGeneration) {
         return (
             <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-stone-50">
